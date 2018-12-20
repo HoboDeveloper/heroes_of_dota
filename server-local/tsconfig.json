@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true,
+    "target": "es6",
+//    "typeRoots": ["declarations"],
+    "rootDir": "src",
+    "outDir": "../dist/game/scripts/vscripts"
+  },
+  "include": [
+    "**/*.ts",
+    "../common/*.d.ts"
+  ],
+  "luaTarget": "JIT"
+}

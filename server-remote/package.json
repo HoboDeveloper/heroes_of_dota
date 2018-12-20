@@ -1,0 +1,15 @@
+{
+  "name": "heroes-of-dota-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "node $NODE_DEBUG_OPTION dist/main.js"
+  },
+  "author": "DoctorGester",
+  "license": "ISC",
+  "dependencies": {
+    "@types/crypto-js": "^3.1.43",
+    "@types/node": "^10.12.14"
+  }
+}
