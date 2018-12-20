@@ -7,11 +7,18 @@ declare namespace json {
 
 declare interface Coroutine<T> {}
 
+declare const enum Coroutine_Status {
+    suspended = "suspended",
+    running = "running",
+    dead = "dead"
+}
+
 declare namespace coroutine {
     function create<T>(code: () => T): Coroutine<T>;
     function yield<T>(coroutine: Coroutine<T>, result?: T): T;
     function resume<T>(coroutine: Coroutine<T>, result?: T): T;
     function running<T>(): Coroutine<T> | undefined;
+    function status<T>(coroutine: Coroutine<T>): Coroutine_Status
 }
 
 
@@ -48,6 +55,76 @@ let main_player: Main_Player;
 const players: { [id: string]: Player } = {};
 const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
+const remote_root = IsInToolsMode ? "http://cia-is.moe:3638" : "http://cia-is.moe:3638";
+const scheduler: Scheduler = {
+    tasks: new Map<Coroutine<any>, Task>()
+};
+
+interface Task {
+    is_waiting: boolean;
+}
+
+interface Scheduler {
+    tasks: Map<Coroutine<any>, Task>;
+}
+
+function update_scheduler() {
+    scheduler.tasks.forEach((task, routine) => {
+        if (task.is_waiting) {
+            task.is_waiting = false;
+            coroutine.resume(routine);
+        }
+
+        if (coroutine.status(routine) == Coroutine_Status.dead) {
+            scheduler.tasks.delete(routine);
+        }
+    });
+}
+
+function fork(code: () => void) {
+    const task: Task = {
+        is_waiting: false
+    };
+
+    const routine = coroutine.create(code);
+
+    scheduler.tasks.set(routine, task);
+
+    coroutine.resume(routine);
+}
+
+function wait_one_frame() {
+    const routine = coroutine.running();
+    const task = scheduler.tasks.get(routine as Coroutine<any>);
+
+    if (task && routine) {
+        task.is_waiting = true;
+
+        coroutine.yield(routine);
+    } else {
+        throw "Not in a fork";
+    }
+}
+
+function wait(time: number) {
+    const start_time = GameRules.GetGameTime();
+
+    wait_until(() => GameRules.GetGameTime() - start_time < time);
+}
+
+function wait_until(condition: () => boolean) {
+    while (!condition()) {
+        wait_one_frame();
+    }
+}
+
+function log_message(message: string) {
+    const final_message = `[${GameRules.GetGameTime()}] ${message}`;
+
+    CustomGameEventManager.Send_ServerToAllClients("log_message", { message: final_message });
+
+    print(final_message);
+}
 
 function get_dedicated_server_key() {
     return GetDedicatedServerKey("v1");
@@ -75,9 +152,10 @@ function main() {
     ListenToGameEvent("player_connect_full", event => {
         const id = event.PlayerID;
 
-        coroutine.resume(coroutine.create(() => {
+        fork(() => {
             on_player_connected(id);
-        }));
+        });
+
     }, null);
 }
 
@@ -207,6 +285,8 @@ function update_main_player_movement_history(hero_unit: CDOTA_BaseNPC_Hero) {
 }
 
 function update() {
+    update_scheduler();
+
     const time_now = GameRules.GetGameTime();
     const hero_unit = main_player.hero_unit;
 
@@ -217,6 +297,11 @@ function update() {
 
         if (assigned_hero) {
             main_player.hero_unit = assigned_hero;
+
+            const location = assigned_hero.GetAbsOrigin();
+
+            main_player.current_order_x = location.x;
+            main_player.current_order_y = location.y;
         }
 
         return;
@@ -231,8 +316,6 @@ function update() {
         query_other_players_movement();
     }
 }
-
-const remote_root = "http://127.0.0.1:3637";
 
 function init_player_related_handlers() {
     const mode = GameRules.GetGameModeEntity();
@@ -252,14 +335,22 @@ function init_player_related_handlers() {
 function on_player_connected(id: PlayerID) {
     PlayerResource.GetPlayer(id).SetTeam(DOTATeam_t.DOTA_TEAM_GOODGUYS);
 
+    const steam_id = PlayerResource.GetSteamID(id).toString();
+
+    log_message(`Player ${steam_id} has connected, requesting token`);
+
     const token_result = remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
-        steam_id: PlayerResource.GetSteamID(id).toString(),
+        steam_id: steam_id,
         dedicated_server_key: get_dedicated_server_key()
     });
 
     if (!token_result) {
+        log_message(`Unable to acquire token for player ${steam_id}`);
+
         throw "Unable to acquire token for player";
     }
+
+    log_message(`Acquired token for ${steam_id}`);
 
     const token = token_result.token;
 
@@ -273,26 +364,36 @@ function on_player_connected(id: PlayerID) {
         current_order_y: 0
     };
 
+    init_player_related_handlers();
+
     const characters = remote_request<Get_Player_Characters_Request, Character[]>("/get_player_characters", { access_token: token });
 
     if (!characters) {
         throw "Unable to acquire characters";
     }
 
-    if (characters.length == 0) {
-        const new_character = remote_request<Create_New_Character_Request, Character>("/create_new_character", { access_token: token });
+    log_message(`Got characters for ${steam_id}`);
 
-        print(new_character);
+    if (characters.length == 0) {
+        remote_request<Create_New_Character_Request, Character>("/create_new_character", { access_token: token });
     } else {
-        remote_request("/login_with_character", {
+        while (!main_player.hero_unit) {
+            wait_one_frame();
+        }
+
+        const login_response = remote_request<Login_With_Character_Request, Login_With_Character_Response>("/login_with_character", {
             access_token: token,
             character_id: characters[0].id
         });
 
-        print("Characters", characters);
-    }
+        if (!login_response) {
+            throw "Failed to login";
+        }
 
-    init_player_related_handlers();
+        log_message(`Logged in at ${login_response.position.x}, ${login_response.position.y}`);
+
+        main_player.hero_unit.SetAbsOrigin(Vector(login_response.position.x, login_response.position.y));
+    }
 }
 
 
@@ -304,7 +405,7 @@ function remote_request_async<T extends Object, N extends Object>(endpoint: stri
         if (response.StatusCode == 200) {
             callback(json.decode(response.Body) as N);
         } else {
-            print("Error executing request to", endpoint, response.StatusCode, response.Body);
+            log_message(`Error executing request to ${endpoint}: code ${response.StatusCode}, ${response.Body}`);
         }
     });
 }
@@ -322,7 +423,7 @@ function remote_request<T extends Object, N extends Object>(endpoint: string, bo
         if (response.StatusCode == 200) {
             coroutine.resume(current_coroutine, json.decode(response.Body) as N);
         } else {
-            print("Error executing request to", endpoint, response.StatusCode, response.Body);
+            log_message(`Error executing request to ${endpoint}: code ${response.StatusCode}, ${response.Body}`);
             coroutine.resume(current_coroutine, undefined);
         }
     });
@@ -331,7 +432,4 @@ function remote_request<T extends Object, N extends Object>(endpoint: string, bo
 }
 
 function start_game() {
-    // CreateHTTPRequestScriptVM("GET", "http://127.0.0.1:3637/trusted/try_authorize_steam_user")
-
-    print("DOGS AND RATS");
 }

@@ -29,8 +29,16 @@ const steam_id_to_player = new Map<string, Player>();
 let player_id_auto_increment = 0;
 let character_id_auto_increment = 0;
 
-const test_player = make_new_player();
-players.push(test_player);
+{ // TODO remove
+    const test_player = make_new_player();
+    players.push(test_player);
+    test_player.movement_history = [{
+        location_x: 0,
+        location_y: 0,
+        order_x: 0,
+        order_y: 0
+    }];
+}
 
 function generate_access_token() {
     return randomBytes(32).toString("hex");
@@ -189,7 +197,10 @@ handlers.set("/login_with_character", body => {
 
     if (result) {
         return make_ok_json({
-            position: result.player.current_location
+            position: {
+                x: result.player.current_location.x,
+                y: result.player.current_location.y
+            }
         });
     } else {
         return make_error(400);
@@ -213,16 +224,6 @@ handlers.set("/trusted/submit_player_movement", body => {
             location_x: entry.location_x,
             location_y: entry.location_y
         }));
-
-        {
-            test_player.current_location = xy(request.current_location.x + 800, request.current_location.y);
-            test_player.movement_history = request.movement_history.map(entry => ({
-                order_x: entry.order_x + 800,
-                order_y: entry.order_y,
-                location_x: entry.location_x + 800,
-                location_y: entry.location_y
-            }));
-        }
     });
 
     return make_ok_json({});
@@ -361,7 +362,7 @@ export function start_server() {
                 }
             }
         });
-    }).listen(3637);
+    }).listen(3638);
 }
 
 

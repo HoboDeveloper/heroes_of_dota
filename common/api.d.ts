@@ -50,3 +50,9 @@ type Login_With_Character_Request = {
     character_id: number
 };
 
+type Login_With_Character_Response = {
+    position: {
+        x: number,
+        y: number
+    }
+}
