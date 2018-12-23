@@ -1,4 +1,4 @@
-import {XY, xy, xy_equal} from "./common";
+import {unreachable, XY, xy, xy_equal} from "./common";
 import {Player} from "./server";
 
 const battles: Battle[] = [];
@@ -54,6 +54,11 @@ interface Battle {
     turning_player_index: number;
 }
 
+// TODO very slow
+export function is_player_in_battle(which_player: Player) {
+    return battles.some(battle => battle.players.some(player => which_player == player));
+}
+
 function grid_cell_at(grid: Grid, at: XY): Cell | undefined {
     if (at.x < 0 || at.x >= grid.size.x || at.y < 0 || at.y >= grid.size.y) {
         return undefined;
@@ -72,10 +77,6 @@ function manhattan(from: XY, to: XY) {
 
 function hero_at(battle: Battle, at: XY): Hero | undefined {
     return battle.heroes.find(hero => !hero.dead && xy_equal(at, hero.position));
-}
-
-function unreachable(x: never): never {
-    throw new Error("Didn't expect to get here");
 }
 
 function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number) {

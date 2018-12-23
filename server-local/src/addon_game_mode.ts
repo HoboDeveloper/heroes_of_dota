@@ -1,28 +1,6 @@
-declare function GetDedicatedServerKey(version: string): string;
-
-declare namespace json {
-    function decode(input: string): object;
-    function encode(input: object): string;
-}
-
-declare interface Coroutine<T> {}
-
-declare const enum Coroutine_Status {
-    suspended = "suspended",
-    running = "running",
-    dead = "dead"
-}
-
-declare namespace coroutine {
-    function create<T>(code: () => T): Coroutine<T>;
-    function yield<T>(coroutine: Coroutine<T>, result?: T): T;
-    function resume<T>(coroutine: Coroutine<T>, result?: T): T;
-    function running<T>(): Coroutine<T> | undefined;
-    function status<T>(coroutine: Coroutine<T>): Coroutine_Status
-}
-
-
-// End declarations
+require("scheduler");
+require("requests");
+require("calls");
 
 function Activate() { main(); }
 function Precache(context: CScriptPrecacheContext) {
@@ -38,85 +16,16 @@ interface Player {
 interface Main_Player {
     token: string;
     player_id: PlayerID;
-    last_submitted_movement_history_at: number;
-    last_updated_movement_history_at: number;
-    hero_unit?: CDOTA_BaseNPC_Hero; // TODO shouldn't be optional
+    hero_unit: CDOTA_BaseNPC_Hero;
     movement_history: Movement_History_Entry[]
     current_order_x: number;
     current_order_y: number;
+    state: Player_State;
 }
 
-interface Character {
-    id: number;
-}
-
-let main_player: Main_Player;
-
-const players: { [id: string]: Player } = {};
+const players: { [id: number]: Player } = {};
 const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
-const remote_root = IsInToolsMode ? "http://cia-is.moe:3638" : "http://cia-is.moe:3638";
-const scheduler: Scheduler = {
-    tasks: new Map<Coroutine<any>, Task>()
-};
-
-interface Task {
-    is_waiting: boolean;
-}
-
-interface Scheduler {
-    tasks: Map<Coroutine<any>, Task>;
-}
-
-function update_scheduler() {
-    scheduler.tasks.forEach((task, routine) => {
-        if (task.is_waiting) {
-            task.is_waiting = false;
-            coroutine.resume(routine);
-        }
-
-        if (coroutine.status(routine) == Coroutine_Status.dead) {
-            scheduler.tasks.delete(routine);
-        }
-    });
-}
-
-function fork(code: () => void) {
-    const task: Task = {
-        is_waiting: false
-    };
-
-    const routine = coroutine.create(code);
-
-    scheduler.tasks.set(routine, task);
-
-    coroutine.resume(routine);
-}
-
-function wait_one_frame() {
-    const routine = coroutine.running();
-    const task = scheduler.tasks.get(routine as Coroutine<any>);
-
-    if (task && routine) {
-        task.is_waiting = true;
-
-        coroutine.yield(routine);
-    } else {
-        throw "Not in a fork";
-    }
-}
-
-function wait(time: number) {
-    const start_time = GameRules.GetGameTime();
-
-    wait_until(() => GameRules.GetGameTime() - start_time < time);
-}
-
-function wait_until(condition: () => boolean) {
-    while (!condition()) {
-        wait_one_frame();
-    }
-}
 
 function log_message(message: string) {
     const final_message = `[${GameRules.GetGameTime()}] ${message}`;
@@ -141,26 +50,16 @@ function main() {
     GameRules.SetCustomGameSetupTimeout(0);
     GameRules.SetCustomGameSetupRemainingTime(0);
 
-    ListenToGameEvent("game_rules_state_change", () => {
-        const new_state = GameRules.State_Get();
+    mode.SetContextThink("scheduler_think", () => {
+        update_scheduler();
+        return 0;
+    }, 0);
 
-        if (new_state == DOTA_GameState.DOTA_GAMERULES_STATE_GAME_IN_PROGRESS) {
-            start_game();
-        }
-    }, null);
-
-    ListenToGameEvent("player_connect_full", event => {
-        const id = event.PlayerID;
-
-        fork(() => {
-            on_player_connected(id);
-        });
-
-    }, null);
+    fork(game_loop);
 }
 
-function submit_player_movement(hero_unit: CDOTA_BaseNPC_Hero) {
-    const current_location = hero_unit.GetAbsOrigin();
+function submit_player_movement(main_player: Main_Player) {
+    const current_location = main_player.hero_unit.GetAbsOrigin();
     const request: Submit_Player_Movement_Request = {
         access_token: main_player.token,
         current_location: {
@@ -176,22 +75,40 @@ function submit_player_movement(hero_unit: CDOTA_BaseNPC_Hero) {
         dedicated_server_key: get_dedicated_server_key()
     };
 
-    remote_request_async("/trusted/submit_player_movement", request, () => {});
+    remote_request_with_retry_on_403("/trusted/submit_player_movement", main_player, request);
 }
 
-function on_player_order(event: ExecuteOrderEvent) {
-    if (!main_player.hero_unit) {
-        return;
-    }
+function process_player_order(main_player: Main_Player, order: ExecuteOrderEvent): boolean {
+    for (let index in order.units) {
+        if (order.units[index] == main_player.hero_unit.entindex()) {
+            if (order.order_type == DotaUnitOrder_t.DOTA_UNIT_ORDER_MOVE_TO_POSITION) {
+                main_player.current_order_x = order.position_x;
+                main_player.current_order_y = order.position_y;
+            } else if (order.order_type == DotaUnitOrder_t.DOTA_UNIT_ORDER_ATTACK_TARGET) {
+                const attacked_entity = EntIndexToHScript(order.entindex_target);
 
-    for (let index in event.units) {
-        if (event.units[index] == main_player.hero_unit.entindex()) {
-            main_player.current_order_x = event.position_x;
-            main_player.current_order_y = event.position_y;
+                for (let player_id in players) {
+                    const player = players[player_id];
+
+                    if (player.hero_unit == attacked_entity) {
+                        fork(() => {
+                            attack_player(main_player, player.id);
+                        });
+
+                        break;
+                    }
+                }
+
+                return false;
+            } else {
+                return false;
+            }
 
             break;
         }
     }
+
+    return true;
 }
 
 function create_new_player_from_response(response: Player_Movement_Data): Player {
@@ -214,7 +131,6 @@ function create_new_player_from_response(response: Player_Movement_Data): Player
 function update_player_from_movement_history(player: Player) {
     const current_unit_position = player.hero_unit.GetAbsOrigin();
     const snap_distance = 400;
-    const snap_distance_squared = snap_distance * snap_distance;
 
     let closest_entry: Movement_History_Entry | undefined;
     let minimum_distance = 1e6;
@@ -224,7 +140,7 @@ function update_player_from_movement_history(player: Player) {
         const delta = current_unit_position - Vector(entry.location_x, entry.location_y) as Vec;
         const distance = delta.Length2D();
 
-        if (distance <= snap_distance_squared && distance <= minimum_distance) {
+        if (distance <= snap_distance && distance <= minimum_distance) {
             minimum_distance = distance;
             closest_entry = entry;
             closest_entry_index = entry_index;
@@ -238,39 +154,42 @@ function update_player_from_movement_history(player: Player) {
     } else {
         const last_entry = player.movement_history[player.movement_history.length - 1];
 
-        player.hero_unit.SetAbsOrigin(Vector(last_entry.location_x, last_entry.location_y));
+        FindClearSpaceForUnit(player.hero_unit, Vector(last_entry.location_x, last_entry.location_y), true);
         player.hero_unit.MoveToPosition(Vector(last_entry.order_x, last_entry.order_y));
-
     }
 }
 
-function query_other_players_movement() {
+function query_other_players_movement(main_player: Main_Player) {
     const request: Query_Players_Movement_Request = {
         access_token: main_player.token,
         dedicated_server_key: get_dedicated_server_key()
     };
 
-    remote_request_async<Query_Players_Movement_Request, Query_Players_Movement_Response>("/trusted/query_players_movement", request, response => {
-        response.forEach(player_data => {
-            const player = players[player_data.id] as Player | undefined;
+    const response = remote_request_with_retry_on_403<Query_Players_Movement_Request, Query_Players_Movement_Response>("/trusted/query_players_movement", main_player, request);
 
-            if (player) {
-                player.movement_history = player_data.movement_history;
+    if (!response) {
+        return;
+    }
 
-                update_player_from_movement_history(player);
-            } else {
-                const new_player = create_new_player_from_response(player_data);
+    response.forEach(player_data => {
+        const player = players[player_data.id] as Player | undefined;
 
-                players[new_player.id] = new_player;
+        if (player) {
+            player.movement_history = player_data.movement_history;
 
-                update_player_from_movement_history(new_player);
-            }
-        })
-    });
+            update_player_from_movement_history(player);
+        } else {
+            const new_player = create_new_player_from_response(player_data);
+
+            players[new_player.id] = new_player;
+
+            update_player_from_movement_history(new_player);
+        }
+    })
 }
 
-function update_main_player_movement_history(hero_unit: CDOTA_BaseNPC_Hero) {
-    const location = hero_unit.GetAbsOrigin();
+function update_main_player_movement_history(main_player: Main_Player) {
+    const location = main_player.hero_unit.GetAbsOrigin();
 
     main_player.movement_history.push({
         order_x: main_player.current_order_x,
@@ -284,152 +203,170 @@ function update_main_player_movement_history(hero_unit: CDOTA_BaseNPC_Hero) {
     }
 }
 
-function update() {
-    update_scheduler();
+function attack_player(main_player: Main_Player, target_player_id: number) {
+    const attack_result = remote_request<Attack_Player_Request, Attack_Player_Response>("/trusted/attack_player", {
+        access_token: main_player.token,
+        dedicated_server_key: get_dedicated_server_key(),
+        target_player_id: target_player_id
+    });
 
-    const time_now = GameRules.GetGameTime();
-    const hero_unit = main_player.hero_unit;
-
-    // TODO we can subscribe to hero spawn
-    if (!hero_unit) {
-        const player_handle = PlayerResource.GetPlayer(main_player.player_id);
-        const assigned_hero = player_handle.GetAssignedHero();
-
-        if (assigned_hero) {
-            main_player.hero_unit = assigned_hero;
-
-            const location = assigned_hero.GetAbsOrigin();
-
-            main_player.current_order_x = location.x;
-            main_player.current_order_y = location.y;
-        }
-
-        return;
+    if (!attack_result) {
+        throw "Failed to perform attack";
     }
 
-    update_main_player_movement_history(hero_unit);
-
-    if (time_now >= main_player.last_submitted_movement_history_at + movement_history_submit_rate) {
-        main_player.last_submitted_movement_history_at = time_now;
-
-        submit_player_movement(hero_unit);
-        query_other_players_movement();
-    }
+    // TODO set state immediately after we verify that independent state transitions work
 }
 
-function init_player_related_handlers() {
+function on_player_connected_async(callback: (player_id: PlayerID) => void) {
+    ListenToGameEvent("player_connect_full", event => callback(event.PlayerID), null);
+}
+
+function on_player_hero_spawned_async(player_id: PlayerID, callback: (entity: CDOTA_BaseNPC_Hero) => void) {
+    ListenToGameEvent("npc_spawned", event => {
+        const entity = EntIndexToHScript(event.entindex) as CDOTA_BaseNPC;
+
+        if (entity.IsRealHero() && entity.GetPlayerID() == player_id) {
+            callback(entity);
+        }
+
+    }, null);
+}
+
+function on_player_order_async(callback: (event: ExecuteOrderEvent) => boolean) {
     const mode = GameRules.GetGameModeEntity();
 
-    mode.SetContextThink("main_think", () => {
-        update();
-        return 0;
-    }, 0);
-
     mode.SetExecuteOrderFilter((context, event) => {
-        on_player_order(event);
-
-        return true;
+        return callback(event);
     }, mode);
 }
 
-function on_player_connected(id: PlayerID) {
-    PlayerResource.GetPlayer(id).SetTeam(DOTATeam_t.DOTA_TEAM_GOODGUYS);
+function process_player_state(main_player: Main_Player, state_data: Player_State_Data) {
+    main_player.state = state_data.state;
 
-    const steam_id = PlayerResource.GetSteamID(id).toString();
+    switch (state_data.state) {
+        case Player_State.not_logged_in: {
+            const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
+            let selected_character: number;
 
-    log_message(`Player ${steam_id} has connected, requesting token`);
+            if (characters.length == 0) {
+                const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
 
-    const token_result = remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
-        steam_id: steam_id,
-        dedicated_server_key: get_dedicated_server_key()
-    });
+                selected_character = new_character.id;
+            } else {
+                selected_character = characters[0].id;
+            }
 
-    if (!token_result) {
-        log_message(`Unable to acquire token for player ${steam_id}`);
+            try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
 
-        throw "Unable to acquire token for player";
+            break;
+        }
+
+        case Player_State.on_global_map: {
+            break;
+        }
+
+        case Player_State.in_battle: {
+            break;
+        }
     }
 
-    log_message(`Acquired token for ${steam_id}`);
+    FindClearSpaceForUnit(main_player.hero_unit, Vector(state_data.player_position.x, state_data.player_position.y), true);
 
-    const token = token_result.token;
+    main_player.current_order_x = state_data.player_position.x;
+    main_player.current_order_y = state_data.player_position.y;
+}
 
-    main_player = {
-        player_id: id,
-        token: token,
-        last_submitted_movement_history_at: 0,
-        last_updated_movement_history_at: 0,
+function process_state_transition(main_player: Main_Player, player_state: Player_State_Data) {
+    const current_state = main_player.state;
+    const next_state = player_state.state;
+
+    main_player.state = next_state;
+
+    if (current_state == Player_State.on_global_map && next_state == Player_State.in_battle) {
+        print("Battle started");
+    }
+}
+
+function submit_and_query_movement_loop(main_player: Main_Player) {
+    while (true) {
+        // TODO decide if we want to query other players movements even in battle
+        wait_until(() => main_player.state == Player_State.on_global_map);
+        wait(movement_history_submit_rate);
+
+        fork(() => submit_player_movement(main_player));
+        fork(() => query_other_players_movement(main_player));
+    }
+}
+
+function game_loop() {
+    let player_id: PlayerID | undefined = undefined;
+    let player_token: string | undefined;
+    let player_unit: CDOTA_BaseNPC_Hero | undefined = undefined;
+
+    on_player_connected_async(id => player_id = id);
+
+    while (player_id == undefined) wait_one_frame();
+
+    print(`Player ${PlayerResource.GetSteamID(player_id).toString()} has connected`);
+
+    PlayerResource.GetPlayer(player_id).SetTeam(DOTATeam_t.DOTA_TEAM_GOODGUYS);
+
+    // We hope that hero spawn happens strictly after player connect, otherwise it doesn't make sense anyway
+    on_player_hero_spawned_async(player_id, entity => player_unit = entity);
+
+    while ((player_token = try_authorize_user(player_id, get_dedicated_server_key())) == undefined) wait(3);
+    while ((player_unit == undefined)) wait_one_frame();
+
+    print(`Authorized, hero unit found`);
+
+    const main_player: Main_Player = {
+        player_id: player_id,
+        hero_unit: player_unit,
+        token: player_token,
         movement_history: [],
         current_order_x: 0,
-        current_order_y: 0
+        current_order_y: 0,
+        state: Player_State.not_logged_in
     };
 
-    init_player_related_handlers();
+    const player_state = try_with_delays_until_success(1, () => try_get_player_state(main_player));
 
-    const characters = remote_request<Get_Player_Characters_Request, Character[]>("/get_player_characters", { access_token: token });
+    print(`State received`);
 
-    if (!characters) {
-        throw "Unable to acquire characters";
-    }
+    process_player_state(main_player, player_state);
 
-    log_message(`Got characters for ${steam_id}`);
+    on_player_order_async(order => process_player_order(main_player, order));
 
-    if (characters.length == 0) {
-        remote_request<Create_New_Character_Request, Character>("/create_new_character", { access_token: token });
-    } else {
-        while (!main_player.hero_unit) {
+    let state_transition: Player_State_Data | undefined = undefined;
+
+    fork(() => submit_and_query_movement_loop(main_player));
+    fork(() => {
+        while(true) {
+            const state_data = try_get_player_state(main_player);
+
+            if (state_data && state_data.state != main_player.state) {
+                print(`Well I have a new state transition and it is ${main_player.state} -> ${state_data.state}`);
+
+                state_transition = state_data;
+            }
+
+            wait(2);
+        }
+    });
+
+    fork(() => {
+        while(true) {
+            update_main_player_movement_history(main_player);
             wait_one_frame();
         }
-
-        const login_response = remote_request<Login_With_Character_Request, Login_With_Character_Response>("/login_with_character", {
-            access_token: token,
-            character_id: characters[0].id
-        });
-
-        if (!login_response) {
-            throw "Failed to login";
-        }
-
-        log_message(`Logged in at ${login_response.position.x}, ${login_response.position.y}`);
-
-        main_player.hero_unit.SetAbsOrigin(Vector(login_response.position.x, login_response.position.y));
-    }
-}
-
-
-function remote_request_async<T extends Object, N extends Object>(endpoint: string, body: T, callback: (data: N) => void) {
-    const request = CreateHTTPRequestScriptVM("POST", remote_root + endpoint);
-
-    request.SetHTTPRequestRawPostBody("application/json", json.encode(body));
-    request.Send(response => {
-        if (response.StatusCode == 200) {
-            callback(json.decode(response.Body) as N);
-        } else {
-            log_message(`Error executing request to ${endpoint}: code ${response.StatusCode}, ${response.Body}`);
-        }
-    });
-}
-
-function remote_request<T extends Object, N extends Object>(endpoint: string, body: T): N | undefined {
-    const request = CreateHTTPRequestScriptVM("POST", remote_root + endpoint);
-    const current_coroutine = coroutine.running() as Coroutine<N>;
-
-    if (!current_coroutine) {
-        throw "Not in a coroutine!";
-    }
-
-    request.SetHTTPRequestRawPostBody("application/json", json.encode(body));
-    request.Send(response => {
-        if (response.StatusCode == 200) {
-            coroutine.resume(current_coroutine, json.decode(response.Body) as N);
-        } else {
-            log_message(`Error executing request to ${endpoint}: code ${response.StatusCode}, ${response.Body}`);
-            coroutine.resume(current_coroutine, undefined);
-        }
     });
 
-    return coroutine.yield(current_coroutine);
-}
+    while (true) {
+        if (state_transition) {
+            process_state_transition(main_player, state_transition);
+            state_transition = undefined;
+        }
 
-function start_game() {
+        wait_one_frame();
+    }
 }
