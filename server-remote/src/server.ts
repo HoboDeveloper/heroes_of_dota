@@ -1,6 +1,6 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
-import {start_battle} from "./battle";
+import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action} from "./battle";
 import {unreachable, XY, xy} from "./common";
 
 type Request_Handler = (body: string) => Request_Result;
@@ -12,6 +12,7 @@ const enum Result_Type {
 
 const enum Right {
     submit_battle_action,
+    query_battle_actions,
     log_in_with_character,
     attack_a_character,
     submit_movement
@@ -24,6 +25,7 @@ export interface Player {
     current_location: XY;
     movement_history: Movement_History_Entry[];
     state: Player_State;
+    current_battle_id: number; // TODO maybe we don't want to have current_battle_id in other states, but a union for 1 value? ehh
 }
 
 interface Character {
@@ -59,7 +61,8 @@ function make_new_player(): Player {
         characters: [],
         current_character: undefined,
         current_location: xy(0, 0),
-        movement_history: []
+        movement_history: [],
+        current_battle_id: 0
     }
 }
 
@@ -106,7 +109,7 @@ function try_do_with_player<T>(access_token: string, do_what: (player: Player) =
     }
 }
 
-function player_action_to_result<N, T>(result: Do_With_Player_Result<N>, map?: (data: N) => T): Request_Result {
+function action_on_player_to_result<N, T>(result: Do_With_Player_Result<N>, map?: (data: N) => T): Request_Result {
     switch (result.type) {
         case Do_With_Player_Result_Type.ok: {
             if (map) {
@@ -216,6 +219,10 @@ function can_player(player: Player, right: Right) {
             return player.state == Player_State.in_battle;
         }
 
+        case Right.query_battle_actions: {
+            return player.state == Player_State.in_battle;
+        }
+
     }
 
     return unreachable(right);
@@ -223,6 +230,19 @@ function can_player(player: Player, right: Right) {
 
 function validate_dedicated_server_key(key: string) {
     return true;
+}
+
+function initiate_battle_between_players(player_one: Player, player_two: Player) {
+    player_one.state = Player_State.in_battle;
+    player_two.state = Player_State.in_battle;
+
+    const battle_id = start_battle([
+        player_one,
+        player_two
+    ]);
+
+    player_one.current_battle_id = battle_id;
+    player_two.current_battle_id = battle_id;
 }
 
 // TODO automatically validate dedicated key on /trusted path
@@ -248,21 +268,21 @@ handlers.set("/get_player_state", body => {
     const request = JSON.parse(body) as Get_Player_State_Request;
     const player_state = try_do_with_player(request.access_token, player_to_player_state_object);
 
-    return player_action_to_result(player_state);
+    return action_on_player_to_result(player_state);
 });
 
 handlers.set("/get_player_characters", body => {
     const request = JSON.parse(body) as Get_Player_Characters_Request;
     const characters = try_do_with_player(request.access_token, get_player_characters);
 
-    return player_action_to_result<Character[], Get_Player_Characters_Response>(characters, characters => characters.map(character_to_json_object));
+    return action_on_player_to_result<Character[], Get_Player_Characters_Response>(characters, characters => characters.map(character_to_json_object));
 });
 
 handlers.set("/create_new_character", body => {
     const request = JSON.parse(body) as Create_New_Character_Request;
     const character = try_do_with_player(request.access_token, create_new_character_for_player);
 
-    return player_action_to_result<Character, Create_New_Character_Response>(character, character_to_json_object);
+    return action_on_player_to_result<Character, Create_New_Character_Response>(character, character_to_json_object);
 });
 
 handlers.set("/login_with_character", body => {
@@ -284,7 +304,7 @@ handlers.set("/login_with_character", body => {
         }
     });
 
-    return player_action_to_result<Player_With_Character, Player_State_Data>(result, result => player_to_player_state_object(result.player));
+    return action_on_player_to_result<Player_With_Character, Player_State_Data>(result, result => player_to_player_state_object(result.player));
 });
 
 handlers.set("/trusted/submit_player_movement", body => {
@@ -320,7 +340,7 @@ handlers.set("/trusted/submit_player_movement", body => {
         return true;
     });
 
-    return player_action_to_result<boolean, Submit_Player_Movement_Response>(ok, () => ({}));
+    return action_on_player_to_result<boolean, Submit_Player_Movement_Response>(ok, () => ({}));
 });
 
 // TODO not necessarily has to be trusted, right? It's just a read, though might be a heavy one
@@ -347,7 +367,7 @@ handlers.set("/trusted/query_players_movement", body => {
         }))
     });
 
-    return player_action_to_result(player_locations);
+    return action_on_player_to_result(player_locations);
 });
 
 handlers.set("/trusted/attack_player", body => {
@@ -368,18 +388,52 @@ handlers.set("/trusted/attack_player", body => {
             return false;
         }
 
-        player.state = Player_State.in_battle;
-        other_player.state = Player_State.in_battle;
-
-        start_battle([
-            player,
-            other_player
-        ]);
+        initiate_battle_between_players(player, other_player);
 
         return true;
     });
 
-    return player_action_to_result<boolean, Attack_Player_Response>(ok, () => ({}));
+    return action_on_player_to_result<boolean, Attack_Player_Response>(ok, () => ({}));
+});
+
+handlers.set("/query_battle_deltas", body => {
+    const request = JSON.parse(body) as Query_Battle_Deltas_Request;
+    const result = try_do_with_player<Query_Battle_Deltas_Response>(request.access_token, player => {
+        if (!can_player(player, Right.query_battle_actions)) {
+            return;
+        }
+
+        const battle = find_battle_by_id(player.current_battle_id);
+
+        if (!battle) {
+            console.error(`Player ${player.id} is in battle, but battle was not found`);
+            return;
+        }
+
+        return get_battle_deltas_after(battle, request.since_delta);
+    });
+
+    return action_on_player_to_result(result);
+});
+
+handlers.set("/take_battle_action", body => {
+    const request = JSON.parse(body) as Take_Battle_Action_Request;
+    const result = try_do_with_player<Take_Battle_Action_Response>(request.access_token, player => {
+        if (!can_player(player, Right.submit_battle_action)) {
+            return;
+        }
+
+        const battle = find_battle_by_id(player.current_battle_id);
+
+        if (!battle) {
+            console.error(`Player ${player.id} is in battle, but battle was not found`);
+            return;
+        }
+
+        return try_take_turn_action(battle, player, request.action);
+    });
+
+    return action_on_player_to_result(result);
 });
 
 type Request_Result = Result_Ok | Result_Error;

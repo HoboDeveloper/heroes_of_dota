@@ -1,5 +1,9 @@
 const remote_root = IsInToolsMode ? "http://127.0.0.1:3638" : "http://cia-is.moe:3638";
 
+function get_dedicated_server_key() {
+    return GetDedicatedServerKey("v1");
+}
+
 function remote_request_async<T extends Object, N extends Object>(endpoint: string, body: T, callback: (data: N) => void, error_callback?: (code: number) => void) {
     const request = CreateHTTPRequestScriptVM("POST", remote_root + endpoint);
 

@@ -4,12 +4,118 @@ declare const enum Player_State {
     not_logged_in = 2
 }
 
+declare const enum Battle_Delta_Type {
+    health_change = 0,
+    unit_move = 1,
+    unit_attack = 2,
+    unit_spawn = 3,
+    end_turn = 4
+}
+
+declare const enum Action_Type {
+    attack = 0,
+    move = 1,
+    end_turn = 2
+}
+
+type Action_Attack = {
+    type: Action_Type.attack;
+    from: {
+        x: number,
+        y: number
+    };
+    to: {
+        x: number,
+        y: number
+    };
+}
+
+type Action_Move = {
+    type: Action_Type.move;
+    from: {
+        x: number,
+        y: number
+    };
+    to: {
+        x: number,
+        y: number
+    };
+}
+
+type Action_End_Turn = {
+    type: Action_Type.end_turn;
+}
+
+type Turn_Action = Action_Attack | Action_Move | Action_End_Turn;
+
+type Battle_Delta_Health_Change = {
+    type: Battle_Delta_Type.health_change;
+    source_unit_id: number;
+    target_unit_id: number;
+    new_health: number;
+    damage_dealt: number;
+    health_restored: number;
+}
+
+type Battle_Delta_Unit_Move = {
+    type: Battle_Delta_Type.unit_move;
+    unit_id: number;
+    to_position: {
+        x: number,
+        y: number
+    }
+};
+
+type Battle_Delta_Unit_Attack = {
+    type: Battle_Delta_Type.unit_attack,
+    unit_id: number,
+    attacked_position: {
+        x: number,
+        y: number
+    }
+}
+
+type Battle_Delta_Unit_Spawn = {
+    type: Battle_Delta_Type.unit_spawn;
+    unit_id: number;
+    owner_id: number;
+    at_position: {
+        x: number,
+        y: number
+    }
+};
+
+type Battle_Delta_End_Turn = {
+    type: Battle_Delta_Type.end_turn;
+};
+
+type Battle_Delta =
+    Battle_Delta_Health_Change |
+    Battle_Delta_Unit_Attack |
+    Battle_Delta_Unit_Move |
+    Battle_Delta_Unit_Spawn |
+    Battle_Delta_End_Turn;
+
 type Movement_History_Entry = {
     order_x: number,
     order_y: number,
     location_x: number,
     location_y: number
 }
+
+type Query_Battle_Deltas_Request = {
+    access_token: string;
+    since_delta: number;
+}
+
+type Query_Battle_Deltas_Response = Battle_Delta[];
+
+type Take_Battle_Action_Request = {
+    access_token: string;
+    action: Turn_Action;
+}
+
+type Take_Battle_Action_Response = Battle_Delta[];
 
 type Submit_Player_Movement_Request = {
     dedicated_server_key: string,

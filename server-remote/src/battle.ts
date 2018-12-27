@@ -1,31 +1,13 @@
 import {unreachable, XY, xy, xy_equal} from "./common";
 import {Player} from "./server";
 
+let battle_id_auto_increment = 0;
+
 const battles: Battle[] = [];
 
-const enum Action_Type {
-    attack = 0,
-    move = 1,
-    end_turn = 2
-}
-
-interface Action_Attack {
-    type: Action_Type.attack;
-    from: XY;
-    to: XY;
-}
-
-interface Action_Move {
-    type: Action_Type.move;
-    from: XY;
-    to: XY;
-}
-
-interface Action_End_Turn {
-    type: Action_Type.end_turn;
-}
-
-interface Hero {
+interface Unit {
+    id: number;
+    owner_id: number;
     dead: boolean;
     position: XY;
     health: number;
@@ -44,19 +26,14 @@ interface Grid {
     size: XY;
 }
 
-type Turn_Action = Action_Attack | Action_Move | Action_End_Turn;
-
 interface Battle {
-    heroes: Hero[];
+    id: number;
+    unit_id_auto_increment: number;
+    units: Unit[];
     players: Player[];
-    actions: Turn_Action[];
+    deltas: Battle_Delta[];
     grid: Grid;
     turning_player_index: number;
-}
-
-// TODO very slow
-export function is_player_in_battle(which_player: Player) {
-    return battles.some(battle => battle.players.some(player => which_player == player));
 }
 
 function grid_cell_at(grid: Grid, at: XY): Cell | undefined {
@@ -75,8 +52,8 @@ function manhattan(from: XY, to: XY) {
     return Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 }
 
-function hero_at(battle: Battle, at: XY): Hero | undefined {
-    return battle.heroes.find(hero => !hero.dead && xy_equal(at, hero.position));
+function unit_at(battle: Battle, at: XY): Unit | undefined {
+    return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
 function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number) {
@@ -151,76 +128,132 @@ function pass_turn_to_next_player(battle: Battle) {
     }
 }
 
-function move_hero(battle: Battle, hero: Hero, to: XY) {
-    grid_cell_at_unchecked(battle.grid, hero.position).occupied = false;
+function move_unit(battle: Battle, unit: Unit, to: XY) {
+    grid_cell_at_unchecked(battle.grid, unit.position).occupied = false;
     grid_cell_at_unchecked(battle.grid, to).occupied = true;
 
-    hero.position = to;
+    unit.position = to;
 }
 
-function damage_hero(battle: Battle, source: Hero, target: Hero, damage: number) {
-    target.health = target.health - damage;
+function damage_unit(battle: Battle, source: Unit, target: Unit, damage: number): Battle_Delta {
+    target.health = Math.max(0, target.health - damage);
 
-    if (target.health <= 0) {
+    if (target.health == 0) {
         grid_cell_at_unchecked(battle.grid, target.position).occupied = false;
 
         target.dead = true;
     }
+
+    return {
+        source_unit_id: source.id,
+        target_unit_id: target.id,
+        type: Battle_Delta_Type.health_change,
+        new_health: target.health,
+        health_restored: 0,
+        damage_dealt: damage
+    };
 }
 
-function try_take_battle_action(battle: Battle, player: Player, action: Turn_Action) {
+function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
+    const new_deltas: Battle_Delta[] = [];
+
     switch (action.type) {
         case Action_Type.move: {
-            const hero = hero_at(battle, action.from);
+            const unit = unit_at(battle, action.from);
 
-            if (!hero) return false;
-            if (!can_find_path(battle.grid, action.from, action.to, hero.move_points)) return false;
+            if (!unit) return;
+            if (!can_find_path(battle.grid, action.from, action.to, unit.move_points)) return;
 
-            move_hero(battle, hero, action.to);
+            move_unit(battle, unit, action.to);
 
-            return true;
+            new_deltas.push({
+                type: Battle_Delta_Type.unit_move,
+                unit_id: unit.id,
+                to_position: action.to
+            });
+
+            return new_deltas;
         }
 
         case Action_Type.attack: {
-            if (manhattan(action.from, action.to) > 1) return false;
+            if (manhattan(action.from, action.to) > 1) return;
 
-            const attacker = hero_at(battle, action.from);
-            const attacked = hero_at(battle, action.to);
+            const attacker = unit_at(battle, action.from);
+            const attacked = unit_at(battle, action.to);
 
-            if (!attacker) return false;
+            if (!attacker) return;
+
+            new_deltas.push({
+                type: Battle_Delta_Type.unit_attack,
+                unit_id: attacker.id,
+                attacked_position: action.to
+            });
 
             if (attacked) {
-                damage_hero(battle, attacker, attacked, attacker.attack_damage);
+                const damage_delta = damage_unit(battle, attacker, attacked, attacker.attack_damage);
+
+                new_deltas.push(damage_delta);
             }
 
-            return true;
+            return new_deltas;
         }
 
         case Action_Type.end_turn: {
             pass_turn_to_next_player(battle);
 
-            return true;
+            new_deltas.push({
+                type: Battle_Delta_Type.end_turn
+            });
+
+            return new_deltas;
         }
 
         default: unreachable(action);
     }
 }
 
-function process_battle_action(battle: Battle, player: Player, action: Turn_Action) {
+function spawn_unit(battle: Battle, owner: Player, at_position: XY) {
+    const id = get_next_unit_id(battle);
+
+    battle.units.push({
+        id: id,
+        owner_id: owner.id,
+        health: 30,
+        attack_damage: 6,
+        move_points: 4,
+        position: at_position,
+        dead: false
+    });
+
+    battle.deltas.push({
+        type: Battle_Delta_Type.unit_spawn,
+        at_position: at_position,
+        owner_id: owner.id,
+        unit_id: id
+    });
+}
+
+function get_next_unit_id(battle: Battle) {
+    return battle.unit_id_auto_increment++;
+}
+
+export function try_take_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
     if (get_turning_player(battle) != player) {
-        return false;
+        return;
     }
 
-    if (try_take_battle_action(battle, player, action)) {
-        battle.actions.push(action);
-    }
+    return try_apply_turn_action(battle, player, action);
 }
 
-function get_actions_after(battle: Battle, head: number) {
-    return battle.actions.slice(head);
+export function get_battle_deltas_after(battle: Battle, head: number): Battle_Delta[] {
+    return battle.deltas.slice(head);
 }
 
-export function start_battle(players: Player[]) {
+export function find_battle_by_id(id: number): Battle | undefined {
+    return battles.find(battle => battle.id == id);
+}
+
+export function start_battle(players: Player[]): number {
     const grid: Grid = {
         cells: [],
         size: xy(8, 8)
@@ -229,12 +262,25 @@ export function start_battle(players: Player[]) {
     fill_grid(grid);
 
     const battle: Battle = {
-        heroes: [],
+        id: battle_id_auto_increment++,
+        unit_id_auto_increment: 0,
+        units: [],
         players: players,
-        actions: [],
+        deltas: [],
         grid: grid,
         turning_player_index: 0
     };
 
+    spawn_unit(battle, players[0], xy(1, 1));
+    spawn_unit(battle, players[0], xy(3, 1));
+    spawn_unit(battle, players[0], xy(5, 1));
+
+
+    spawn_unit(battle, players[1], xy(2, 7));
+    spawn_unit(battle, players[1], xy(4, 7));
+    spawn_unit(battle, players[1], xy(6, 7));
+
     battles.push(battle);
+
+    return battle.id;
 }

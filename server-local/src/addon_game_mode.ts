@@ -7,13 +7,13 @@ function Precache(context: CScriptPrecacheContext) {
     PrecacheResource("", "", context);
 }
 
-interface Player {
+type Player = {
     id: number;
     hero_unit: CDOTA_BaseNPC_Hero;
     movement_history: Movement_History_Entry[]
 }
 
-interface Main_Player {
+type Main_Player = {
     token: string;
     player_id: PlayerID;
     hero_unit: CDOTA_BaseNPC_Hero;
@@ -23,9 +23,39 @@ interface Main_Player {
     state: Player_State;
 }
 
+type Battle_Unit = {
+    id: number;
+    unit: CDOTA_BaseNPC;
+}
+
+type Battle = {
+    deltas: Battle_Delta[];
+    delta_head: number;
+    world_origin: {
+        x: number,
+        y: number
+    };
+    units: Battle_Unit[];
+}
+
 const players: { [id: number]: Player } = {};
+const battle: Battle = {
+    deltas: [],
+    delta_head: 0,
+    world_origin: {
+        x: 0,
+        y: 0
+    },
+    units: []
+};
+
 const movement_history_submit_rate = 0.7;
+const battle_delta_query_rate = 2.0;
 const movement_history_length = 30;
+
+function unreachable(x: never): never {
+    throw "Didn't expect to get here";
+}
 
 function log_message(message: string) {
     const final_message = `[${GameRules.GetGameTime()}] ${message}`;
@@ -33,10 +63,6 @@ function log_message(message: string) {
     CustomGameEventManager.Send_ServerToAllClients("log_message", { message: final_message });
 
     print(final_message);
-}
-
-function get_dedicated_server_key() {
-    return GetDedicatedServerKey("v1");
 }
 
 function main() {
@@ -298,6 +324,69 @@ function submit_and_query_movement_loop(main_player: Main_Player) {
     }
 }
 
+function query_battle_deltas_loop(main_player: Main_Player) {
+    while (true) {
+        wait_until(() => main_player.state == Player_State.in_battle);
+        wait(battle_delta_query_rate);
+
+        const starting_head = battle.delta_head;
+
+        const response = remote_request_with_retry_on_403<Query_Battle_Deltas_Request, Query_Battle_Deltas_Response>("/query_battle_deltas", main_player, {
+            access_token: main_player.token,
+            since_delta: starting_head
+        });
+
+        if (response) {
+            for (let index = 0; index < response.length; index++) {
+                battle.deltas[starting_head + index] = response[index];
+            }
+        }
+    }
+}
+
+function battle_position_to_world_position(position: { x: number, y: number }): Vec {
+    return Vector(
+        battle.world_origin.x + position.x * 64,
+        battle.world_origin.y + position.y * 64
+    )
+}
+
+function play_delta(delta: Battle_Delta) {
+    print(`Well delta type is: ${delta.type}`);
+
+    switch (delta.type) {
+        case Battle_Delta_Type.unit_spawn: {
+            const world_location = battle_position_to_world_position(delta.at_position);
+
+            CreateUnitByName("npc_dota_hero_ursa", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+
+            wait(2);
+
+            break;
+        }
+
+        case Battle_Delta_Type.unit_move: {
+            print("But also this");
+            break;
+        }
+
+        case Battle_Delta_Type.unit_attack: {
+            break;
+        }
+
+        case Battle_Delta_Type.end_turn: {
+            break;
+        }
+
+        case Battle_Delta_Type.health_change: {
+            break;
+        }
+
+        default: unreachable(delta);
+    }
+}
+
+
 function game_loop() {
     let player_id: PlayerID | undefined = undefined;
     let player_token: string | undefined;
@@ -340,6 +429,7 @@ function game_loop() {
     let state_transition: Player_State_Data | undefined = undefined;
 
     fork(() => submit_and_query_movement_loop(main_player));
+    fork(() => query_battle_deltas_loop(main_player));
     fork(() => {
         while(true) {
             const state_data = try_get_player_state(main_player);
@@ -365,6 +455,26 @@ function game_loop() {
         if (state_transition) {
             process_state_transition(main_player, state_transition);
             state_transition = undefined;
+        }
+
+        switch (main_player.state) {
+            case Player_State.on_global_map: {
+                update_main_player_movement_history(main_player);
+
+                break;
+            }
+
+            case Player_State.in_battle: {
+                // TODO remove dummy value, TSTL bug
+                print(`Playing deltas, heaad is at ${battle.delta_head}, going to -> ${battle.deltas.length}`);
+
+                for (let dummy = 0; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+                    print(`Playing delta ${battle.delta_head}`);
+                    play_delta(battle.deltas[battle.delta_head]);
+                }
+
+                break;
+            }
         }
 
         wait_one_frame();
