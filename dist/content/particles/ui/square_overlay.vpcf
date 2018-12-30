@@ -8,6 +8,7 @@
 	[
 		{
 			_class = "C_OP_Decay"
+			m_bDisableOperator = true
 		},
 		{
 			_class = "C_OP_PositionLock"
@@ -24,6 +25,10 @@
 			m_nCPInput = 3
 			m_nFieldOutput = "7"
 			m_flInputMax = 100.0
+		},
+		{
+			_class = "C_OP_EndCapTimedDecay"
+			m_flDecayTime = 0.25
 		},
 	]
 	m_Renderers = 
@@ -43,12 +48,6 @@
 	[
 		{
 			_class = "C_INIT_CreateWithinSphere"
-		},
-		{
-			_class = "C_INIT_RandomLifeTime"
-			m_fLifetimeMin = 1.0
-			m_fLifetimeMax = 1.0
-			m_bDisableOperator = true
 		},
 		{
 			_class = "C_INIT_RemapCPtoScalar"

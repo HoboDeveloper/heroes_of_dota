@@ -20,10 +20,7 @@ declare const enum Action_Type {
 
 type Action_Attack = {
     type: Action_Type.attack;
-    from: {
-        x: number,
-        y: number
-    };
+    unit_id: number,
     to: {
         x: number,
         y: number
@@ -32,10 +29,7 @@ type Action_Attack = {
 
 type Action_Move = {
     type: Action_Type.move;
-    from: {
-        x: number,
-        y: number
-    };
+    unit_id: number,
     to: {
         x: number,
         y: number

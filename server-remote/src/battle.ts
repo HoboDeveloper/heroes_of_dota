@@ -44,7 +44,11 @@ function grid_cell_at(grid: Grid, at: XY): Cell | undefined {
     return grid.cells[at.x * grid.size.y + at.y];
 }
 
-function grid_cell_at_unchecked(grid: Grid, at: XY): Cell{
+function grid_cell_index(grid: Grid, at: XY): number {
+    return at.x * grid.size.y + at.y;
+}
+
+function grid_cell_at_unchecked(grid: Grid, at: XY): Cell {
     return grid.cells[at.x * grid.size.y + at.y];
 }
 
@@ -56,12 +60,63 @@ function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
-function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number) {
-    function check_cell(cell: Cell, distance_travelled: number) {
-        if (cell.occupied) {
-            return false;
+function unit_by_id(battle: Battle, id: number) {
+    return battle.units.find(unit => unit.id == id);
+}
+
+// TODO replace with a more efficient A* implementation
+function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): boolean {
+    const indices_already_checked: boolean[] = [];
+    const from_index = grid_cell_index(grid, from);
+
+    let indices_not_checked: number[] = [];
+
+    indices_not_checked.push(from_index);
+    indices_already_checked[from_index] = true;
+
+    for (let current_cost = 0; indices_not_checked.length > 0 && current_cost < maximum_distance; current_cost++) {
+        const new_indices: number[] = [];
+
+        for (let index of indices_not_checked) {
+            const cell = grid.cells[index];
+            const at = cell.position;
+
+            if (xy_equal(to, at)) {
+                return true;
+            }
+
+            const neighbors = [
+                grid_cell_at(grid, xy(at.x + 1, at.y)),
+                grid_cell_at(grid, xy(at.x - 1, at.y)),
+                grid_cell_at(grid, xy(at.x, at.y + 1)),
+                grid_cell_at(grid, xy(at.x, at.y - 1))
+            ];
+
+            for (let neighbor of neighbors) {
+                if (!neighbor) continue;
+
+                const neighbor_index = grid_cell_index(grid, neighbor.position);
+
+                if (indices_already_checked[neighbor_index]) continue;
+                if (neighbor.occupied) {
+                    indices_already_checked[neighbor_index] = true;
+                    continue;
+                }
+
+                new_indices.push(neighbor_index);
+
+                indices_already_checked[neighbor_index] = true;
+            }
         }
 
+        indices_not_checked = new_indices;
+    }
+
+    return false;
+}
+
+function can_find_path_(grid: Grid, from: XY, to: XY, maximum_distance: number) {
+    function check_cell(cell: Cell, distance_travelled: number) {
         const at = cell.position;
 
         if (xy_equal(at, to)) {
@@ -84,6 +139,10 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number) {
         });
 
         for (let neighbor of sorted_neighbors) {
+            if (neighbor.occupied) {
+                return false;
+            }
+
             const check_result = check_cell(neighbor, distance_travelled + cell.cost);
 
             if (check_result) {
@@ -159,10 +218,11 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
 
     switch (action.type) {
         case Action_Type.move: {
-            const unit = unit_at(battle, action.from);
+            const unit = unit_by_id(battle, action.unit_id);
 
             if (!unit) return;
-            if (!can_find_path(battle.grid, action.from, action.to, unit.move_points)) return;
+            if (xy_equal(unit.position, action.to)) return;
+            if (!can_find_path(battle.grid, unit.position, action.to, unit.move_points)) return;
 
             move_unit(battle, unit, action.to);
 
@@ -176,12 +236,12 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
         }
 
         case Action_Type.attack: {
-            if (manhattan(action.from, action.to) > 1) return;
-
-            const attacker = unit_at(battle, action.from);
-            const attacked = unit_at(battle, action.to);
+            const attacker = unit_by_id(battle, action.unit_id);
 
             if (!attacker) return;
+            if (manhattan(attacker.position, action.to) > 1) return;
+
+            const attacked = unit_at(battle, action.to);
 
             new_deltas.push({
                 type: Battle_Delta_Type.unit_attack,
@@ -220,7 +280,7 @@ function spawn_unit(battle: Battle, owner: Player, at_position: XY) {
         owner_id: owner.id,
         health: 30,
         attack_damage: 6,
-        move_points: 4,
+        move_points: 20,
         position: at_position,
         dead: false
     });
@@ -242,7 +302,13 @@ export function try_take_turn_action(battle: Battle, player: Player, action: Tur
         return;
     }
 
-    return try_apply_turn_action(battle, player, action);
+    const new_deltas = try_apply_turn_action(battle, player, action);
+
+    if (new_deltas) {
+        battle.deltas = battle.deltas.concat(new_deltas);
+    }
+
+    return new_deltas;
 }
 
 export function get_battle_deltas_after(battle: Battle, head: number): Battle_Delta[] {

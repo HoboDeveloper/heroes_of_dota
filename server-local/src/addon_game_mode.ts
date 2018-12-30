@@ -7,6 +7,10 @@ function Precache(context: CScriptPrecacheContext) {
     PrecacheResource("", "", context);
 }
 
+function xy(x: number, y: number): XY {
+    return { x: x, y: y };
+}
+
 type Player = {
     id: number;
     hero_unit: CDOTA_BaseNPC_Hero;
@@ -26,16 +30,27 @@ type Main_Player = {
 type Battle_Unit = {
     id: number;
     unit: CDOTA_BaseNPC;
+    position: XY;
+}
+
+type XY = {
+    x: number,
+    y: number
+}
+
+type Cell = {
+    position: XY;
+    occupied: boolean;
+    cost: number;
 }
 
 type Battle = {
     deltas: Battle_Delta[];
     delta_head: number;
-    world_origin: {
-        x: number,
-        y: number
-    };
+    world_origin: XY;
     units: Battle_Unit[];
+    cells: Cell[];
+    grid_size: XY;
 }
 
 const players: { [id: number]: Player } = {};
@@ -46,15 +61,33 @@ const battle: Battle = {
         x: 0,
         y: 0
     },
-    units: []
+    units: [],
+    cells: [],
+    grid_size: xy(8, 8)
 };
 
 const movement_history_submit_rate = 0.7;
 const battle_delta_query_rate = 2.0;
 const movement_history_length = 30;
+const battle_cell_size = 128;
+
+function xy_equal(a: XY, b: XY) {
+    return a.x == b.x && a.y == b.y;
+}
 
 function unreachable(x: never): never {
     throw "Didn't expect to get here";
+}
+
+// TODO array.find doesn't work in TSTL
+function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T | undefined {
+    for (let element of array) {
+        if (predicate(element)) {
+            return element;
+        }
+    }
+
+    return undefined;
 }
 
 function log_message(message: string) {
@@ -104,7 +137,7 @@ function submit_player_movement(main_player: Main_Player) {
     remote_request_with_retry_on_403("/trusted/submit_player_movement", main_player, request);
 }
 
-function process_player_order(main_player: Main_Player, order: ExecuteOrderEvent): boolean {
+function process_player_global_map_order(main_player: Main_Player, order: ExecuteOrderEvent): boolean {
     for (let index in order.units) {
         if (order.units[index] == main_player.hero_unit.entindex()) {
             if (order.order_type == DotaUnitOrder_t.DOTA_UNIT_ORDER_MOVE_TO_POSITION) {
@@ -129,6 +162,46 @@ function process_player_order(main_player: Main_Player, order: ExecuteOrderEvent
             } else {
                 return false;
             }
+
+            break;
+        }
+    }
+
+    return true;
+}
+
+function process_player_battle_order(main_player: Main_Player, order: ExecuteOrderEvent) {
+    if (order.order_type != DotaUnitOrder_t.DOTA_UNIT_ORDER_MOVE_TO_POSITION) {
+        return false;
+    }
+
+    for (let index in order.units) {
+        const battle_unit = array_find(battle.units, unit => unit.unit.entindex() == order.units[index]);
+
+        if (battle_unit) {
+            const battle_cell = world_position_to_battle_position(Vector(order.position_x, order.position_y));
+
+            print("Order move to", battle_cell.x, battle_cell.y);
+
+            fork(() => {
+                // TODO queue these otherwise we can get request races
+                const action_result = remote_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", {
+                    access_token: main_player.token,
+                    action: {
+                        type: Action_Type.move,
+                        unit_id: battle_unit.id,
+                        to: {
+                            x: battle_cell.x,
+                            y: battle_cell.y
+                        }
+                    }
+                });
+
+                if (action_result) {
+                    // TODO this doesn't look correct, should we return the head in the response?
+                    battle.deltas = battle.deltas.concat(action_result);
+                }
+            });
 
             break;
         }
@@ -266,34 +339,22 @@ function on_player_order_async(callback: (event: ExecuteOrderEvent) => boolean) 
     }, mode);
 }
 
-function process_player_state(main_player: Main_Player, state_data: Player_State_Data) {
+function process_initial_player_state(main_player: Main_Player, state_data: Player_State_Data) {
     main_player.state = state_data.state;
 
-    switch (state_data.state) {
-        case Player_State.not_logged_in: {
-            const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
-            let selected_character: number;
+    if (state_data.state == Player_State.not_logged_in) {
+        const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
+        let selected_character: number;
 
-            if (characters.length == 0) {
-                const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
+        if (characters.length == 0) {
+            const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
 
-                selected_character = new_character.id;
-            } else {
-                selected_character = characters[0].id;
-            }
-
-            try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
-
-            break;
+            selected_character = new_character.id;
+        } else {
+            selected_character = characters[0].id;
         }
 
-        case Player_State.on_global_map: {
-            break;
-        }
-
-        case Player_State.in_battle: {
-            break;
-        }
+        try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
     }
 
     FindClearSpaceForUnit(main_player.hero_unit, Vector(state_data.player_position.x, state_data.player_position.y), true);
@@ -302,14 +363,19 @@ function process_player_state(main_player: Main_Player, state_data: Player_State
     main_player.current_order_y = state_data.player_position.y;
 }
 
-function process_state_transition(main_player: Main_Player, player_state: Player_State_Data) {
-    const current_state = main_player.state;
-    const next_state = player_state.state;
-
-    main_player.state = next_state;
-
-    if (current_state == Player_State.on_global_map && next_state == Player_State.in_battle) {
+function process_state_transition(main_player: Main_Player, current_state: Player_State, next_state: Player_State) {
+    if (next_state == Player_State.in_battle) {
         print("Battle started");
+
+        for (let x = 0; x < battle.grid_size.x; x++) {
+            for (let y = 0; y < battle.grid_size.y; y++) {
+                battle.cells.push({
+                    position: xy(x, y),
+                    occupied: false,
+                    cost: 1
+                });
+            }
+        }
     }
 }
 
@@ -346,27 +412,239 @@ function query_battle_deltas_loop(main_player: Main_Player) {
 
 function battle_position_to_world_position(position: { x: number, y: number }): Vec {
     return Vector(
-        battle.world_origin.x + position.x * 64,
-        battle.world_origin.y + position.y * 64
+        battle.world_origin.x + position.x * battle_cell_size,
+        battle.world_origin.y + position.y * battle_cell_size
     )
+}
+
+function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
+    return Vector(
+        battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
+        battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
+    )
+}
+
+function world_position_to_battle_position(position: Vec): { x: number, y: number } {
+    return {
+        x: Math.floor((position.x - battle.world_origin.x + battle_cell_size / 2) / battle_cell_size),
+        y: Math.floor((position.y - battle.world_origin.y + battle_cell_size / 2) / battle_cell_size)
+    }
+}
+
+function grid_cell_index(at: XY) {
+    return at.x * battle.grid_size.y + at.y;
+}
+
+function grid_cell_at_unchecked(at: XY): Cell {
+    return battle.cells[grid_cell_index(at)];
+}
+
+function grid_cell_at(at: XY): Cell | undefined {
+    if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
+        return undefined;
+    }
+
+    return battle.cells[grid_cell_index(at)];
+}
+
+type Cost_Population_Result = {
+    cell_index_to_cost: number[];
+    cell_index_to_parent_index: number[];
+}
+
+function populate_path_costs(from: XY, to: XY): Cost_Population_Result | undefined {
+    const cell_index_to_cost: number[] = [];
+    const cell_index_to_parent_index: number[] = [];
+    const indices_already_checked: boolean[] = [];
+    const from_index = grid_cell_index(from);
+
+    let indices_not_checked: number[] = [];
+
+    indices_not_checked.push(from_index);
+    indices_already_checked[from_index] = true;
+    cell_index_to_cost[from_index] = 0;
+
+    for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
+        const new_indices: number[] = [];
+
+        for (let index of indices_not_checked) {
+            const cell = battle.cells[index];
+            const at = cell.position;
+
+            cell_index_to_cost[index] = current_cost;
+
+            if (xy_equal(to, at)) {
+                return {
+                    cell_index_to_cost: cell_index_to_cost,
+                    cell_index_to_parent_index: cell_index_to_parent_index
+                };
+            }
+
+            const neighbors = [
+                grid_cell_at(xy(at.x + 1, at.y)),
+                grid_cell_at(xy(at.x - 1, at.y)),
+                grid_cell_at(xy(at.x, at.y + 1)),
+                grid_cell_at(xy(at.x, at.y - 1))
+            ];
+
+            for (let neighbor of neighbors) {
+                if (!neighbor) continue;
+
+                const neighbor_index = grid_cell_index(neighbor.position);
+
+                if (indices_already_checked[neighbor_index]) continue;
+                if (neighbor.occupied) {
+                    indices_already_checked[neighbor_index] = true;
+                    continue;
+                }
+
+                new_indices.push(neighbor_index);
+
+                cell_index_to_parent_index[neighbor_index] = index;
+                indices_already_checked[neighbor_index] = true;
+            }
+        }
+
+        indices_not_checked = new_indices;
+    }
+
+    return undefined;
+}
+
+function find_grid_path(from: XY, to: XY): XY[] | undefined {
+    const cell_from = grid_cell_at(from);
+    const cell_to = grid_cell_at(to);
+
+    print(`Path from ${from.x} ${from.y} -> ${to.x} ${to.y}`);
+
+    if (!cell_from || !cell_to) {
+        return;
+    }
+
+    const populated = populate_path_costs(from, to);
+
+    if (!populated) {
+        return;
+    }
+
+    let current_cell_index = populated.cell_index_to_parent_index[grid_cell_index(to)];
+    const to_index = grid_cell_index(from);
+    const path = [];
+
+    path.push(to);
+
+    while (to_index != current_cell_index) {
+        path.push(battle.cells[current_cell_index].position);
+        current_cell_index = populated.cell_index_to_parent_index[current_cell_index];
+    }
+
+    path.push(from);
+
+    return path.reverse();
+}
+
+const battle_particles: ParticleID[] = [];
+
+function cell_particle(position: Vec, color: Vec) {
+    const particle = ParticleManager.CreateParticle("particles/ui/square_overlay.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined);
+
+    ParticleManager.SetParticleControl(particle, 0, position);
+    ParticleManager.SetParticleControl(particle, 1, Vector(64,0,0));
+    ParticleManager.SetParticleControl(particle, 2, color);
+    ParticleManager.SetParticleControl(particle, 3, Vector(50,0,0));
+    
+    return particle;
+}
+
+function redraw_battle() {
+    for (let id of battle_particles) {
+        ParticleManager.DestroyParticle(id, true);
+        ParticleManager.ReleaseParticleIndex(id);
+    }
+
+    const height_fix = Vector(0, 0, 128);
+
+    for (let cell of battle.cells) {
+        const position = cell.position;
+        const color = cell.occupied ? Vector(255, 128, 128) : Vector(255, 255, 255);
+        const particle = cell_particle(battle_position_to_world_position_center(position) + height_fix as Vec, color);
+
+        battle_particles.push(particle);
+    }
 }
 
 function play_delta(delta: Battle_Delta) {
     print(`Well delta type is: ${delta.type}`);
 
+    redraw_battle();
+
     switch (delta.type) {
         case Battle_Delta_Type.unit_spawn: {
-            const world_location = battle_position_to_world_position(delta.at_position);
+            const world_location = battle_position_to_world_position_center(delta.at_position);
+            const unit = CreateUnitByName("npc_dota_hero_ursa", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+            unit.SetControllableByPlayer(0, true);
 
-            CreateUnitByName("npc_dota_hero_ursa", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+            battle.units.push({
+                unit: unit,
+                id: delta.unit_id,
+                position: delta.at_position
+            });
 
-            wait(2);
+            grid_cell_at_unchecked(delta.at_position).occupied = true;
+
+            wait(1);
 
             break;
         }
 
         case Battle_Delta_Type.unit_move: {
-            print("But also this");
+            const unit = array_find(battle.units, unit => unit.id == delta.unit_id);
+
+            if (unit) {
+                const path = find_grid_path(unit.position, delta.to_position);
+
+                if (!path) {
+                    print("Couldn't find path");
+                    return;
+                }
+
+                print("Unit", unit.id, "is going to", delta.to_position.x, delta.to_position.y);
+
+                const particles: ParticleID[] = [];
+                const height_fix = Vector(0, 0, 164);
+
+                for (let position of path) {
+                    const color = Vector(128, 255, 128);
+                    const particle = cell_particle(battle_position_to_world_position_center(position) + height_fix as Vec, color);
+
+                    particles.push(particle);
+                }
+
+                for (let cell_position of path) {
+                    const world_location = battle_position_to_world_position_center(cell_position);
+
+                    unit.unit.MoveToPosition(world_location);
+
+                    wait_until(() => {
+                        return (unit.unit.GetAbsOrigin() - world_location as Vec).Length2D() < battle_cell_size / 4;
+                    });
+                }
+
+                grid_cell_at_unchecked(unit.position).occupied = false;
+                grid_cell_at_unchecked(delta.to_position).occupied = true;
+
+                unit.position = delta.to_position;
+
+                redraw_battle();
+
+                wait(0.4);
+
+                for (let id of particles) {
+                    ParticleManager.DestroyParticle(id, true);
+                    ParticleManager.ReleaseParticleIndex(id);
+                }
+            }
+
             break;
         }
 
@@ -385,7 +663,6 @@ function play_delta(delta: Battle_Delta) {
         default: unreachable(delta);
     }
 }
-
 
 function game_loop() {
     let player_id: PlayerID | undefined = undefined;
@@ -422,9 +699,24 @@ function game_loop() {
 
     print(`State received`);
 
-    process_player_state(main_player, player_state);
+    process_initial_player_state(main_player, player_state);
+    process_state_transition(main_player, Player_State.not_logged_in, main_player.state);
 
-    on_player_order_async(order => process_player_order(main_player, order));
+    on_player_order_async(order => {
+        switch (main_player.state) {
+            case Player_State.on_global_map: {
+                return process_player_global_map_order(main_player, order);
+            }
+
+            case Player_State.in_battle: {
+                process_player_battle_order(main_player, order);
+
+                return false;
+            }
+        }
+
+        return false;
+    });
 
     let state_transition: Player_State_Data | undefined = undefined;
 
@@ -452,8 +744,12 @@ function game_loop() {
     });
 
     while (true) {
-        if (state_transition) {
-            process_state_transition(main_player, state_transition);
+        // TS thinks we can never assign it
+        const transition = state_transition as (Player_State_Data | undefined);
+
+        if (transition) {
+            process_state_transition(main_player, main_player.state, transition.state);
+            main_player.state = transition.state;
             state_transition = undefined;
         }
 
@@ -465,10 +761,9 @@ function game_loop() {
             }
 
             case Player_State.in_battle: {
-                // TODO remove dummy value, TSTL bug
-                print(`Playing deltas, heaad is at ${battle.delta_head}, going to -> ${battle.deltas.length}`);
+                // print(`Playing deltas, heaad is at ${battle.delta_head}, going to -> ${battle.deltas.length}`);
 
-                for (let dummy = 0; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+                for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
                     print(`Playing delta ${battle.delta_head}`);
                     play_delta(battle.deltas[battle.delta_head]);
                 }
