@@ -524,34 +524,3 @@ export function start_server(with_test_player: boolean) {
         });
     }).listen(3638);
 }
-
-
-/*
-flow:
-    try_auth -> token
-    get_player_characters(token) -> characters
-
-    if wants_to_create_new_character {
-        create_new_character(token)
-    }
-
-    login_with_character(token, char) -> position
-
-    while(true)
-        if in_world {
-            report_player_movement(token, current_position)
-            query_players_movement(token) -> other_player_with_movement
-        }
-
-        if wants_to_battle {
-            start_battle(token, other_player_id)
-        }
-
-        if in_battle {
-            query_battle_actions(token, latest_action_we_have) -> actions_after_specified
-
-            if wants_to_act {
-                send_battle_action(token, action)
-            }
-        }
- */

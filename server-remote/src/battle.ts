@@ -115,54 +115,6 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
     return false;
 }
 
-function can_find_path_(grid: Grid, from: XY, to: XY, maximum_distance: number) {
-    function check_cell(cell: Cell, distance_travelled: number) {
-        const at = cell.position;
-
-        if (xy_equal(at, to)) {
-            return true;
-        }
-
-        if (distance_travelled == maximum_distance) {
-            return false;
-        }
-
-        const neighbors = [
-            grid_cell_at(grid, xy(at.x + 1, at.y)),
-            grid_cell_at(grid, xy(at.x - 1, at.y)),
-            grid_cell_at(grid, xy(at.x, at.y + 1)),
-            grid_cell_at(grid, xy(at.x, at.y - 1))
-        ];
-
-        const sorted_neighbors = (neighbors.filter(cell => cell !== undefined) as Cell[]).sort((a, b) => {
-            return manhattan(a.position, to) - manhattan(b.position, to);
-        });
-
-        for (let neighbor of sorted_neighbors) {
-            if (neighbor.occupied) {
-                return false;
-            }
-
-            const check_result = check_cell(neighbor, distance_travelled + cell.cost);
-
-            if (check_result) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    const cell_from = grid_cell_at(grid, from);
-    const cell_to = grid_cell_at(grid, to);
-
-    if (cell_from && cell_to) {
-        return check_cell(cell_from, 0);
-    } else {
-        return false;
-    }
-}
-
 function fill_grid(grid: Grid) {
     for (let x = 0; x < grid.size.x; x++) {
         for (let y = 0; y < grid.size.y; y++) {
@@ -221,6 +173,7 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
             const unit = unit_by_id(battle, action.unit_id);
 
             if (!unit) return;
+            if (unit.dead) return;
             if (xy_equal(unit.position, action.to)) return;
             if (!can_find_path(battle.grid, unit.position, action.to, unit.move_points)) return;
 
@@ -239,6 +192,7 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
             const attacker = unit_by_id(battle, action.unit_id);
 
             if (!attacker) return;
+            if (attacker.dead) return;
             if (manhattan(attacker.position, action.to) > 1) return;
 
             const attacked = unit_at(battle, action.to);
@@ -279,7 +233,7 @@ function spawn_unit(battle: Battle, owner: Player, at_position: XY) {
         id: id,
         owner_id: owner.id,
         health: 30,
-        attack_damage: 6,
+        attack_damage: 0,
         move_points: 20,
         position: at_position,
         dead: false
@@ -298,9 +252,10 @@ function get_next_unit_id(battle: Battle) {
 }
 
 export function try_take_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
-    if (get_turning_player(battle) != player) {
-        return;
-    }
+    // TODO testing
+    // if (get_turning_player(battle) != player) {
+    //     return;
+    // }
 
     const new_deltas = try_apply_turn_action(battle, player, action);
 
