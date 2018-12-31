@@ -18,6 +18,8 @@ declare const enum Action_Type {
     end_turn = 2
 }
 
+// TODO I can see how attacking a cell would cause issues in queued actions which result in a unit being moved,
+// TODO I think there should be an Action_Attack_Cell and Action_Attack_Target
 type Action_Attack = {
     type: Action_Type.attack;
     unit_id: number,
@@ -102,14 +104,19 @@ type Query_Battle_Deltas_Request = {
     since_delta: number;
 }
 
-type Query_Battle_Deltas_Response = Battle_Delta[];
+type Query_Battle_Deltas_Response = {
+    deltas: Battle_Delta[]
+};
 
 type Take_Battle_Action_Request = {
     access_token: string;
     action: Turn_Action;
 }
 
-type Take_Battle_Action_Response = Battle_Delta[];
+type Take_Battle_Action_Response = {
+    previous_head: number,
+    deltas: Battle_Delta[]
+};
 
 type Submit_Player_Movement_Request = {
     dedicated_server_key: string,

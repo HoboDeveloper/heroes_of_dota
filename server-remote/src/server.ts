@@ -39,16 +39,7 @@ const steam_id_to_player = new Map<string, Player>();
 let player_id_auto_increment = 0;
 let character_id_auto_increment = 0;
 
- // TODO remove
-    const test_player = make_new_player();
-    players.push(test_player);
-    test_player.movement_history = [{
-        location_x: 0,
-        location_y: 0,
-        order_x: 0,
-        order_y: 0
-    }];
-
+let test_player: Player | undefined = undefined;
 
 function generate_access_token() {
     return randomBytes(32).toString("hex");
@@ -327,7 +318,7 @@ handlers.set("/trusted/submit_player_movement", body => {
             location_y: entry.location_y
         }));
 
-        if (true) {
+        if (test_player) {
             test_player.current_location = xy(request.current_location.x + 800, request.current_location.y);
             test_player.movement_history = request.movement_history.map(entry => ({
                 order_x: entry.order_x + 800,
@@ -410,7 +401,9 @@ handlers.set("/query_battle_deltas", body => {
             return;
         }
 
-        return get_battle_deltas_after(battle, request.since_delta);
+        return {
+            deltas: get_battle_deltas_after(battle, request.since_delta),
+        };
     });
 
     return action_on_player_to_result(result);
@@ -430,7 +423,15 @@ handlers.set("/take_battle_action", body => {
             return;
         }
 
-        return try_take_turn_action(battle, player, request.action);
+        const previous_head = battle.deltas.length;
+        const deltas = try_take_turn_action(battle, player, request.action);
+
+        if (deltas) {
+            return {
+                deltas: deltas,
+                previous_head: previous_head
+            }
+        }
     });
 
     return action_on_player_to_result(result);
@@ -467,7 +468,21 @@ function handle_request(url: string, data: string): Request_Result {
     }
 }
 
-export function start_server() {
+export function start_server(with_test_player: boolean) {
+    if (with_test_player) {
+        test_player = make_new_player();
+        test_player.movement_history = [{
+            location_x: 0,
+            location_y: 0,
+            order_x: 0,
+            order_y: 0
+        }];
+
+        players.push(test_player);
+
+        console.log("Test player enabled");
+    }
+
     createServer((req, res) => {
         const url = req.url;
 

@@ -25,3 +25,7 @@ declare namespace coroutine {
 declare namespace debug {
     function traceback(routine?: Coroutine<any>): string;
 }
+
+declare namespace string {
+    function format(format: string, ...messages: any[]): string;
+}
