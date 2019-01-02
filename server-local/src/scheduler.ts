@@ -1,16 +1,16 @@
-const scheduler: Scheduler = {
-    tasks: new Map<Coroutine<any>, Task>()
-};
+let context_scheduler: Scheduler;
 
-interface Scheduler {
+type Scheduler = {
     tasks: Map<Coroutine<any>, Task>;
 }
 
-interface Task {
+type Task = {
     is_waiting: boolean;
 }
 
-function update_scheduler() {
+function update_scheduler(scheduler: Scheduler) {
+    context_scheduler = scheduler;
+    
     scheduler.tasks.forEach((task, routine) => {
         if (task.is_waiting) {
             task.is_waiting = false;
@@ -37,14 +37,14 @@ function fork(code: () => void) {
 
     const routine = coroutine.create(code);
 
-    scheduler.tasks.set(routine, task);
+    context_scheduler.tasks.set(routine, task);
 
     coroutine.resume(routine);
 }
 
 function wait_one_frame() {
     const routine = coroutine.running();
-    const task = scheduler.tasks.get(routine as Coroutine<any>);
+    const task = context_scheduler.tasks.get(routine as Coroutine<any>);
 
     if (task && routine) {
         task.is_waiting = true;
@@ -69,6 +69,22 @@ function wait(time: number) {
 
 function wait_until(condition: () => boolean) {
     while (!condition()) {
+        wait_one_frame();
+    }
+}
+
+function guarded_wait_until(limit_seconds: number, condition: () => void): boolean {
+    const start_time = GameRules.GetGameTime();
+
+    while (true) {
+        if (GameRules.GetGameTime() - start_time >= limit_seconds) {
+            return true;
+        }
+
+        if (condition()) {
+            return false;
+        }
+
         wait_one_frame();
     }
 }

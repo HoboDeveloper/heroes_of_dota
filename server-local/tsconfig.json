@@ -11,7 +11,9 @@
   },
   "include": [
     "**/*.ts",
-    "../common/*.d.ts"
+    "../common/api.d.ts",
+    "../common/api_local.d.ts"
   ],
-  "luaTarget": "JIT"
+  "luaTarget": "JIT",
+  "luaLibImport": "require"
 }

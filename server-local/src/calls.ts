@@ -3,6 +3,7 @@ function try_authorize_user(id: PlayerID, dedicated_server_key: string): string 
 
     const token_result = remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
         steam_id: steam_id,
+        steam_user_name: PlayerResource.GetPlayerName(id),
         dedicated_server_key: dedicated_server_key
     });
 

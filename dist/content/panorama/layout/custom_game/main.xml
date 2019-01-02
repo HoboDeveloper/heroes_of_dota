@@ -1,7 +1,13 @@
 <root>
+    <scripts>
+        <include src="file://{resources}/scripts/custom_game/main.js" />
+    </scripts>
     <styles>
     </styles>
-    <Panel class="MainPanel" hittest="false">
-
+    <Panel class="main_panel" hittest="false">
+        <Panel id="chat" style="flow-children: down; x: 100px; y: 400px;">
+            <Label text="Barrens chat" style="color: white; font-size: 22px;"/>
+            <Panel id="chat_messages" style="flow-children: down; color: white; font-size: 16px;"/>
+        </Panel>
     </Panel>
 </root>

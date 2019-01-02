@@ -1,4 +1,4 @@
-const remote_root = IsInToolsMode ? "http://127.0.0.1:3638" : "http://cia-is.moe:3638";
+const remote_root = IsInToolsMode() ? "http://127.0.0.1:3638" : "http://cia-is.moe:3638";
 
 function get_dedicated_server_key() {
     return GetDedicatedServerKey("v1");
@@ -64,14 +64,10 @@ function remote_request_with_retry_on_403<T extends Object, N extends Object>(en
         wait_until(() => request_completed);
 
         if (unauthorized) {
-            const steam_id = PlayerResource.GetSteamID(main_player.player_id).toString();
-            const token = remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
-                steam_id: steam_id,
-                dedicated_server_key: get_dedicated_server_key()
-            });
+            const token = try_authorize_user(main_player.player_id, get_dedicated_server_key());
 
             if (token) {
-                main_player.token = token.token;
+                update_access_token(main_player, token);
             }
         } else {
             return result;

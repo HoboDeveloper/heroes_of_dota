@@ -2,6 +2,7 @@ import {createServer} from "http";
 import {randomBytes} from "crypto"
 import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action} from "./battle";
 import {unreachable, XY, xy} from "./common";
+import {pull_pending_chat_messages_for_player, submit_chat_message} from "./chat";
 
 type Request_Handler = (body: string) => Request_Result;
 
@@ -20,6 +21,7 @@ const enum Right {
 
 export interface Player {
     id: number;
+    name: string;
     characters: Character[];
     current_character: Character | undefined;
     current_location: XY;
@@ -41,13 +43,18 @@ let character_id_auto_increment = 0;
 
 let test_player: Player | undefined = undefined;
 
+export function get_all_authorized_players() {
+    return players;
+}
+
 function generate_access_token() {
     return randomBytes(32).toString("hex");
 }
 
-function make_new_player(): Player {
+function make_new_player(name: string): Player {
     return {
         id: player_id_auto_increment++,
+        name: name,
         state: Player_State.not_logged_in,
         characters: [],
         current_character: undefined,
@@ -132,11 +139,11 @@ function create_new_character_for_player(player: Player): Character {
     return new_character;
 }
 
-function try_authorize_steam_player_from_dedicated_server(steam_id: string) {
+function try_authorize_steam_player_from_dedicated_server(steam_id: string, steam_name: string) {
     let player = steam_id_to_player.get(steam_id);
 
     if (!player) {
-       player = make_new_player();
+       player = make_new_player(steam_name);
        steam_id_to_player.set(steam_id, player);
        players.push(player)
     }
@@ -239,16 +246,13 @@ function initiate_battle_between_players(player_one: Player, player_two: Player)
 // TODO automatically validate dedicated key on /trusted path
 // TODO don't forget that elements in JSON array can be null
 handlers.set("/trusted/try_authorize_steam_user", body => {
-    const request = JSON.parse(body) as {
-        dedicated_server_key: string,
-        steam_id: string
-    };
+    const request = JSON.parse(body) as Authorize_Steam_User_Request;
 
     if (!validate_dedicated_server_key(request.dedicated_server_key)) {
         return make_error(403);
     }
 
-    const token = try_authorize_steam_player_from_dedicated_server(request.steam_id);
+    const token = try_authorize_steam_player_from_dedicated_server(request.steam_id, request.steam_user_name);
 
     return make_ok_json({
         token: token
@@ -437,6 +441,32 @@ handlers.set("/take_battle_action", body => {
     return action_on_player_to_result(result);
 });
 
+handlers.set("/submit_chat_message", body => {
+    const request = JSON.parse(body) as Submit_Chat_Message_Request;
+    const result = try_do_with_player<Submit_Chat_Message_Response>(request.access_token, player => {
+        // TODO validate message size
+
+        submit_chat_message(player, request.message);
+
+        return {
+            messages: pull_pending_chat_messages_for_player(player)
+        }
+    });
+
+    return action_on_player_to_result(result);
+});
+
+handlers.set("/pull_chat_messages", body => {
+    const request = JSON.parse(body) as Pull_Pending_Chat_Messages_Request;
+    const result = try_do_with_player<Pull_Pending_Chat_Messages_Response>(request.access_token, player => {
+        return {
+            messages: pull_pending_chat_messages_for_player(player)
+        };
+    });
+
+    return action_on_player_to_result(result);
+});
+
 type Request_Result = Result_Ok | Result_Error;
 
 function make_error(code: number): Result_Error {
@@ -456,7 +486,13 @@ function handle_request(url: string, data: string): Request_Result {
         const handler = handlers.get(url);
 
         if (handler) {
-            return handler(data);
+            const json_data_key = "json_data=";
+
+            if (data.startsWith(json_data_key)) {
+                return handler(decodeURIComponent(data.substring(json_data_key.length).replace(/\+/g, "%20")));
+            } else {
+                return handler(data);
+            }
         } else {
             return make_error(404);
         }
@@ -470,7 +506,7 @@ function handle_request(url: string, data: string): Request_Result {
 
 export function start_server(with_test_player: boolean) {
     if (with_test_player) {
-        test_player = make_new_player();
+        test_player = make_new_player("Test guy");
         test_player.movement_history = [{
             location_x: 0,
             location_y: 0,

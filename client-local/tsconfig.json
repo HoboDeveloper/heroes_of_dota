@@ -1,0 +1,20 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "target": "es5",
+    "rootDir": "src",
+    "outDir": "../dist/content/panorama/scripts/custom_game",
+    "noImplicitAny": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true,
+    "sourceMap": false,
+    "lib": [
+      "es2015"
+    ]
+  },
+  "include": [
+    "**/*.ts",
+    "../common/api.d.ts",
+    "../common/api_local.d.ts"
+  ]
+}

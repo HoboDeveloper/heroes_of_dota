@@ -132,6 +132,7 @@ type Submit_Player_Movement_Response = {};
 
 type Authorize_Steam_User_Request = {
     steam_id: string,
+    steam_user_name: string,
     dedicated_server_key: string
 }
 
@@ -193,4 +194,25 @@ type Attack_Player_Request = {
 };
 
 type Attack_Player_Response = {
+}
+
+type Submit_Chat_Message_Request = {
+    access_token: string;
+    message: string;
+}
+
+type Submit_Chat_Message_Response = Pull_Pending_Chat_Messages_Response;
+
+type Pull_Pending_Chat_Messages_Request = {
+    access_token: string;
+}
+
+type Pull_Pending_Chat_Messages_Response = {
+    messages: Chat_Message[];
+}
+
+type Chat_Message = {
+    from_player_id: number;
+    from_player_name: string;
+    message: string;
 }

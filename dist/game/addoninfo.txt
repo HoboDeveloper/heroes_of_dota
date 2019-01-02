@@ -1,3 +1,8 @@
-"AddonInfo"
-{
+"AddonInfo" {
+    "maps"  "main"
+    "IsPlayable"    "1"
+
+    "main" {
+        "MaxPlayers"    "1"
+    }
 }

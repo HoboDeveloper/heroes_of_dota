@@ -12,7 +12,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "../common/*.d.ts"
+    "../common/api.d.ts"
   ],
   "exclude": [
     "node_modules"
