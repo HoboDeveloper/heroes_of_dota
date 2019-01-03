@@ -146,7 +146,7 @@ function move_unit(battle: Battle, unit: Unit, to: XY) {
     unit.position = to;
 }
 
-function damage_unit(battle: Battle, source: Unit, target: Unit, damage: number): Battle_Delta {
+function damage_unit(battle: Battle, source: Unit, target: Unit, damage: number): Battle_Delta_Health_Change {
     target.health = Math.max(0, target.health - damage);
 
     if (target.health == 0) {
@@ -174,6 +174,7 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
 
             if (!unit) return;
             if (unit.dead) return;
+            if (unit.owner_id != player.id) return;
             if (xy_equal(unit.position, action.to)) return;
             if (!can_find_path(battle.grid, unit.position, action.to, unit.move_points)) return;
 
@@ -193,21 +194,32 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
 
             if (!attacker) return;
             if (attacker.dead) return;
+            if (attacker.owner_id != player.id) return;
             if (manhattan(attacker.position, action.to) > 1) return;
 
             const attacked = unit_at(battle, action.to);
 
-            new_deltas.push({
-                type: Battle_Delta_Type.unit_attack,
-                unit_id: attacker.id,
-                attacked_position: action.to
-            });
+            let effect: Battle_Effect;
 
             if (attacked) {
                 const damage_delta = damage_unit(battle, attacker, attacked, attacker.attack_damage);
 
-                new_deltas.push(damage_delta);
+                effect = {
+                    type: Battle_Effect_Type.basic_attack,
+                    delta: damage_delta
+                };
+            } else {
+                effect = {
+                    type: Battle_Effect_Type.nothing
+                }
             }
+
+            new_deltas.push({
+                type: Battle_Delta_Type.unit_attack,
+                unit_id: attacker.id,
+                attacked_position: action.to,
+                effect: effect
+            });
 
             return new_deltas;
         }
@@ -252,10 +264,9 @@ function get_next_unit_id(battle: Battle) {
 }
 
 export function try_take_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
-    // TODO testing
-    // if (get_turning_player(battle) != player) {
-    //     return;
-    // }
+    if (get_turning_player(battle) != player) {
+        return;
+    }
 
     const new_deltas = try_apply_turn_action(battle, player, action);
 
@@ -277,7 +288,7 @@ export function find_battle_by_id(id: number): Battle | undefined {
 export function start_battle(players: Player[]): number {
     const grid: Grid = {
         cells: [],
-        size: xy(8, 8)
+        size: xy(12, 12)
     };
 
     fill_grid(grid);

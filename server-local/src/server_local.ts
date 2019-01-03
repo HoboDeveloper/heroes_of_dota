@@ -43,7 +43,7 @@ type Battle = {
     units: Battle_Unit[];
     cells: Cell[];
     grid_size: XY;
-    camera_dummy: CBaseEntity;
+    camera_dummy: CDOTA_BaseNPC;
 }
 
 type Player_Map = { [id: number]: Player };
@@ -125,7 +125,8 @@ function main() {
 
 function update_player_net_table(main_player: Main_Player) {
     const data: Player_Net_Table = {
-        token: main_player.token
+        token: main_player.token,
+        state: main_player.state
     };
 
     print("Net table updating");
@@ -423,8 +424,6 @@ function on_player_order_async(callback: (event: ExecuteOrderEvent) => boolean) 
 }
 
 function process_initial_player_state(main_player: Main_Player, state_data: Player_State_Data) {
-    main_player.state = state_data.state;
-
     if (state_data.state == Player_State.not_logged_in) {
         const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
         let selected_character: number;
@@ -465,11 +464,12 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
             }
         }
 
-        // TODO that cast is unnecessary IIRC
-        PlayerResource.SetCameraTarget(main_player.player_id, battle.camera_dummy as CDOTA_BaseNPC);
+        PlayerResource.SetCameraTarget(main_player.player_id, battle.camera_dummy);
     }
 
     main_player.state = next_state;
+
+    update_player_net_table(main_player);
 }
 
 function submit_and_query_movement_loop(main_player: Main_Player, players: Player_Map) {
@@ -587,21 +587,25 @@ function populate_path_costs(from: XY, to: XY): Cost_Population_Result | undefin
                 grid_cell_at(xy(at.x, at.y - 1))
             ];
 
-            for (let neighbor of neighbors) {
+            // for (let neighbor of neighbors) doesn't work there after being transpiled into lua, because
+            // #array with nils in the middle won't always give 4
+            for (let neighbor_index = 0; neighbor_index < 4; neighbor_index++) {
+                const neighbor = neighbors[neighbor_index];
+
                 if (!neighbor) continue;
 
-                const neighbor_index = grid_cell_index(neighbor.position);
+                const neighbor_cell_index = grid_cell_index(neighbor.position);
 
-                if (indices_already_checked[neighbor_index]) continue;
+                if (indices_already_checked[neighbor_cell_index]) continue;
                 if (neighbor.occupied) {
-                    indices_already_checked[neighbor_index] = true;
+                    indices_already_checked[neighbor_cell_index] = true;
                     continue;
                 }
 
-                new_indices.push(neighbor_index);
+                new_indices.push(neighbor_cell_index);
 
-                cell_index_to_parent_index[neighbor_index] = index;
-                indices_already_checked[neighbor_index] = true;
+                cell_index_to_parent_index[neighbor_cell_index] = index;
+                indices_already_checked[neighbor_cell_index] = true;
             }
         }
 
@@ -794,7 +798,7 @@ function play_delta(delta: Battle_Delta) {
                     });
 
                     if (guard_hit) {
-                        log_chat_debug_message(`Failed waiting on MoveToPosition ${delta.to_position.x}/${delta.to_position.y}`);
+                        log_chat_debug_message(`Failed waiting on MoveToPosition ${battle_position.x}/${battle_position.y}`);
                     }
                 }
 
@@ -872,13 +876,22 @@ function play_delta(delta: Battle_Delta) {
 }
 
 function load_battle_data() {
-    const grid_size = xy(8, 8);
+    // TODO load it from server
+    const grid_size = xy(12, 12);
     const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
     const battle_center = origin + Vector(grid_size.x, grid_size.y) * battle_cell_size / 2 as Vec;
 
     // TODO incorrect definition
-    // @ts-ignore
-    const camera_entity = CreateModifierThinker(undefined, undefined, "", {}, battle_center, DOTATeam_t.DOTA_TEAM_GOODGUYS, false);
+    const camera_entity = CreateModifierThinker(
+        // @ts-ignore
+        undefined,
+        undefined,
+        "",
+        {},
+        battle_center,
+        DOTATeam_t.DOTA_TEAM_GOODGUYS,
+        false
+    ) as CDOTA_BaseNPC;
 
     camera_entity.SetAbsOrigin(battle_center);
 

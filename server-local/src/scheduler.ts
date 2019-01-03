@@ -21,6 +21,8 @@ function update_scheduler(scheduler: Scheduler) {
                 print("Error when executing coroutine");
                 print(debug.traceback(routine));
                 print("", possible_error);
+
+                log_chat_debug_message(`Error when executing coroutine: ${possible_error}`);
             }
         }
 

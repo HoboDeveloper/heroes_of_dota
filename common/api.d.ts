@@ -12,6 +12,11 @@ declare const enum Battle_Delta_Type {
     end_turn = 4
 }
 
+declare const enum Battle_Effect_Type {
+    nothing = 0,
+    basic_attack = 1
+}
+
 declare const enum Action_Type {
     attack = 0,
     move = 1,
@@ -44,6 +49,19 @@ type Action_End_Turn = {
 
 type Turn_Action = Action_Attack | Action_Move | Action_End_Turn;
 
+type Battle_Effect =
+    Battle_Effect_Nothing |
+    Battle_Effect_Basic_Attack;
+
+type Battle_Effect_Nothing = {
+    type: Battle_Effect_Type.nothing
+}
+
+type Battle_Effect_Basic_Attack = {
+    type: Battle_Effect_Type.basic_attack;
+    delta: Battle_Delta_Health_Change
+}
+
 type Battle_Delta_Health_Change = {
     type: Battle_Delta_Type.health_change;
     source_unit_id: number;
@@ -64,6 +82,7 @@ type Battle_Delta_Unit_Move = {
 
 type Battle_Delta_Unit_Attack = {
     type: Battle_Delta_Type.unit_attack,
+    effect: Battle_Effect;
     unit_id: number,
     attacked_position: {
         x: number,

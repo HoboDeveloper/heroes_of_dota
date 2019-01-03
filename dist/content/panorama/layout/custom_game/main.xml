@@ -1,13 +1,24 @@
 <root>
     <scripts>
-        <include src="file://{resources}/scripts/custom_game/main.js" />
+        <include src="file://{resources}/scripts/custom_game/main_ui.js" />
+        <include src="file://{resources}/scripts/custom_game/chat_ui.js" />
     </scripts>
     <styles>
+        <include src="file://{resources}/styles/custom_game/battle.css" />
     </styles>
     <Panel class="main_panel" hittest="false">
         <Panel id="chat" style="flow-children: down; x: 100px; y: 400px;">
             <Label text="Barrens chat" style="color: white; font-size: 22px;"/>
             <Panel id="chat_messages" style="flow-children: down; color: white; font-size: 16px;"/>
+        </Panel>
+
+        <Panel id="battle_ui" hittest="false">
+            <Button id="end_turn_button" onactivate="end_turn();">
+                <Label text="End turn"/>
+            </Button>
+        </Panel>
+
+        <Panel id="global_map_ui">
         </Panel>
     </Panel>
 </root>
