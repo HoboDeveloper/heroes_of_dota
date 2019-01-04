@@ -75,29 +75,22 @@ function update_state_after_turn_ends() {
     }
 }
 
+function collapse_move_delta(delta: Battle_Delta_Unit_Move, path_cost: number) {
+    const unit = find_unit_by_id(delta.unit_id);
+
+    if (unit) {
+        grid_cell_at_unchecked(unit.position).occupied = false;
+        grid_cell_at_unchecked(delta.to_position).occupied = true;
+
+        unit.position = delta.to_position;
+        unit.move_points -= path_cost;
+    }
+}
+
 function collapse_delta(delta: Battle_Delta) {
     switch (delta.type) {
         case Battle_Delta_Type.unit_move: {
-            const unit = find_unit_by_id(delta.unit_id);
-
-            if (unit) {
-                const path = populate_path_costs(unit.position, delta.to_position);
-
-                if (!path) {
-                    $.Msg(`Couldn't find path: ${unit.position} -> ${delta.to_position}`);
-                    return;
-                }
-
-                const cost = path.cell_index_to_cost[grid_cell_index(delta.to_position)];
-
-                grid_cell_at_unchecked(unit.position).occupied = false;
-                grid_cell_at_unchecked(delta.to_position).occupied = true;
-
-                unit.position = delta.to_position;
-                unit.move_points -= cost;
-            }
-
-            break;
+            throw "Use collapse_move_delta";
         }
 
         case Battle_Delta_Type.unit_spawn: {
@@ -118,10 +111,27 @@ function collapse_delta(delta: Battle_Delta) {
         }
 
         case Battle_Delta_Type.health_change: {
+            const target = find_unit_by_id(delta.target_unit_id);
+
+            if (target && delta.new_health == 0) {
+                grid_cell_at_unchecked(target.position).occupied = false;
+            }
+
             break;
         }
 
         case Battle_Delta_Type.unit_attack: {
+            switch (delta.effect.type) {
+                case Battle_Effect_Type.nothing: break;
+                case Battle_Effect_Type.basic_attack: {
+                    collapse_delta(delta.effect.delta);
+
+                    break;
+                }
+
+                default: unreachable(delta.effect);
+            }
+
             break;
         }
 
@@ -135,18 +145,6 @@ function collapse_delta(delta: Battle_Delta) {
     }
 }
 
-function try_collapse_deltas() {
-    for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
-        const delta = battle.deltas[battle.delta_head];
-
-        if (!delta) {
-            break;
-        }
-
-        collapse_delta(delta);
-    }
-}
-
 function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
     $.Msg(`Received ${deltas.length} new deltas`);
 
@@ -154,15 +152,39 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
         battle.deltas[head_before_merge + index] = deltas[index];
     }
 
-    // TODO We should do the following after we move the path finding to panorama:
-    // TODO 1. Calculate paths for each move delta while collapsing the state
-    // TODO 2. Send those paths in absolute coordinates to the server
-    // TODO 3. Remove server knowledge of cell sizes and the like, tons of garbage just goes away
-    try_collapse_deltas();
+    const delta_paths: Move_Delta_Paths = {};
+
+    for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+        const delta = battle.deltas[battle.delta_head];
+
+        if (!delta) {
+            break;
+        }
+
+        if (delta.type == Battle_Delta_Type.unit_move) {
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (unit) {
+                const path = find_grid_path(unit.position, delta.to_position);
+
+                if (path) {
+                    delta_paths[battle.delta_head] = path.map(battle_position_to_world_position_center).map(xyz => ({
+                        world_x: xyz[0],
+                        world_y: xyz[1]
+                    }));
+
+                    collapse_move_delta(delta, path.length);
+                }
+            }
+        } else {
+            collapse_delta(delta);
+        }
+    }
 
     if (battle.deltas.length > 0) {
         fire_event<Put_Battle_Deltas_Event>("put_battle_deltas", {
             deltas: deltas,
+            delta_paths: delta_paths,
             from_head: head_before_merge
         });
     }
@@ -217,9 +239,6 @@ function process_state_transition(from: Player_State, to: Player_State, state_da
 
     // TODO if state_data was discriminated then this check wouldn't be needed
     if (to == Player_State.in_battle && state_data.battle) {
-        $.Msg("got battle");
-        $.Msg(state_data.battle);
-
         battle = {
             units: [],
             delta_head: 0,
@@ -394,9 +413,11 @@ function periodically_drop_selection_in_battle() {
         return;
     }
 
-    const selected_entities = Players.GetSelectedEntities(Players.GetLocalPlayer());
+    const local_player = Players.GetLocalPlayer();
+    const selected_entities = Players.GetSelectedEntities(local_player);
+    const hero = Players.GetPlayerHeroEntityIndex(local_player);
 
-    if (selected_entities.length > 0) {
+    if (selected_entities.length > 0 && selected_entities[0] != hero) {
         GameUI.SelectUnit(-1, false);
     }
 }
@@ -464,28 +485,34 @@ function setup_mouse_filter() {
     }
 
     GameUI.SetMouseCallback((event, button) => {
+        if (current_state != Player_State.in_battle) {
+            return true;
+        }
+
         if (event == "pressed") {
+            const click_behaviors = GameUI.GetClickBehaviors();
+
             const wants_to_select_unit =
                 button == MouseButton.LEFT &&
-                GameUI.GetClickBehaviors() == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
             const wants_to_perform_automatic_action =
                 button == MouseButton.RIGHT &&
-                GameUI.GetClickBehaviors() == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
             const wants_to_move_unconditionally =
                 current_selected_entity != undefined &&
                 button == MouseButton.LEFT &&
-                GameUI.GetClickBehaviors() == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
 
             const wants_to_attack_unconditionally =
                 current_selected_entity != undefined &&
                 button == MouseButton.LEFT &&
-                GameUI.GetClickBehaviors() == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
 
             const wants_to_cancel_current_behavior =
                 button == MouseButton.RIGHT &&
-                GameUI.GetClickBehaviors() != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+                click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
             if (wants_to_cancel_current_behavior) {
                 return false;
@@ -544,8 +571,6 @@ function setup_mouse_filter() {
 }
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
-    $.Msg("state");
-
     if (current_state != data.state) {
         process_state_transition(current_state, data.state, data);
 

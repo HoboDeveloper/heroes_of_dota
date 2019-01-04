@@ -1,3 +1,5 @@
+type Move_Delta_Paths = { [delta_index: number]: { world_x: number, world_y: number }[] }
+
 type Battle_Net_Table_Data = {
     world_origin: {
         x: number,
@@ -16,6 +18,7 @@ type Player_Net_Table = {
 
 type Put_Battle_Deltas_Event = {
     deltas: Battle_Delta[],
+    delta_paths: Move_Delta_Paths,
     from_head: number
 }
 

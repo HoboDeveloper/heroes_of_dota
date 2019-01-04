@@ -38,6 +38,7 @@ type Cell = {
 
 type Battle = {
     deltas: Battle_Delta[];
+    delta_paths: Move_Delta_Paths;
     delta_head: number;
     world_origin: XY;
     units: Battle_Unit[];
@@ -221,14 +222,14 @@ function pre_visualize_action(action: Turn_Action) {
             const unit = find_unit_by_id(action.unit_id);
 
             if (unit && !unit.is_playing_a_delta) {
-                const path = find_grid_path(unit.position, action.to);
-
-                if (!path) {
-                    print("Couldn't find path");
-                    return;
-                }
-
-                unit.handle.FaceTowards(battle_position_to_world_position_center(path[0]));
+                // const path = find_grid_path(unit.position, action.to);
+                //
+                // if (!path) {
+                //     print("Couldn't find path");
+                //     return;
+                // }
+                //
+                // unit.handle.FaceTowards(battle_position_to_world_position_center(path[0]));
             }
 
             break;
@@ -436,6 +437,14 @@ function merge_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) 
     }
 }
 
+function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
+    for (const delta_index_string in delta_paths) {
+        const delta_index = tonumber(delta_index_string);
+
+        battle.delta_paths[delta_index] = from_client_array(delta_paths[delta_index_string]);
+    }
+}
+
 function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
     return Vector(
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
@@ -449,114 +458,6 @@ function grid_cell_index(at: XY) {
 
 function grid_cell_at_unchecked(at: XY): Cell {
     return battle.cells[grid_cell_index(at)];
-}
-
-function grid_cell_at(at: XY): Cell | undefined {
-    if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
-        return undefined;
-    }
-
-    return battle.cells[grid_cell_index(at)];
-}
-
-type Cost_Population_Result = {
-    cell_index_to_cost: number[];
-    cell_index_to_parent_index: number[];
-}
-
-function populate_path_costs(from: XY, to: XY): Cost_Population_Result | undefined {
-    const cell_index_to_cost: number[] = [];
-    const cell_index_to_parent_index: number[] = [];
-    const indices_already_checked: boolean[] = [];
-    const from_index = grid_cell_index(from);
-
-    let indices_not_checked: number[] = [];
-
-    indices_not_checked.push(from_index);
-    indices_already_checked[from_index] = true;
-    cell_index_to_cost[from_index] = 0;
-
-    for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
-        const new_indices: number[] = [];
-
-        for (let index of indices_not_checked) {
-            const cell = battle.cells[index];
-            const at = cell.position;
-
-            cell_index_to_cost[index] = current_cost;
-
-            if (xy_equal(to, at)) {
-                return {
-                    cell_index_to_cost: cell_index_to_cost,
-                    cell_index_to_parent_index: cell_index_to_parent_index
-                };
-            }
-
-            const neighbors = [
-                grid_cell_at(xy(at.x + 1, at.y)),
-                grid_cell_at(xy(at.x - 1, at.y)),
-                grid_cell_at(xy(at.x, at.y + 1)),
-                grid_cell_at(xy(at.x, at.y - 1))
-            ];
-
-            // for (let neighbor of neighbors) doesn't work there after being transpiled into lua, because
-            // #array with nils in the middle won't always give 4
-            for (let neighbor_index = 0; neighbor_index < 4; neighbor_index++) {
-                const neighbor = neighbors[neighbor_index];
-
-                if (!neighbor) continue;
-
-                const neighbor_cell_index = grid_cell_index(neighbor.position);
-
-                if (indices_already_checked[neighbor_cell_index]) continue;
-                if (neighbor.occupied) {
-                    indices_already_checked[neighbor_cell_index] = true;
-                    continue;
-                }
-
-                new_indices.push(neighbor_cell_index);
-
-                cell_index_to_parent_index[neighbor_cell_index] = index;
-                indices_already_checked[neighbor_cell_index] = true;
-            }
-        }
-
-        indices_not_checked = new_indices;
-    }
-
-    return undefined;
-}
-
-function find_grid_path(from: XY, to: XY): XY[] | undefined {
-    const cell_from = grid_cell_at(from);
-    const cell_to = grid_cell_at(to);
-
-    print(`Path from ${from.x} ${from.y} -> ${to.x} ${to.y}`);
-
-    if (!cell_from || !cell_to) {
-        return;
-    }
-
-    const populated = populate_path_costs(from, to);
-
-    if (!populated) {
-        return;
-    }
-
-    let current_cell_index = populated.cell_index_to_parent_index[grid_cell_index(to)];
-    const to_index = grid_cell_index(from);
-    const path = [];
-
-    path.push(to);
-
-    while (to_index != current_cell_index) {
-        path.push(battle.cells[current_cell_index].position);
-        current_cell_index = populated.cell_index_to_parent_index[current_cell_index];
-    }
-
-    // path.push(from);
-
-    return path.reverse();
 }
 
 function game_time_formatted() {
@@ -581,6 +482,17 @@ function spawn_unit_for_battle(unit_id: number, at: XY): Battle_Unit {
     grid_cell_at_unchecked(at).occupied = true;
 
     return unit;
+}
+
+function fast_forward_attack_delta_effects(delta: Battle_Delta_Unit_Attack) {
+    const effect = delta.effect;
+
+    switch (effect.type) {
+        case Battle_Effect_Type.basic_attack: {
+            fast_forward_delta(effect.delta);
+            break;
+        }
+    }
 }
 
 function fast_forward_delta(delta: Battle_Delta) {
@@ -615,6 +527,8 @@ function fast_forward_delta(delta: Battle_Delta) {
                 unit.handle.SetForwardVector(Vector(delta.attacked_position.x - unit.position.x, delta.attacked_position.y - unit.position.y));
             }
 
+            fast_forward_attack_delta_effects(delta);
+
             break;
         }
 
@@ -623,6 +537,12 @@ function fast_forward_delta(delta: Battle_Delta) {
         }
 
         case Battle_Delta_Type.health_change: {
+            const unit = find_unit_by_id(delta.target_unit_id);
+
+            if (unit && delta.new_health == 0) {
+                unit.handle.ForceKill(false);
+            }
+
             break;
         }
 
@@ -630,7 +550,18 @@ function fast_forward_delta(delta: Battle_Delta) {
     }
 }
 
-function play_delta(delta: Battle_Delta) {
+function play_attack_delta_effects(delta: Battle_Delta_Unit_Attack) {
+    const effect = delta.effect;
+
+    switch (effect.type) {
+        case Battle_Effect_Type.basic_attack: {
+            play_delta(effect.delta, -1);
+            break;
+        }
+    }
+}
+
+function play_delta(delta: Battle_Delta, head: number) {
     print(`Well delta type is: ${delta.type}`);
 
     switch (delta.type) {
@@ -651,9 +582,9 @@ function play_delta(delta: Battle_Delta) {
             if (unit) {
                 unit.is_playing_a_delta = true;
 
-                const path = find_grid_path(unit.position, delta.to_position);
+                const world_path = battle.delta_paths[head];
 
-                if (!path) {
+                if (!world_path) {
                     print("Couldn't find path");
                     break;
                 }
@@ -663,8 +594,8 @@ function play_delta(delta: Battle_Delta) {
 
                 unit.position = delta.to_position;
 
-                for (let battle_position of path) {
-                    const world_position = battle_position_to_world_position_center(battle_position);
+                for (let world_xy of world_path) {
+                    const world_position = Vector(world_xy.world_x, world_xy.world_y);
 
                     unit.handle.MoveToPosition(world_position);
 
@@ -674,7 +605,7 @@ function play_delta(delta: Battle_Delta) {
                     });
 
                     if (guard_hit) {
-                        log_chat_debug_message(`Failed waiting on MoveToPosition ${battle_position.x}/${battle_position.y}`);
+                        log_chat_debug_message(`Failed waiting on MoveToPosition ${world_position.x}/${world_position.y}`);
                     }
                 }
 
@@ -731,6 +662,8 @@ function play_delta(delta: Battle_Delta) {
                     wait_one_frame();
                 }
 
+                play_attack_delta_effects(delta);
+
                 attacker.is_playing_a_delta = false;
             }
 
@@ -742,6 +675,12 @@ function play_delta(delta: Battle_Delta) {
         }
 
         case Battle_Delta_Type.health_change: {
+            const unit = find_unit_by_id(delta.target_unit_id);
+
+            if (unit && delta.new_health == 0) {
+                unit.handle.ForceKill(false);
+            }
+
             break;
         }
 
@@ -771,6 +710,7 @@ function load_battle_data() {
 
     battle = {
         deltas: [],
+        delta_paths: {},
         delta_head: 0,
         world_origin: {
             x: origin.x,
@@ -870,6 +810,7 @@ function game_loop() {
 
     on_custom_event_async<Put_Battle_Deltas_Event>("put_battle_deltas", event => {
         merge_battle_deltas(event.from_head, from_client_array(event.deltas));
+        merge_delta_paths_from_client(event.delta_paths);
     });
 
     let state_transition: Player_State_Data | undefined = undefined;
@@ -932,7 +873,7 @@ function game_loop() {
 
                     print(`Playing delta ${battle.delta_head}`);
 
-                    play_delta(delta);
+                    play_delta(delta, battle.delta_head);
                     update_player_state_net_table(main_player);
                 }
 
