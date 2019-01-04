@@ -2,6 +2,8 @@
     <scripts>
         <include src="file://{resources}/scripts/custom_game/main_ui.js" />
         <include src="file://{resources}/scripts/custom_game/chat_ui.js" />
+        <include src="file://{resources}/scripts/custom_game/battle_ui.js" />
+        <include src="file://{resources}/scripts/custom_game/unit_defs.js" />
     </scripts>
     <styles>
         <include src="file://{resources}/styles/custom_game/battle.css" />

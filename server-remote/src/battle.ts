@@ -1,18 +1,23 @@
 import {unreachable, XY, xy, xy_equal} from "./common";
+import {unit_definition_by_type} from "./unit_defs";
 import {Player} from "./server";
 
 let battle_id_auto_increment = 0;
 
 const battles: Battle[] = [];
 
-interface Unit {
+type Unit = {
+    type: Unit_Type;
     id: number;
     owner_id: number;
     dead: boolean;
     position: XY;
     health: number;
     move_points: number;
+    max_health: number;
+    max_move_points: number;
     attack_damage: number;
+    has_taken_an_action_this_turn: boolean;
 }
 
 interface Cell {
@@ -65,7 +70,7 @@ function unit_by_id(battle: Battle, id: number) {
 }
 
 // TODO replace with a more efficient A* implementation
-function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): boolean {
+function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): [boolean, number] {
     const indices_already_checked: boolean[] = [];
     const from_index = grid_cell_index(grid, from);
 
@@ -74,7 +79,7 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
     indices_not_checked.push(from_index);
     indices_already_checked[from_index] = true;
 
-    for (let current_cost = 0; indices_not_checked.length > 0 && current_cost < maximum_distance; current_cost++) {
+    for (let current_cost = 0; indices_not_checked.length > 0 && current_cost <= maximum_distance; current_cost++) {
         const new_indices: number[] = [];
 
         for (let index of indices_not_checked) {
@@ -82,7 +87,7 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
             const at = cell.position;
 
             if (xy_equal(to, at)) {
-                return true;
+                return [true, current_cost];
             }
 
             const neighbors = [
@@ -112,7 +117,7 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
         indices_not_checked = new_indices;
     }
 
-    return false;
+    return [false, 0];
 }
 
 function fill_grid(grid: Grid) {
@@ -165,6 +170,13 @@ function damage_unit(battle: Battle, source: Unit, target: Unit, damage: number)
     };
 }
 
+function resolve_state_post_turn(battle: Battle) {
+    for (let unit of battle.units) {
+        unit.move_points = unit.max_move_points;
+        unit.has_taken_an_action_this_turn = false;
+    }
+}
+
 function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
     const new_deltas: Battle_Delta[] = [];
 
@@ -175,10 +187,18 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
             if (!unit) return;
             if (unit.dead) return;
             if (unit.owner_id != player.id) return;
+            if (unit.has_taken_an_action_this_turn) return;
             if (xy_equal(unit.position, action.to)) return;
-            if (!can_find_path(battle.grid, unit.position, action.to, unit.move_points)) return;
+
+            const [could_find_path, cost] = can_find_path(battle.grid, unit.position, action.to, unit.move_points);
+
+            if (!could_find_path) {
+                return;
+            }
 
             move_unit(battle, unit, action.to);
+
+            unit.move_points -= cost;
 
             new_deltas.push({
                 type: Battle_Delta_Type.unit_move,
@@ -195,6 +215,7 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
             if (!attacker) return;
             if (attacker.dead) return;
             if (attacker.owner_id != player.id) return;
+            if (attacker.has_taken_an_action_this_turn) return;
             if (manhattan(attacker.position, action.to) > 1) return;
 
             const attacked = unit_at(battle, action.to);
@@ -214,6 +235,8 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
                 }
             }
 
+            attacker.has_taken_an_action_this_turn = true;
+
             new_deltas.push({
                 type: Battle_Delta_Type.unit_attack,
                 unit_id: attacker.id,
@@ -226,6 +249,7 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
 
         case Action_Type.end_turn: {
             pass_turn_to_next_player(battle);
+            resolve_state_post_turn(battle);
 
             new_deltas.push({
                 type: Battle_Delta_Type.end_turn
@@ -238,15 +262,20 @@ function try_apply_turn_action(battle: Battle, player: Player, action: Turn_Acti
     }
 }
 
-function spawn_unit(battle: Battle, owner: Player, at_position: XY) {
+function spawn_unit(battle: Battle, owner: Player, at_position: XY, type: Unit_Type) {
     const id = get_next_unit_id(battle);
+    const definition = unit_definition_by_type(type);
 
     battle.units.push({
         id: id,
+        type: type,
         owner_id: owner.id,
-        health: 30,
-        attack_damage: 0,
-        move_points: 20,
+        health: definition.health,
+        max_health: definition.health,
+        attack_damage: 6,
+        move_points: definition.move_points,
+        max_move_points: definition.move_points,
+        has_taken_an_action_this_turn: false,
         position: at_position,
         dead: false
     });
@@ -255,6 +284,7 @@ function spawn_unit(battle: Battle, owner: Player, at_position: XY) {
         type: Battle_Delta_Type.unit_spawn,
         at_position: at_position,
         owner_id: owner.id,
+        unit_type: type,
         unit_id: id
     });
 }
@@ -303,14 +333,13 @@ export function start_battle(players: Player[]): number {
         turning_player_index: 0
     };
 
-    spawn_unit(battle, players[0], xy(1, 1));
-    spawn_unit(battle, players[0], xy(3, 1));
-    spawn_unit(battle, players[0], xy(5, 1));
+    spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa);
+    spawn_unit(battle, players[0], xy(3, 1), Unit_Type.ursa);
+    spawn_unit(battle, players[0], xy(5, 1), Unit_Type.ursa);
 
-
-    spawn_unit(battle, players[1], xy(2, 7));
-    spawn_unit(battle, players[1], xy(4, 7));
-    spawn_unit(battle, players[1], xy(6, 7));
+    spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa);
+    spawn_unit(battle, players[1], xy(4, 7), Unit_Type.ursa);
+    spawn_unit(battle, players[1], xy(6, 7), Unit_Type.ursa);
 
     battles.push(battle);
 

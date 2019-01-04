@@ -8,9 +8,13 @@ function remote_request<T extends Object, N extends Object>(endpoint: string, bo
     $.AsyncWebRequest(remote_root + endpoint, {
         type: "POST",
         data: { json_data: JSON.stringify(body) },
-        timeout: 10_000,
+        timeout: 10000,
         success: response => callback(JSON.parse(response))
     });
+}
+
+function fire_event<T extends Object>(event_name: string, data: T) {
+    GameEvents.SendCustomGameEventToServer(event_name, data);
 }
 
 function get_net_table<T>(table_name: string, key: string): T {
@@ -41,35 +45,57 @@ function subscribe_to_net_table_key<T>(table: string, key: string, callback: (da
     return listener;
 }
 
-function particle_at(position: XYZ) {
-    const particle = Particles.CreateParticle("particles/ui/square_overlay.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0);
-
-    Particles.SetParticleControl(particle, 0, position);
-    Particles.SetParticleControl(particle, 1, [64, 0, 0]);
-    // Particles.SetParticleControl(particle, 2, [255,255,255]);
-    Particles.SetParticleControl(particle, 3, [50, 0, 0]);
-
-    $.Schedule(3.0, () => {
-        Particles.DestroyParticleEffect(particle, true);
-        Particles.ReleaseParticleIndex(particle);
-    });
+function unreachable(x: never): never {
+    throw "Didn't expect to get here";
 }
 
-function scheduled() {
-    $.Schedule(3.0, scheduled);
-    $.Msg("GAGA");
-
-    const mouse_position = GameUI.GetCursorPosition();
-    const position = GameUI.GetScreenWorldPosition(mouse_position);
-
-    for (let i = 0; i < 16; i++) {
-        for (let j = 0; j < 16; j++) {
-            particle_at([
-                position[0] + i * 128,
-                position[1] + j * 128,
-                position[2]
-            ]);
+function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T | undefined {
+    for (let element of array) {
+        if (predicate(element)) {
+            return element;
         }
+    }
+
+    return undefined;
+}
+
+interface Temporary_Storage_Panel extends Panel {
+    temporary_particles: ParticleId[] | undefined;
+}
+
+function register_particle_for_reload(particle: ParticleId) {
+    if (!Game.IsInToolsMode()) {
+        return;
+    }
+
+    const storage = $.GetContextPanel() as Temporary_Storage_Panel;
+
+    let array: ParticleId[] | undefined = storage.temporary_particles;
+
+    if (!array) {
+        array = [];
+        storage.temporary_particles = array;
+    }
+
+    array.push(particle);
+}
+
+function clean_up_particles_after_reload() {
+    if (!Game.IsInToolsMode()) {
+        return;
+    }
+
+    const storage = $.GetContextPanel() as Temporary_Storage_Panel;
+
+    if (storage.temporary_particles) {
+        for (let particle of storage.temporary_particles) {
+            Particles.DestroyParticleEffect(particle, true);
+            Particles.ReleaseParticleIndex(particle);
+        }
+
+        $.Msg(`Cleaned up ${storage.temporary_particles.length} temporary particles`);
+
+        storage.temporary_particles = [];
     }
 }
 
@@ -102,6 +128,7 @@ function hide_default_ui() {
     GameUI.SetDefaultUIEnabled(DotaDefaultUIElement_t.DOTA_DEFAULT_UI_ENDGAME_CHAT, false);
 }
 
+clean_up_particles_after_reload();
 hide_default_ui();
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {

@@ -113,10 +113,6 @@ function subscribe_to_debug_message_event() {
     });
 }
 
-function end_turn() {
-    $.Msg("End turn");
-}
-
 let chat_initialized = false;
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", () => {

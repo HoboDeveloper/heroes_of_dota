@@ -9,7 +9,7 @@
     "strictNullChecks": true,
     "sourceMap": false,
     "lib": [
-      "es2015"
+      "es2016"
     ]
   },
   "include": [

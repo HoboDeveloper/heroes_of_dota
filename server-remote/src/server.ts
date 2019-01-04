@@ -430,6 +430,18 @@ handlers.set("/take_battle_action", body => {
         const previous_head = battle.deltas.length;
         const deltas = try_take_turn_action(battle, player, request.action);
 
+        if (test_player) {
+            const test_guy = test_player;
+
+            if (request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index] == test_player) {
+                setInterval(() => {
+                    try_take_turn_action(battle, test_guy, {
+                        type: Action_Type.end_turn
+                    })
+                }, 3000);
+            }
+        }
+
         if (deltas) {
             return {
                 deltas: deltas,

@@ -51,7 +51,6 @@ type Player_Map = { [id: number]: Player };
 declare let battle: Battle;
 
 const movement_history_submit_rate = 0.7;
-const battle_delta_query_rate = 2.0;
 const movement_history_length = 30;
 const battle_cell_size = 128;
 
@@ -76,10 +75,6 @@ function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T |
 
 function find_unit_by_id(id: number): Battle_Unit | undefined {
     return array_find(battle.units, unit => unit.id == id);
-}
-
-function find_unit_by_entity_index(index: EntityID): Battle_Unit | undefined {
-    return array_find(battle.units, unit => unit.handle.entindex() == index);
 }
 
 function log_message(message: string) {
@@ -123,13 +118,29 @@ function main() {
     fork(game_loop);
 }
 
-function update_player_net_table(main_player: Main_Player) {
+// TODO this looks more like game state table right now, rename?
+function update_player_state_net_table(main_player: Main_Player) {
+    let battle_data: Battle_Net_Table_Data | undefined = undefined;
+
+    if (main_player.state == Player_State.in_battle) {
+        const entity_id_to_unit_id: { [entity_id:number]:number } = {};
+
+        for (const unit of battle.units) {
+            entity_id_to_unit_id[unit.handle.entindex()] = unit.id;
+        }
+
+        battle_data = {
+            world_origin: battle.world_origin,
+            current_visual_head: battle.delta_head,
+            entity_id_to_unit_id: entity_id_to_unit_id
+        }
+    }
+
     const data: Player_Net_Table = {
         token: main_player.token,
-        state: main_player.state
+        state: main_player.state,
+        battle: battle_data
     };
-
-    print("Net table updating");
 
     CustomNetTables.SetTableValue("main", "player", data);
 }
@@ -137,7 +148,7 @@ function update_player_net_table(main_player: Main_Player) {
 function update_access_token(main_player: Main_Player, new_token: string) {
     main_player.token = new_token;
 
-    update_player_net_table(main_player);
+    update_player_state_net_table(main_player);
 }
 
 function submit_player_movement(main_player: Main_Player) {
@@ -193,105 +204,37 @@ function process_player_global_map_order(main_player: Main_Player, players: Play
     return true;
 }
 
-function process_player_battle_order(main_player: Main_Player, order: ExecuteOrderEvent): boolean {
-    let battle_action: Turn_Action | undefined = undefined;
+// TODO utilize this for responsiveness
+function pre_visualize_action(action: Turn_Action) {
+    switch (action.type) {
+        case Action_Type.attack: {
+            const unit = find_unit_by_id(action.unit_id);
 
-    for (let index in order.units) {
-        const ordered_unit = find_unit_by_entity_index(order.units[index]);
-
-        if (!ordered_unit) {
-            continue;
-        }
-
-        switch (order.order_type) {
-            case DotaUnitOrder_t.DOTA_UNIT_ORDER_MOVE_TO_POSITION: {
-                const target_battle_position = world_position_to_battle_position(Vector(order.position_x, order.position_y));
-
-                battle_action = {
-                    type: Action_Type.move,
-                    unit_id: ordered_unit.id,
-                    to: {
-                        x: target_battle_position.x,
-                        y: target_battle_position.y
-                    }
-                };
-
-                fork(() => {
-                    const path = find_grid_path(ordered_unit.position, target_battle_position);
-
-                    if (!path) {
-                        print("Couldn't find path");
-                        return;
-                    }
-
-                    const particles: ParticleID[] = [];
-                    const height_fix = Vector(0, 0, 164);
-
-                    if (!ordered_unit.is_playing_a_delta) {
-                        ordered_unit.handle.FaceTowards(battle_position_to_world_position_center(path[0]));
-                    }
-
-                    for (let position of path) {
-                        const color = Vector(128, 255, 128);
-                        const particle = cell_particle(battle_position_to_world_position_center(position) + height_fix as Vec, color);
-
-                        particles.push(particle);
-                    }
-
-                    wait(1.5);
-
-                    for (let id of particles) {
-                        ParticleManager.DestroyParticle(id, true);
-                        ParticleManager.ReleaseParticleIndex(id);
-                    }
-                });
-
-                break;
+            if (unit && !unit.is_playing_a_delta) {
+                unit.handle.FaceTowards(battle_position_to_world_position_center(action.to));
             }
 
-            case DotaUnitOrder_t.DOTA_UNIT_ORDER_ATTACK_TARGET: {
-                const target_unit = find_unit_by_entity_index(order.entindex_target);
-
-                if (!target_unit) {
-                    continue;
-                }
-
-                // TODO that is not correct for incorrect orders
-                if (!ordered_unit.is_playing_a_delta) {
-                    ordered_unit.handle.FaceTowards(battle_position_to_world_position_center(target_unit.position));
-                }
-
-                battle_action = {
-                    type: Action_Type.attack,
-                    unit_id: ordered_unit.id,
-                    to: target_unit.position
-                };
-
-                break;
-            }
+            break;
         }
 
-        break;
+        case Action_Type.move: {
+            const unit = find_unit_by_id(action.unit_id);
+
+            if (unit && !unit.is_playing_a_delta) {
+                const path = find_grid_path(unit.position, action.to);
+
+                if (!path) {
+                    print("Couldn't find path");
+                    return;
+                }
+
+                unit.handle.FaceTowards(battle_position_to_world_position_center(path[0]));
+            }
+
+            break;
+        }
     }
 
-    // Useless fork if we have no action to take but that's ok, otherwise type guards get hairy
-    fork(() => {
-        if (!battle_action) {
-            return
-        }
-
-        // TODO queue these otherwise we can get request races
-        const action_result = remote_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", {
-            access_token: main_player.token,
-            action: battle_action
-        });
-
-        if (action_result) {
-            merge_battle_deltas(action_result.previous_head, action_result.deltas);
-        }
-    });
-
-    return false;
 }
 
 function create_new_player_from_response(response: Player_Movement_Data): Player {
@@ -423,6 +366,10 @@ function on_player_order_async(callback: (event: ExecuteOrderEvent) => boolean) 
     }, mode);
 }
 
+function on_custom_event_async<T>(event_name: string, callback: (data: T) => void) {
+    CustomGameEventManager.RegisterListener(event_name, (user_id, event) => callback(event as T));
+}
+
 function process_initial_player_state(main_player: Main_Player, state_data: Player_State_Data) {
     if (state_data.state == Player_State.not_logged_in) {
         const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
@@ -469,7 +416,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
 
     main_player.state = next_state;
 
-    update_player_net_table(main_player);
+    update_player_state_net_table(main_player);
 }
 
 function submit_and_query_movement_loop(main_player: Main_Player, players: Player_Map) {
@@ -483,38 +430,10 @@ function submit_and_query_movement_loop(main_player: Main_Player, players: Playe
     }
 }
 
-function query_battle_deltas(main_player: Main_Player, starting_head: number) {
-    return remote_request_with_retry_on_403<Query_Battle_Deltas_Request, Query_Battle_Deltas_Response>("/query_battle_deltas", main_player, {
-        access_token: main_player.token,
-        since_delta: starting_head
-    });
-}
-
 function merge_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
-}
-
-function query_battle_deltas_loop(main_player: Main_Player) {
-    while (true) {
-        wait_until(() => main_player.state == Player_State.in_battle);
-        wait(battle_delta_query_rate);
-
-        const previous_head = battle.delta_head;
-        const response = query_battle_deltas(main_player, previous_head);
-
-        if (response) {
-            merge_battle_deltas(previous_head, response.deltas);
-        }
-    }
-}
-
-function battle_position_to_world_position(position: { x: number, y: number }): Vec {
-    return Vector(
-        battle.world_origin.x + position.x * battle_cell_size,
-        battle.world_origin.y + position.y * battle_cell_size
-    )
 }
 
 function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
@@ -522,13 +441,6 @@ function battle_position_to_world_position_center(position: { x: number, y: numb
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
         battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
     )
-}
-
-function world_position_to_battle_position(position: Vec): { x: number, y: number } {
-    return {
-        x: Math.floor((position.x - battle.world_origin.x) / battle_cell_size),
-        y: Math.floor((position.y - battle.world_origin.y) / battle_cell_size)
-    }
 }
 
 function grid_cell_index(at: XY) {
@@ -647,38 +559,6 @@ function find_grid_path(from: XY, to: XY): XY[] | undefined {
     return path.reverse();
 }
 
-const battle_particles: ParticleID[] = [];
-
-function cell_particle(position: Vec, color: Vec) {
-    const particle = ParticleManager.CreateParticle("particles/ui/square_overlay.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined);
-
-    ParticleManager.SetParticleControl(particle, 0, position);
-    ParticleManager.SetParticleControl(particle, 1, Vector(64,0,0));
-    ParticleManager.SetParticleControl(particle, 2, color);
-    ParticleManager.SetParticleControl(particle, 3, Vector(50,0,0));
-
-    return particle;
-}
-
-function redraw_battle() {
-    for (let id of battle_particles) {
-        ParticleManager.DestroyParticle(id, true);
-        ParticleManager.ReleaseParticleIndex(id);
-    }
-
-    battle_particles.splice(0);
-
-    const height_fix = Vector(0, 0, 128);
-
-    for (let cell of battle.cells) {
-        const position = cell.position;
-        const color = cell.occupied ? Vector(255, 128, 128) : Vector(255, 255, 255);
-        const particle = cell_particle(battle_position_to_world_position_center(position) + height_fix as Vec, color);
-
-        battle_particles.push(particle);
-    }
-}
-
 function game_time_formatted() {
     return string.format("%.2f", GameRules.GetGameTime());
 }
@@ -753,8 +633,6 @@ function fast_forward_delta(delta: Battle_Delta) {
 function play_delta(delta: Battle_Delta) {
     print(`Well delta type is: ${delta.type}`);
 
-    redraw_battle();
-
     switch (delta.type) {
         case Battle_Delta_Type.unit_spawn: {
             const unit = spawn_unit_for_battle(delta.unit_id, delta.at_position);
@@ -780,8 +658,6 @@ function play_delta(delta: Battle_Delta) {
                     break;
                 }
 
-                print(game_time_formatted(), "Unit", unit.id, "is going to", delta.to_position.x, delta.to_position.y);
-
                 grid_cell_at_unchecked(unit.position).occupied = false;
                 grid_cell_at_unchecked(delta.to_position).occupied = true;
 
@@ -801,8 +677,6 @@ function play_delta(delta: Battle_Delta) {
                         log_chat_debug_message(`Failed waiting on MoveToPosition ${battle_position.x}/${battle_position.y}`);
                     }
                 }
-
-                redraw_battle();
 
                 unit.is_playing_a_delta = false;
             }
@@ -909,6 +783,40 @@ function load_battle_data() {
     };
 }
 
+/** !TupleReturn */
+declare function next(a: any, prev: any): [any, any];
+declare function type(a: any): "table" | "string" | "number";
+declare function tonumber(a: string): number;
+
+function print_table(a: object, indent: string = "") {
+    let [index, value] = next(a, undefined);
+
+    while (index != undefined) {
+        print(indent, `${index} (${type(index)})`, value);
+
+        if (type(value) == "table") {
+            print_table(value, indent + "    ");
+        }
+
+        [index, value] = next(a, index);
+    }
+}
+
+// Panorama arrays are passed as dictionaries with string indices
+function from_client_array<T>(array: Array<T>): Array<T> {
+    let [index, value] = next(array, undefined);
+
+    const result: Array<T> = [];
+
+    while (index != undefined) {
+        result[tonumber(index.toString())] = value;
+
+        [index, value] = next(array, index);
+    }
+
+    return result
+}
+
 function game_loop() {
     let player_id: PlayerID | undefined = undefined;
     let player_token: string | undefined;
@@ -953,25 +861,20 @@ function game_loop() {
     process_state_transition(main_player, Player_State.not_logged_in, main_player.state);
 
     on_player_order_async(order => {
-        switch (main_player.state) {
-            case Player_State.on_global_map: {
-                return process_player_global_map_order(main_player, players, order);
-            }
-
-            case Player_State.in_battle: {
-                process_player_battle_order(main_player, order);
-
-                return false;
-            }
+        if (main_player.state == Player_State.on_global_map) {
+            return process_player_global_map_order(main_player, players, order);
         }
 
         return false;
     });
 
+    on_custom_event_async<Put_Battle_Deltas_Event>("put_battle_deltas", event => {
+        merge_battle_deltas(event.from_head, from_client_array(event.deltas));
+    });
+
     let state_transition: Player_State_Data | undefined = undefined;
 
     fork(() => submit_and_query_movement_loop(main_player, players));
-    fork(() => query_battle_deltas_loop(main_player));
     fork(() => {
         while(true) {
             const state_data = try_get_player_state(main_player);
@@ -1010,19 +913,27 @@ function game_loop() {
             }
 
             case Player_State.in_battle: {
-                // print(`Playing deltas, heaad is at ${battle.delta_head}, going to -> ${battle.deltas.length}`);
-
                 if (battle.deltas.length - battle.delta_head > 20) {
                     for (let delta of battle.deltas) {
+                        if (!delta) break;
+
                         fast_forward_delta(delta);
                     }
 
                     battle.delta_head = battle.deltas.length;
+
+                    update_player_state_net_table(main_player);
                 }
 
                 for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+                    const delta = battle.deltas[battle.delta_head];
+
+                    if (!delta) break;
+
                     print(`Playing delta ${battle.delta_head}`);
-                    play_delta(battle.deltas[battle.delta_head]);
+
+                    play_delta(delta);
+                    update_player_state_net_table(main_player);
                 }
 
                 break;

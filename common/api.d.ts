@@ -23,6 +23,16 @@ declare const enum Action_Type {
     end_turn = 2
 }
 
+declare const enum Unit_Type {
+    ursa = 0
+}
+
+type Unit_Definition = {
+    health: number;
+    move_points: number;
+}
+
+
 // TODO I can see how attacking a cell would cause issues in queued actions which result in a unit being moved,
 // TODO I think there should be an Action_Attack_Cell and Action_Attack_Target
 type Action_Attack = {
@@ -92,6 +102,7 @@ type Battle_Delta_Unit_Attack = {
 
 type Battle_Delta_Unit_Spawn = {
     type: Battle_Delta_Type.unit_spawn;
+    unit_type: Unit_Type;
     unit_id: number;
     owner_id: number;
     at_position: {
