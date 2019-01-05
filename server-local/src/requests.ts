@@ -67,7 +67,7 @@ function remote_request_with_retry_on_403<T extends Object, N extends Object>(en
             const token = try_authorize_user(main_player.player_id, get_dedicated_server_key());
 
             if (token) {
-                update_access_token(main_player, token);
+                update_access_token(main_player, token.token);
             }
         } else {
             return result;

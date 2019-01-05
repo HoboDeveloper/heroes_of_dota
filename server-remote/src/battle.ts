@@ -20,22 +20,22 @@ type Unit = {
     has_taken_an_action_this_turn: boolean;
 }
 
-interface Cell {
+type Cell = {
     occupied: boolean;
     cost: number;
     position: XY;
 }
 
-interface Grid {
+type Grid = {
     cells: Cell[];
     size: XY;
 }
 
-interface Battle {
+type Battle = {
     id: number;
     unit_id_auto_increment: number;
     units: Unit[];
-    players: Player[];
+    players: Battle_Player[];
     deltas: Battle_Delta[];
     grid: Grid;
     turning_player_index: number;
@@ -132,7 +132,7 @@ function fill_grid(grid: Grid) {
     }
 }
 
-function get_turning_player(battle: Battle) {
+function get_turning_player(battle: Battle): Battle_Player {
     return battle.players[battle.turning_player_index];
 }
 
@@ -294,7 +294,7 @@ function get_next_unit_id(battle: Battle) {
 }
 
 export function try_take_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
-    if (get_turning_player(battle) != player) {
+    if (get_turning_player(battle).id != player.id) {
         return;
     }
 
@@ -327,7 +327,10 @@ export function start_battle(players: Player[]): number {
         id: battle_id_auto_increment++,
         unit_id_auto_increment: 0,
         units: [],
-        players: players,
+        players: players.map(player => ({
+            id: player.id,
+            name: player.name
+        })),
         deltas: [],
         grid: grid,
         turning_player_index: 0

@@ -1,5 +1,6 @@
 let current_selected_entity: EntityId | undefined = undefined;
 let current_state = Player_State.not_logged_in;
+let this_player_id: number;
 let battle: Battle;
 
 const battle_cell_size = 128;
@@ -11,11 +12,13 @@ type XY = {
 
 type Battle_Unit = {
     id: number,
+    owner_player_id: number,
     position: XY,
     move_points: number,
     max_move_points: number,
     health: number,
-    has_taken_an_action_this_turn: boolean
+    has_taken_an_action_this_turn: boolean,
+    dead: boolean
 }
 
 type Cell = {
@@ -26,12 +29,14 @@ type Cell = {
 }
 
 type Battle = {
+    players: Battle_Player[],
     deltas: Battle_Delta[];
     delta_head: number;
     world_origin: XY;
     units: Battle_Unit[];
     cells: Cell[];
     grid_size: XY;
+    turning_player_index: number,
     entity_id_to_unit_id: { [entity_id: number]: number };
 }
 
@@ -68,6 +73,14 @@ function grid_cell_at(at: XY): Cell | undefined {
     return battle.cells[grid_cell_index(at)];
 }
 
+function pass_turn_to_next_player() {
+    battle.turning_player_index++;
+
+    if (battle.turning_player_index == battle.players.length) {
+        battle.turning_player_index -= battle.players.length;
+    }
+}
+
 function update_state_after_turn_ends() {
     for (const unit of battle.units) {
         unit.move_points = unit.max_move_points;
@@ -98,10 +111,12 @@ function collapse_delta(delta: Battle_Delta) {
 
             battle.units.push({
                 id: delta.unit_id,
+                owner_player_id: delta.owner_id,
                 position: delta.at_position,
                 move_points: definition.move_points,
                 max_move_points: definition.move_points,
                 health: definition.health,
+                dead: false,
                 has_taken_an_action_this_turn: false
             });
 
@@ -115,6 +130,8 @@ function collapse_delta(delta: Battle_Delta) {
 
             if (target && delta.new_health == 0) {
                 grid_cell_at_unchecked(target.position).occupied = false;
+
+                target.dead = true;
             }
 
             break;
@@ -132,11 +149,18 @@ function collapse_delta(delta: Battle_Delta) {
                 default: unreachable(delta.effect);
             }
 
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (unit) {
+                unit.has_taken_an_action_this_turn = true;
+            }
+
             break;
         }
 
         case Battle_Delta_Type.end_turn: {
             update_state_after_turn_ends();
+            pass_turn_to_next_player();
 
             break;
         }
@@ -189,9 +213,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
         });
     }
 
-    if (current_selected_entity) {
-        update_visuals_from_selected_entity(current_selected_entity);
-    }
+    update_grid_visuals();
 }
 
 function take_battle_action(action: Turn_Action) {
@@ -234,15 +256,16 @@ function create_cell_particle_at(position: XYZ) {
     return particle;
 }
 
-function process_state_transition(from: Player_State, to: Player_State, state_data: Player_Net_Table) {
-    $.Msg(`Transition from ${from} to ${to}`);
+function process_state_transition(from: Player_State, state_data: Player_Net_Table) {
+    $.Msg(`Transition from ${from} to ${state_data.state}`);
 
-    // TODO if state_data was discriminated then this check wouldn't be needed
-    if (to == Player_State.in_battle && state_data.battle) {
+    if (state_data.state == Player_State.in_battle) {
         battle = {
+            players: from_server_array(state_data.battle.participants),
             units: [],
             delta_head: 0,
-            grid_size: xy(12, 12),
+            grid_size: xy(state_data.battle.grid_size.width, state_data.battle.grid_size.height),
+            turning_player_index: 0,
             deltas: [],
             world_origin: state_data.battle.world_origin,
             cells: [],
@@ -273,6 +296,8 @@ function process_state_transition(from: Player_State, to: Player_State, state_da
                 register_particle_for_reload(particle);
             }
         }
+
+        update_grid_visuals();
     }
 }
 
@@ -372,37 +397,69 @@ function find_grid_path(from: XY, to: XY): XY[] | undefined {
     return path.reverse();
 }
 
-function update_visuals_from_selected_entity(entity: EntityId) {
-    const unit_id = battle.entity_id_to_unit_id[entity];
-    const unit = find_unit_by_id(unit_id);
+const color_nothing: XYZ = [ 255, 255, 255 ];
+const color_green: XYZ = [ 128, 255, 128 ];
+const color_red: XYZ = [ 255, 128, 128 ];
+const color_yellow: XYZ = [ 255, 255, 0 ];
 
-    if (!unit) {
-        clear_selection();
-        return;
+// TODO too expensive, consider storing units in cells
+function find_unit_by_cell(at: XY) {
+    return array_find(battle.units, unit => !unit.dead && unit.position.x == at.x && unit.position.y == at.y);
+}
+
+function update_grid_visuals() {
+    let selected_unit: Battle_Unit | undefined;
+    let selected_entity_path: Cost_Population_Result | undefined;
+
+    if (current_selected_entity) {
+        selected_unit = find_unit_by_id(battle.entity_id_to_unit_id[current_selected_entity]);
+
+        if (selected_unit) {
+            selected_entity_path = populate_path_costs(selected_unit.position);
+        }
     }
 
-    const costs = populate_path_costs(unit.position);
-
-    if (!costs) {
-        clear_selection();
-        return;
+    function color_cell(cell: Cell, color: XYZ) {
+        Particles.SetParticleControl(cell.associated_particle, 2, color);
     }
+
+    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(cell.position);
-        const cost = costs.cell_index_to_cost[index];
 
-        if (cost <= unit.move_points) {
-            Particles.SetParticleControl(cell.associated_particle, 2, [128, 255, 128]);
-        } else {
-            Particles.SetParticleControl(cell.associated_particle, 2, [255, 255, 255]);
+        let cell_color: XYZ = color_nothing;
+
+        if (selected_unit && selected_entity_path) {
+            const cost = selected_entity_path.cell_index_to_cost[index];
+
+            if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
+                cell_color = color_green;
+            }
         }
-    }
-}
 
-function clear_selection() {
-    for (const cell of battle.cells) {
-        Particles.SetParticleControl(cell.associated_particle, 2, [255, 255, 255]);
+        // TODO expensive
+        const unit_in_cell = find_unit_by_cell(cell.position);
+
+        if (unit_in_cell) {
+            const is_ally = unit_in_cell.owner_player_id == this_player_id;
+
+            if (is_ally) {
+                if (your_turn) {
+                    if (unit_in_cell.has_taken_an_action_this_turn) {
+                        cell_color = color_yellow;
+                    } else {
+                        cell_color = color_green;
+                    }
+                } else {
+                    cell_color = color_yellow;
+                }
+            } else {
+                cell_color = color_red;
+            }
+        }
+
+        color_cell(cell, cell_color);
     }
 }
 
@@ -430,7 +487,13 @@ function end_turn() {
 }
 
 function process_state_update(state: Player_Net_Table) {
-    if (battle && state.battle) {
+    if (state.state == Player_State.not_logged_in) {
+        return;
+    }
+
+    this_player_id = state.id;
+
+    if (battle && state.state == Player_State.in_battle) {
         battle.entity_id_to_unit_id = state.battle.entity_id_to_unit_id;
     }
 }
@@ -486,7 +549,7 @@ function setup_mouse_filter() {
 
     GameUI.SetMouseCallback((event, button) => {
         if (current_state != Player_State.in_battle) {
-            return true;
+            return false;
         }
 
         if (event == "pressed") {
@@ -526,11 +589,7 @@ function setup_mouse_filter() {
             if (wants_to_select_unit) {
                 current_selected_entity = cursor_entity;
 
-                if (cursor_entity) {
-                    update_visuals_from_selected_entity(cursor_entity);
-                } else {
-                    clear_selection();
-                }
+                update_grid_visuals();
 
                 return true;
             }
@@ -538,8 +597,6 @@ function setup_mouse_filter() {
             const selected_unit_id = current_selected_entity ? battle.entity_id_to_unit_id[current_selected_entity] : undefined;
 
             if (selected_unit_id == undefined) {
-                $.Msg(`Couldn't find a unit by entity id ${current_selected_entity}`);
-
                 return true;
             }
 
@@ -572,12 +629,16 @@ function setup_mouse_filter() {
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     if (current_state != data.state) {
-        process_state_transition(current_state, data.state, data);
+        process_state_transition(current_state, data);
 
         current_state = data.state;
     }
 
     process_state_update(data);
+
+    if (data.state == Player_State.in_battle) {
+        update_grid_visuals();
+    }
 });
 
 setup_mouse_filter();

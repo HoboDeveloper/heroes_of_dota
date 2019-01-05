@@ -1,7 +1,3 @@
-function xy(x: number, y: number): XY {
-    return { x: x, y: y };
-}
-
 type Player = {
     id: number;
     hero_unit: CDOTA_BaseNPC_Hero;
@@ -10,6 +6,7 @@ type Player = {
 
 type Main_Player = {
     token: string;
+    remote_id: number,
     player_id: PlayerID;
     hero_unit: CDOTA_BaseNPC_Hero;
     movement_history: Movement_History_Entry[]
@@ -21,6 +18,9 @@ type Main_Player = {
 type Battle_Unit = {
     id: number;
     handle: CDOTA_BaseNPC;
+    // TODO Actual battle position is not really necessary and is currently
+    // TODO used only for turning unit during fast_forward which can be calculated on the client
+    // TODO in world coordinates
     position: XY;
     is_playing_a_delta: boolean;
 }
@@ -30,20 +30,17 @@ type XY = {
     y: number
 }
 
-type Cell = {
-    position: XY;
-    occupied: boolean;
-    cost: number;
-}
-
 type Battle = {
+    players: Battle_Player[],
     deltas: Battle_Delta[];
     delta_paths: Move_Delta_Paths;
     delta_head: number;
-    world_origin: XY;
+    world_origin: Vec;
     units: Battle_Unit[];
-    cells: Cell[];
-    grid_size: XY;
+    grid_size: {
+        width: number,
+        height: number
+    };
     camera_dummy: CDOTA_BaseNPC;
 }
 
@@ -54,10 +51,6 @@ declare let battle: Battle;
 const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
 const battle_cell_size = 128;
-
-function xy_equal(a: XY, b: XY) {
-    return a.x == b.x && a.y == b.y;
-}
 
 function unreachable(x: never): never {
     throw "Didn't expect to get here";
@@ -104,6 +97,8 @@ function main() {
     GameRules.SetCustomGameSetupTimeout(0);
     GameRules.SetCustomGameSetupRemainingTime(0);
 
+    LinkLuaModifier("Modifier_Battle_Unit", "modifier_battle_unit", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
+
     const scheduler: Scheduler = {
         tasks: new Map<Coroutine<any>, Task>()
     };
@@ -119,31 +114,53 @@ function main() {
     fork(game_loop);
 }
 
+function player_state_to_player_net_table(main_player: Main_Player): Player_Net_Table {
+    switch (main_player.state) {
+        case Player_State.in_battle: {
+            const entity_id_to_unit_id: { [entity_id:number]:number } = {};
+
+            for (const unit of battle.units) {
+                entity_id_to_unit_id[unit.handle.entindex()] = unit.id;
+            }
+
+            return {
+                state: main_player.state,
+                id: main_player.remote_id,
+                token: main_player.token,
+                battle: {
+                    participants: battle.players,
+                    world_origin: {
+                        x: battle.world_origin.x,
+                        y: battle.world_origin.y
+                    },
+                    grid_size: battle.grid_size,
+                    current_visual_head: battle.delta_head,
+                    entity_id_to_unit_id: entity_id_to_unit_id
+                }
+            };
+        }
+
+        case Player_State.not_logged_in: {
+            return {
+                state: main_player.state
+            };
+        }
+
+        case Player_State.on_global_map: {
+            return {
+                state: main_player.state,
+                id: main_player.remote_id,
+                token: main_player.token
+            };
+        }
+
+        default: return unreachable(main_player.state);
+    }
+}
+
 // TODO this looks more like game state table right now, rename?
 function update_player_state_net_table(main_player: Main_Player) {
-    let battle_data: Battle_Net_Table_Data | undefined = undefined;
-
-    if (main_player.state == Player_State.in_battle) {
-        const entity_id_to_unit_id: { [entity_id:number]:number } = {};
-
-        for (const unit of battle.units) {
-            entity_id_to_unit_id[unit.handle.entindex()] = unit.id;
-        }
-
-        battle_data = {
-            world_origin: battle.world_origin,
-            current_visual_head: battle.delta_head,
-            entity_id_to_unit_id: entity_id_to_unit_id
-        }
-    }
-
-    const data: Player_Net_Table = {
-        token: main_player.token,
-        state: main_player.state,
-        battle: battle_data
-    };
-
-    CustomNetTables.SetTableValue("main", "player", data);
+    CustomNetTables.SetTableValue("main", "player", player_state_to_player_net_table(main_player));
 }
 
 function update_access_token(main_player: Main_Player, new_token: string) {
@@ -371,51 +388,46 @@ function on_custom_event_async<T>(event_name: string, callback: (data: T) => voi
     CustomGameEventManager.RegisterListener(event_name, (user_id, event) => callback(event as T));
 }
 
-function process_initial_player_state(main_player: Main_Player, state_data: Player_State_Data) {
-    if (state_data.state == Player_State.not_logged_in) {
-        const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
-        let selected_character: number;
+function select_or_create_character_and_log_in(main_player: Main_Player) {
+    const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
+    let selected_character: number;
 
-        if (characters.length == 0) {
-            const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
+    if (characters.length == 0) {
+        const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
 
-            selected_character = new_character.id;
-        } else {
-            selected_character = characters[0].id;
-        }
-
-        try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
+        selected_character = new_character.id;
+    } else {
+        selected_character = characters[0].id;
     }
 
-    FindClearSpaceForUnit(main_player.hero_unit, Vector(state_data.player_position.x, state_data.player_position.y), true);
-
-    main_player.current_order_x = state_data.player_position.x;
-    main_player.current_order_y = state_data.player_position.y;
+    try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
 }
 
-function process_state_transition(main_player: Main_Player, current_state: Player_State, next_state: Player_State) {
-    if (next_state == Player_State.in_battle) {
+function process_state_transition(main_player: Main_Player, current_state: Player_State, next_state: Player_State_Data) {
+    if (next_state.state == Player_State.on_global_map) {
+        FindClearSpaceForUnit(main_player.hero_unit, Vector(next_state.player_position.x, next_state.player_position.y), true);
+
+        main_player.current_order_x = next_state.player_position.x;
+        main_player.current_order_y = next_state.player_position.y;
+    }
+
+    if (next_state.state == Player_State.in_battle) {
         print("Battle started");
 
         battle.delta_head = 0;
         battle.units = [];
         battle.deltas = [];
-        battle.cells = [];
+        battle.players = next_state.participants;
+        battle.grid_size = next_state.grid_size;
 
-        for (let x = 0; x < battle.grid_size.x; x++) {
-            for (let y = 0; y < battle.grid_size.y; y++) {
-                battle.cells.push({
-                    position: xy(x, y),
-                    occupied: false,
-                    cost: 1
-                });
-            }
-        }
+        const battle_center = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height) * battle_cell_size / 2 as Vec;
+
+        battle.camera_dummy.SetAbsOrigin(battle_center);
 
         PlayerResource.SetCameraTarget(main_player.player_id, battle.camera_dummy);
     }
 
-    main_player.state = next_state;
+    main_player.state = next_state.state;
 
     update_player_state_net_table(main_player);
 }
@@ -445,19 +457,12 @@ function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
     }
 }
 
+// TODO only used for attack/spawn deltas which can calculate world coordinates on the client
 function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
     return Vector(
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
         battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
     )
-}
-
-function grid_cell_index(at: XY) {
-    return at.x * battle.grid_size.y + at.y;
-}
-
-function grid_cell_at_unchecked(at: XY): Cell {
-    return battle.cells[grid_cell_index(at)];
 }
 
 function game_time_formatted() {
@@ -469,6 +474,7 @@ function spawn_unit_for_battle(unit_id: number, at: XY): Battle_Unit {
     const handle = CreateUnitByName("npc_dota_hero_ursa", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
+    handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
 
     const unit = {
         handle: handle,
@@ -478,8 +484,6 @@ function spawn_unit_for_battle(unit_id: number, at: XY): Battle_Unit {
     };
 
     battle.units.push(unit);
-
-    grid_cell_at_unchecked(at).occupied = true;
 
     return unit;
 }
@@ -508,9 +512,6 @@ function fast_forward_delta(delta: Battle_Delta) {
             const unit = find_unit_by_id(delta.unit_id);
 
             if (unit) {
-                grid_cell_at_unchecked(unit.position).occupied = false;
-                grid_cell_at_unchecked(delta.to_position).occupied = true;
-
                 unit.position = delta.to_position;
 
                 // TODO set facing to between the before-last and last point in the path
@@ -589,9 +590,6 @@ function play_delta(delta: Battle_Delta, head: number) {
                     break;
                 }
 
-                grid_cell_at_unchecked(unit.position).occupied = false;
-                grid_cell_at_unchecked(delta.to_position).occupied = true;
-
                 unit.position = delta.to_position;
 
                 for (let world_xy of world_path) {
@@ -654,7 +652,7 @@ function play_delta(delta: Battle_Delta, head: number) {
                 const sequence_duration = attacker.handle.SequenceDuration(sequence);
                 const start_time = GameRules.GetGameTime();
 
-                while (GameRules.GetGameTime() - start_time < sequence_duration * 0.9) {
+                while (GameRules.GetGameTime() - start_time < sequence_duration * 0.4) {
                     if (attacker.handle.GetSequence() != sequence) {
                         attacker.handle.ForcePlayActivityOnce(GameActivity_t.ACT_DOTA_ATTACK);
                     }
@@ -663,6 +661,10 @@ function play_delta(delta: Battle_Delta, head: number) {
                 }
 
                 play_attack_delta_effects(delta);
+
+                while (GameRules.GetGameTime() - start_time < sequence_duration * 0.9) {
+                    wait_one_frame();
+                }
 
                 attacker.is_playing_a_delta = false;
             }
@@ -689,10 +691,7 @@ function play_delta(delta: Battle_Delta, head: number) {
 }
 
 function load_battle_data() {
-    // TODO load it from server
-    const grid_size = xy(12, 12);
     const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
-    const battle_center = origin + Vector(grid_size.x, grid_size.y) * battle_cell_size / 2 as Vec;
 
     // TODO incorrect definition
     const camera_entity = CreateModifierThinker(
@@ -701,24 +700,22 @@ function load_battle_data() {
         undefined,
         "",
         {},
-        battle_center,
+        Vector(),
         DOTATeam_t.DOTA_TEAM_GOODGUYS,
         false
     ) as CDOTA_BaseNPC;
 
-    camera_entity.SetAbsOrigin(battle_center);
-
     battle = {
         deltas: [],
+        players: [],
         delta_paths: {},
         delta_head: 0,
-        world_origin: {
-            x: origin.x,
-            y: origin.y
-        },
+        world_origin: origin,
         units: [],
-        cells: [],
-        grid_size: grid_size,
+        grid_size: {
+            width: 0,
+            height: 0
+        },
         camera_dummy: camera_entity
     };
 }
@@ -758,8 +755,8 @@ function from_client_array<T>(array: Array<T>): Array<T> {
 }
 
 function game_loop() {
+    let authorization: Authorize_Steam_User_Response | undefined;
     let player_id: PlayerID | undefined = undefined;
-    let player_token: string | undefined;
     let player_unit: CDOTA_BaseNPC_Hero | undefined = undefined;
     let players: Player_Map = {};
 
@@ -776,29 +773,33 @@ function game_loop() {
     // We hope that hero spawn happens strictly after player connect, otherwise it doesn't make sense anyway
     on_player_hero_spawned_async(player_id, entity => player_unit = entity);
 
-    while ((player_token = try_authorize_user(player_id, get_dedicated_server_key())) == undefined) wait(3);
+    while ((authorization = try_authorize_user(player_id, get_dedicated_server_key())) == undefined) wait(3);
     while ((player_unit == undefined)) wait_one_frame();
 
     print(`Authorized, hero handle found`);
 
     const main_player: Main_Player = {
+        remote_id: authorization.id,
         player_id: player_id,
         hero_unit: player_unit,
-        token: player_token,
+        token: authorization.token,
         movement_history: [],
         current_order_x: 0,
         current_order_y: 0,
         state: Player_State.not_logged_in
     };
 
-    update_access_token(main_player, player_token);
+    update_access_token(main_player, authorization.token);
 
     const player_state = try_with_delays_until_success(1, () => try_get_player_state(main_player));
 
     print(`State received`);
 
-    process_initial_player_state(main_player, player_state);
-    process_state_transition(main_player, Player_State.not_logged_in, main_player.state);
+    if (player_state.state == Player_State.not_logged_in) {
+        select_or_create_character_and_log_in(main_player);
+    }
+
+    process_state_transition(main_player, Player_State.not_logged_in, player_state);
 
     on_player_order_async(order => {
         if (main_player.state == Player_State.on_global_map) {
@@ -842,7 +843,7 @@ function game_loop() {
         const transition = state_transition as (Player_State_Data | undefined);
 
         if (transition) {
-            process_state_transition(main_player, main_player.state, transition.state);
+            process_state_transition(main_player, main_player.state, transition);
             state_transition = undefined;
         }
 

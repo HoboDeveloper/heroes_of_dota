@@ -1,17 +1,11 @@
-function try_authorize_user(id: PlayerID, dedicated_server_key: string): string | undefined {
+function try_authorize_user(id: PlayerID, dedicated_server_key: string): Authorize_Steam_User_Response | undefined {
     const steam_id = PlayerResource.GetSteamID(id).toString();
 
-    const token_result = remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
+    return remote_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
         steam_id: steam_id,
         steam_user_name: PlayerResource.GetPlayerName(id),
         dedicated_server_key: dedicated_server_key
     });
-
-    if (token_result) {
-        return token_result.token;
-    }
-
-    return undefined;
 }
 
 function try_get_player_state(main_player: Main_Player) {

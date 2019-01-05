@@ -22,7 +22,13 @@ function get_net_table<T>(table_name: string, key: string): T {
 }
 
 function get_access_token() {
-    return get_net_table<Player_Net_Table>("main", "player").token;
+    const net_table = get_net_table<Player_Net_Table>("main", "player");
+
+    if (net_table.state == Player_State.not_logged_in) {
+        return "";
+    }
+
+    return net_table.token;
 }
 
 function subscribe_to_net_table_key<T>(table: string, key: string, callback: (data: T) => void){
@@ -57,6 +63,16 @@ function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T |
     }
 
     return undefined;
+}
+
+function from_server_array<T>(array: Array<T>): Array<T> {
+    const result: Array<T> = [];
+
+    for (const index in array) {
+        result[parseInt(index) - 1] = array[index];
+    }
+
+    return result;
 }
 
 interface Temporary_Storage_Panel extends Panel {

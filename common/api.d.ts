@@ -59,6 +59,11 @@ type Action_End_Turn = {
 
 type Turn_Action = Action_Attack | Action_Move | Action_End_Turn;
 
+type Battle_Player = {
+    id: number,
+    name: string
+}
+
 type Battle_Effect =
     Battle_Effect_Nothing |
     Battle_Effect_Basic_Attack;
@@ -167,6 +172,7 @@ type Authorize_Steam_User_Request = {
 }
 
 type Authorize_Steam_User_Response = {
+    id: number,
     token: string;
 }
 
@@ -209,13 +215,28 @@ type Login_With_Character_Request = {
 
 type Login_With_Character_Response = {};
 
-type Player_State_Data = {
-    state: Player_State,
+type Player_State_Not_Logged_In_Data = {
+    state: Player_State.not_logged_in
+}
+
+type Player_State_On_Global_Map_Data = {
+    state: Player_State.on_global_map,
     player_position: {
         x: number,
         y: number
     }
 }
+
+type Player_State_In_Battle_Data = {
+    state: Player_State.in_battle,
+    grid_size: {
+        width: number,
+        height: number
+    },
+    participants: Battle_Player[]
+}
+
+type Player_State_Data = Player_State_Not_Logged_In_Data | Player_State_On_Global_Map_Data | Player_State_In_Battle_Data;
 
 type Attack_Player_Request = {
     dedicated_server_key: string,

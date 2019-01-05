@@ -139,7 +139,7 @@ function create_new_character_for_player(player: Player): Character {
     return new_character;
 }
 
-function try_authorize_steam_player_from_dedicated_server(steam_id: string, steam_name: string) {
+function try_authorize_steam_player_from_dedicated_server(steam_id: string, steam_name: string): [number, string] {
     let player = steam_id_to_player.get(steam_id);
 
     if (!player) {
@@ -151,7 +151,7 @@ function try_authorize_steam_player_from_dedicated_server(steam_id: string, stea
     const token = generate_access_token();
     token_to_player.set(token, player);
 
-    return token;
+    return [player.id, token];
 }
 
 function get_player_characters(player: Player) {
@@ -190,6 +190,43 @@ function character_to_json_object(character: Character): Character_Data {
 }
 
 function player_to_player_state_object(player: Player): Player_State_Data {
+    switch (player.state) {
+        case Player_State.on_global_map: {
+            return {
+                state: player.state,
+                player_position: {
+                    x: player.current_location.x,
+                    y: player.current_location.y
+                }
+            }
+        }
+
+        case Player_State.in_battle: {
+            const battle = find_battle_by_id(player.current_battle_id);
+
+            if (!battle) {
+                throw `Battle ${player.current_battle_id} not found for player ${player.id}`;
+            }
+
+            return {
+                state: player.state,
+                participants: battle.players,
+                grid_size: {
+                    width: battle.grid.size.x,
+                    height: battle.grid.size.y
+                }
+            }
+        }
+
+        case Player_State.not_logged_in: {
+            return {
+                state: player.state
+            }
+        }
+
+        default: unreachable(player.state);
+    }
+
     return {
         state: player.state,
         player_position: {
@@ -252,9 +289,10 @@ handlers.set("/trusted/try_authorize_steam_user", body => {
         return make_error(403);
     }
 
-    const token = try_authorize_steam_player_from_dedicated_server(request.steam_id, request.steam_user_name);
+    const [player_id, token] = try_authorize_steam_player_from_dedicated_server(request.steam_id, request.steam_user_name);
 
-    return make_ok_json({
+    return make_ok_json<Authorize_Steam_User_Response>({
+        id: player_id,
         token: token
     });
 });
@@ -433,7 +471,7 @@ handlers.set("/take_battle_action", body => {
         if (test_player) {
             const test_guy = test_player;
 
-            if (request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index] == test_player) {
+            if (request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index].id == test_player.id) {
                 setInterval(() => {
                     try_take_turn_action(battle, test_guy, {
                         type: Action_Type.end_turn
