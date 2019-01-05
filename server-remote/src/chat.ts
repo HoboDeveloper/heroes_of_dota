@@ -19,7 +19,7 @@ export function submit_chat_message(player: Player, message: string) {
         message: message
     };
 
-    for (let player of get_all_authorized_players()) {
+    for (const player of get_all_authorized_players()) {
         let pending_messages = player_pending_messages.get(player.id);
 
         if (!pending_messages) {

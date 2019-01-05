@@ -56,7 +56,7 @@ function unreachable(x: never): never {
 }
 
 function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T | undefined {
-    for (let element of array) {
+    for (const element of array) {
         if (predicate(element)) {
             return element;
         }
@@ -104,7 +104,7 @@ function clean_up_particles_after_reload() {
     const storage = $.GetContextPanel() as Temporary_Storage_Panel;
 
     if (storage.temporary_particles) {
-        for (let particle of storage.temporary_particles) {
+        for (const particle of storage.temporary_particles) {
             Particles.DestroyParticleEffect(particle, true);
             Particles.ReleaseParticleIndex(particle);
         }

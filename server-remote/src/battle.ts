@@ -82,7 +82,7 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
     for (let current_cost = 0; indices_not_checked.length > 0 && current_cost <= maximum_distance; current_cost++) {
         const new_indices: number[] = [];
 
-        for (let index of indices_not_checked) {
+        for (const index of indices_not_checked) {
             const cell = grid.cells[index];
             const at = cell.position;
 
@@ -97,7 +97,7 @@ function can_find_path(grid: Grid, from: XY, to: XY, maximum_distance: number): 
                 grid_cell_at(grid, xy(at.x, at.y - 1))
             ];
 
-            for (let neighbor of neighbors) {
+            for (const neighbor of neighbors) {
                 if (!neighbor) continue;
 
                 const neighbor_index = grid_cell_index(grid, neighbor.position);
@@ -171,7 +171,7 @@ function damage_unit(battle: Battle, source: Unit, target: Unit, damage: number)
 }
 
 function resolve_state_post_turn(battle: Battle) {
-    for (let unit of battle.units) {
+    for (const unit of battle.units) {
         unit.move_points = unit.max_move_points;
         unit.has_taken_an_action_this_turn = false;
     }

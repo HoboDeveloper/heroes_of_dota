@@ -410,23 +410,23 @@ handlers.set("/trusted/attack_player", body => {
         return make_error(403);
     }
 
-    const ok = try_do_with_player(request.access_token, player => {
+    const player_state = try_do_with_player(request.access_token, player => {
         if (!can_player(player, Right.attack_a_character)) {
-            return undefined;
+            return;
         }
 
         const other_player = player_by_id(request.target_player_id);
 
         if (!other_player) {
-            return false;
+            return;
         }
 
         initiate_battle_between_players(player, other_player);
 
-        return true;
+        return player_to_player_state_object(player);
     });
 
-    return action_on_player_to_result<boolean, Attack_Player_Response>(ok, () => ({}));
+    return action_on_player_to_result(player_state);
 });
 
 handlers.set("/query_battle_deltas", body => {

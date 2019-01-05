@@ -52,13 +52,15 @@ const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
 const battle_cell_size = 128;
 
+let state_transition: Player_State_Data | undefined = undefined;
+
 function unreachable(x: never): never {
     throw "Didn't expect to get here";
 }
 
 // TODO array.find doesn't work in TSTL
 function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T | undefined {
-    for (let element of array) {
+    for (const element of array) {
         if (predicate(element)) {
             return element;
         }
@@ -348,17 +350,17 @@ function update_main_player_movement_history(main_player: Main_Player) {
 }
 
 function attack_player(main_player: Main_Player, target_player_id: number) {
-    const attack_result = remote_request<Attack_Player_Request, Attack_Player_Response>("/trusted/attack_player", {
+    const new_player_state = remote_request<Attack_Player_Request, Attack_Player_Response>("/trusted/attack_player", {
         access_token: main_player.token,
         dedicated_server_key: get_dedicated_server_key(),
         target_player_id: target_player_id
     });
 
-    if (!attack_result) {
+    if (!new_player_state) {
         throw "Failed to perform attack";
     }
 
-    // TODO set state immediately after we verify that independent state transitions work
+    try_submit_state_transition(main_player, new_player_state);
 }
 
 function on_player_connected_async(callback: (player_id: PlayerID) => void) {
@@ -592,7 +594,7 @@ function play_delta(delta: Battle_Delta, head: number) {
 
                 unit.position = delta.to_position;
 
-                for (let world_xy of world_path) {
+                for (const world_xy of world_path) {
                     const world_position = Vector(world_xy.world_x, world_xy.world_y);
 
                     unit.handle.MoveToPosition(world_position);
@@ -754,6 +756,14 @@ function from_client_array<T>(array: Array<T>): Array<T> {
     return result
 }
 
+function try_submit_state_transition(main_player: Main_Player, new_state: Player_State_Data) {
+    if (new_state.state != main_player.state) {
+        print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
+
+        state_transition = new_state;
+    }
+}
+
 function game_loop() {
     let authorization: Authorize_Steam_User_Response | undefined;
     let player_id: PlayerID | undefined = undefined;
@@ -814,17 +824,13 @@ function game_loop() {
         merge_delta_paths_from_client(event.delta_paths);
     });
 
-    let state_transition: Player_State_Data | undefined = undefined;
-
     fork(() => submit_and_query_movement_loop(main_player, players));
     fork(() => {
         while(true) {
             const state_data = try_get_player_state(main_player);
 
-            if (state_data && state_data.state != main_player.state) {
-                print(`Well I have a new state transition and it is ${main_player.state} -> ${state_data.state}`);
-
-                state_transition = state_data;
+            if (state_data) {
+                try_submit_state_transition(main_player, state_data);
             }
 
             wait(2);
@@ -856,7 +862,7 @@ function game_loop() {
 
             case Player_State.in_battle: {
                 if (battle.deltas.length - battle.delta_head > 20) {
-                    for (let delta of battle.deltas) {
+                    for (const delta of battle.deltas) {
                         if (!delta) break;
 
                         fast_forward_delta(delta);

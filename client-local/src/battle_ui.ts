@@ -316,7 +316,7 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
     for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
         const new_indices: number[] = [];
 
-        for (let index of indices_not_checked) {
+        for (const index of indices_not_checked) {
             const cell = battle.cells[index];
             const at = cell.position;
 
@@ -336,7 +336,7 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
                 grid_cell_at(xy(at.x, at.y - 1))
             ];
 
-            for (let neighbor of neighbors) {
+            for (const neighbor of neighbors) {
                 if (!neighbor) continue;
 
                 const neighbor_cell_index = grid_cell_index(neighbor.position);
@@ -534,7 +534,7 @@ function setup_mouse_filter() {
     function get_entity_under_cursor(): EntityId | undefined {
         const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
 
-        for (let entity of entities_under_cursor) {
+        for (const entity of entities_under_cursor) {
             if (entity.accurateCollision) {
                 return entity.entityIndex;
             }

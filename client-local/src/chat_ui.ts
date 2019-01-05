@@ -1,7 +1,7 @@
 function add_new_chat_messages(messages: Chat_Message[]) {
     const messages_panel = $("#chat_messages");
 
-    for (let message of messages) {
+    for (const message of messages) {
         const message_panel = $.CreatePanel("Label", messages_panel, "");
 
         message_panel.text = `${message.from_player_name}: ${message.message}`;

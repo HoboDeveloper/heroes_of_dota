@@ -244,8 +244,7 @@ type Attack_Player_Request = {
     target_player_id: number
 };
 
-type Attack_Player_Response = {
-}
+type Attack_Player_Response = Player_State_Data;
 
 type Submit_Chat_Message_Request = {
     access_token: string;
