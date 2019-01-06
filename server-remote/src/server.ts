@@ -1,6 +1,6 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
-import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action} from "./battle";
+import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action, Battle} from "./battle";
 import {unreachable, XY, xy} from "./common";
 import {pull_pending_chat_messages_for_player, submit_chat_message} from "./chat";
 
@@ -16,6 +16,7 @@ const enum Right {
     query_battle_actions,
     log_in_with_character,
     attack_a_character,
+    participate_in_a_battle,
     submit_movement
 }
 
@@ -246,6 +247,10 @@ function can_player(player: Player, right: Right) {
             return player.state == Player_State.on_global_map;
         }
 
+        case Right.participate_in_a_battle: {
+            return player.state == Player_State.on_global_map;
+        }
+
         case Right.submit_movement: {
             return player.state == Player_State.on_global_map;
         }
@@ -296,6 +301,18 @@ handlers.set("/trusted/try_authorize_steam_user", body => {
         token: token
     });
 });
+
+export function report_battle_over(battle: Battle, winner_player_id: number) {
+    for (const battle_player of battle.players) {
+        const player = player_by_id(battle_player.id);
+
+        if (player) {
+            player.state = Player_State.on_global_map;
+        }
+    }
+
+    console.log("Battle over! Winning player is", winner_player_id);
+}
 
 handlers.set("/get_player_state", body => {
     const request = JSON.parse(body) as Get_Player_State_Request;

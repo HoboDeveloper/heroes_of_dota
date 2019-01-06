@@ -1,6 +1,6 @@
 import {unreachable, XY, xy, xy_equal} from "./common";
 import {unit_definition_by_type} from "./unit_defs";
-import {Player} from "./server";
+import {Player, report_battle_over} from "./server";
 
 let battle_id_auto_increment = 0;
 
@@ -31,7 +31,7 @@ type Grid = {
     size: XY;
 }
 
-type Battle = {
+export type Battle = {
     id: number;
     unit_id_auto_increment: number;
     units: Unit[];
@@ -39,6 +39,7 @@ type Battle = {
     deltas: Battle_Delta[];
     grid: Grid;
     turning_player_index: number;
+    finished: boolean;
 }
 
 function grid_cell_at(grid: Grid, at: XY): Cell | undefined {
@@ -293,7 +294,27 @@ function get_next_unit_id(battle: Battle) {
     return battle.unit_id_auto_increment++;
 }
 
+function try_compute_battle_winner(battle: Battle): number | undefined {
+    let last_alive_unit_player_id: number | undefined = undefined;
+
+    for (const unit of battle.units) {
+        if (!unit.dead) {
+            if (last_alive_unit_player_id == undefined) {
+                last_alive_unit_player_id = unit.owner_id;
+            } else if (last_alive_unit_player_id != unit.owner_id) {
+                return undefined;
+            }
+        }
+    }
+
+    return last_alive_unit_player_id;
+}
+
 export function try_take_turn_action(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
+    if (battle.finished) {
+        return;
+    }
+
     if (get_turning_player(battle).id != player.id) {
         return;
     }
@@ -302,6 +323,14 @@ export function try_take_turn_action(battle: Battle, player: Player, action: Tur
 
     if (new_deltas) {
         battle.deltas = battle.deltas.concat(new_deltas);
+    }
+
+    const possible_winner = try_compute_battle_winner(battle);
+
+    if (possible_winner != undefined) {
+        battle.finished = true;
+
+        report_battle_over(battle, possible_winner);
     }
 
     return new_deltas;
@@ -333,7 +362,8 @@ export function start_battle(players: Player[]): number {
         })),
         deltas: [],
         grid: grid,
-        turning_player_index: 0
+        turning_player_index: 0,
+        finished: false
     };
 
     spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa);

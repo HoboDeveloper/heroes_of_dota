@@ -413,6 +413,27 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         main_player.current_order_y = next_state.player_position.y;
     }
 
+    if (current_state == Player_State.in_battle) {
+        print("Battle over");
+
+        for (const unit of battle.units) {
+            unit.handle.RemoveSelf();
+        }
+
+        battle.delta_head = 0;
+        battle.deltas = [];
+        battle.delta_paths = [];
+        battle.players = [];
+        battle.units = [];
+
+
+        PlayerResource.SetCameraTarget(main_player.player_id, main_player.hero_unit);
+        wait_one_frame();
+        // TODO incorrect definition
+        // @ts-ignore
+        PlayerResource.SetCameraTarget(main_player.player_id, undefined);
+    }
+
     if (next_state.state == Player_State.in_battle) {
         print("Battle started");
 

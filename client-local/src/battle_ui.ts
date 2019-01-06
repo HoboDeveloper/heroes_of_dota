@@ -259,6 +259,13 @@ function create_cell_particle_at(position: XYZ) {
 function process_state_transition(from: Player_State, state_data: Player_Net_Table) {
     $.Msg(`Transition from ${from} to ${state_data.state}`);
 
+    if (from == Player_State.in_battle) {
+        for (const cell of battle.cells) {
+            Particles.DestroyParticleEffect(cell.associated_particle, true);
+            Particles.ReleaseParticleIndex(cell.associated_particle);
+        }
+    }
+
     if (state_data.state == Player_State.in_battle) {
         battle = {
             players: from_server_array(state_data.battle.participants),
@@ -402,11 +409,6 @@ const color_green: XYZ = [ 128, 255, 128 ];
 const color_red: XYZ = [ 255, 128, 128 ];
 const color_yellow: XYZ = [ 255, 255, 0 ];
 
-// TODO too expensive, consider storing units in cells
-function find_unit_by_cell(at: XY) {
-    return array_find(battle.units, unit => !unit.dead && unit.position.x == at.x && unit.position.y == at.y);
-}
-
 function update_grid_visuals() {
     let selected_unit: Battle_Unit | undefined;
     let selected_entity_path: Cost_Population_Result | undefined;
@@ -419,47 +421,66 @@ function update_grid_visuals() {
         }
     }
 
-    function color_cell(cell: Cell, color: XYZ) {
+    function color_cell(cell: Cell, color: XYZ, alpha: number) {
         Particles.SetParticleControl(cell.associated_particle, 2, color);
+        Particles.SetParticleControl(cell.associated_particle, 3, [ alpha, 0, 0 ]);
     }
-
-    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(cell.position);
 
         let cell_color: XYZ = color_nothing;
+        let alpha = 20;
 
         if (selected_unit && selected_entity_path) {
             const cost = selected_entity_path.cell_index_to_cost[index];
 
             if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
                 cell_color = color_green;
+                alpha = 35;
             }
         }
 
-        // TODO expensive
-        const unit_in_cell = find_unit_by_cell(cell.position);
+        color_cell(cell, cell_color, alpha);
+    }
 
-        if (unit_in_cell) {
-            const is_ally = unit_in_cell.owner_player_id == this_player_id;
+    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
 
-            if (is_ally) {
-                if (your_turn) {
-                    if (unit_in_cell.has_taken_an_action_this_turn) {
-                        cell_color = color_yellow;
-                    } else {
-                        cell_color = color_green;
-                    }
-                } else {
+    for (const unit_in_cell of battle.units) {
+        if (unit_in_cell.dead) {
+            continue;
+        }
+
+        const is_ally = unit_in_cell.owner_player_id == this_player_id;
+
+        let cell_color: XYZ = color_nothing;
+        let alpha = 10;
+
+        if (is_ally) {
+            if (your_turn) {
+                if (unit_in_cell.has_taken_an_action_this_turn) {
                     cell_color = color_yellow;
+                } else {
+                    cell_color = color_green;
                 }
             } else {
-                cell_color = color_red;
+                cell_color = color_yellow;
             }
+        } else {
+            cell_color = color_red;
         }
 
-        color_cell(cell, cell_color);
+        alpha = 50;
+
+        if (selected_unit == unit_in_cell) {
+            alpha = 255;
+        }
+
+        const cell = grid_cell_at(unit_in_cell.position);
+
+        if (cell) {
+            color_cell(cell, cell_color, alpha);
+        }
     }
 }
 
@@ -589,6 +610,14 @@ function setup_mouse_filter() {
             if (wants_to_select_unit) {
                 current_selected_entity = cursor_entity;
 
+                if (cursor_entity) {
+                    const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
+
+                    Particles.SetParticleControl(particle, 1, [ 255, 255, 255 ]);
+                    Particles.SetParticleControl(particle, 2, [ 64, 255, 0 ]);
+                    Particles.ReleaseParticleIndex(particle);
+                }
+
                 update_grid_visuals();
 
                 return true;
@@ -602,11 +631,13 @@ function setup_mouse_filter() {
 
             if (wants_to_perform_automatic_action) {
                 if (cursor_entity_unit) {
-                    take_battle_action({
-                        type: Action_Type.attack,
-                        to: cursor_entity_unit.position,
-                        unit_id: selected_unit_id
-                    })
+                    if (cursor_entity != current_selected_entity) {
+                        take_battle_action({
+                            type: Action_Type.attack,
+                            to: cursor_entity_unit.position,
+                            unit_id: selected_unit_id
+                        })
+                    }
                 } else {
                     order_unit_to_move(selected_unit_id, battle_position);
                     move_order_particle(world_position);
