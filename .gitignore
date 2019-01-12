@@ -6,6 +6,7 @@ dist/game/maps
 dist/game/particles
 server-local/declarations
 server-remote/dist
+battle-sim/dist
 client-local/**/unit_defs.ts
 server-local/**/unit_defs.ts
 server-remote/**/unit_defs.ts

@@ -480,7 +480,6 @@ function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
     }
 }
 
-// TODO only used for attack/spawn deltas which can calculate world coordinates on the client
 function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
     return Vector(
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
@@ -492,9 +491,19 @@ function game_time_formatted() {
     return string.format("%.2f", GameRules.GetGameTime());
 }
 
-function spawn_unit_for_battle(unit_id: number, at: XY): Battle_Unit {
+function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
+    switch (unit_type) {
+        case Unit_Type.ursa: return "npc_dota_hero_ursa";
+        case Unit_Type.pudge: return "npc_dota_hero_pudge";
+        case Unit_Type.sniper: return "npc_dota_hero_sniper";
+
+        default: return unreachable(unit_type);
+    }
+}
+
+function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): Battle_Unit {
     const world_location = battle_position_to_world_position_center(at);
-    const handle = CreateUnitByName("npc_dota_hero_ursa", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+    const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
@@ -511,86 +520,134 @@ function spawn_unit_for_battle(unit_id: number, at: XY): Battle_Unit {
     return unit;
 }
 
-function fast_forward_attack_delta_effects(delta: Battle_Delta_Unit_Attack) {
+
+function play_attack_delta_effects(main_player: Main_Player, delta: Battle_Delta_Unit_Attack, head: number) {
     const effect = delta.effect;
 
     switch (effect.type) {
         case Battle_Effect_Type.basic_attack: {
-            fast_forward_delta(effect.delta);
+            play_delta(main_player, effect.delta, head);
+            break;
+        }
+
+        case Battle_Effect_Type.pudge_hook: {
+            function is_hook_hit(
+                effect: Battle_Effect_Pudge_Hook_Deltas_Hit | Battle_Effect_Pudge_Hook_Deltas_Missed
+            ): effect is Battle_Effect_Pudge_Hook_Deltas_Hit {
+                return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
+            }
+
+            print_table(delta);
+
+            const pudge = find_unit_by_id(delta.unit_id);
+
+            if (!pudge) {
+                log_chat_debug_message("Error, Pudge not found");
+                return;
+            }
+
+            const hook_offset = Vector(0, 0, 96);
+            const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vec;
+            const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
+            const travel_direction = Vector(delta.attacked_position.x - pudge.position.x, delta.attacked_position.y - pudge.position.y).Normalized();
+            const travel_speed = 1600;
+
+            let travel_target: XY;
+
+            if (is_hook_hit(effect.result)) {
+                const [damage] = from_client_tuple(effect.result.deltas);
+                const target = find_unit_by_id(damage.target_unit_id);
+
+                if (!target) {
+                    log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
+                    return;
+                }
+
+                travel_target = target.position;
+
+                print("Travel target is ", travel_target);
+            } else {
+                travel_target = effect.result.final_point;
+            }
+
+            const distance_to_travel = battle_cell_size * Math.max(Math.abs(travel_target.x - pudge.position.x), Math.abs(travel_target.y - pudge.position.y));
+            const time_to_travel = distance_to_travel / travel_speed;
+
+            const chain = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, pudge.handle);
+            ParticleManager.SetParticleControlEnt(chain, 0, pudge.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_weapon_chain_rt", pudge_origin, true);
+            ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vec);
+            ParticleManager.SetParticleControl(chain, 2, Vector(travel_speed, distance_to_travel, 64));
+            ParticleManager.SetParticleControl(chain, 3, Vector(time_to_travel * 2, 0, 0));
+            ParticleManager.SetParticleControl(chain, 4, Vector(1, 0, 0));
+            ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
+            // TODO incorrect definition
+            //@ts-ignore
+            ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
+
+            if (is_hook_hit(effect.result)) {
+                const [damage, move] = from_client_tuple(effect.result.deltas);
+                const target = find_unit_by_id(damage.target_unit_id);
+
+                if (!target) {
+                    log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
+                    return;
+                }
+
+                wait(time_to_travel);
+
+                play_delta(main_player, damage, head);
+
+                const move_target = find_unit_by_id(move.unit_id);
+
+                if (!move_target) {
+                    log_chat_debug_message("Error, Pudge MOVE TARGET not found");
+                    return;
+                }
+
+                const impact_path = "particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf";
+                const impact = ParticleManager.CreateParticle(impact_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, move_target.handle);
+                ParticleManager.SetParticleControlEnt(impact, 0, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
+                ParticleManager.ReleaseParticleIndex(impact);
+
+                ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vec, true);
+
+                const travel_start_time = GameRules.GetGameTime();
+                const target_world_position = battle_position_to_world_position_center(move.to_position);
+                const travel_position_start = move_target.handle.GetAbsOrigin();
+                const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), move_target.handle);
+
+                while (true) {
+                    const now = GameRules.GetGameTime();
+                    const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
+                    const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vec;
+
+                    move_target.handle.SetAbsOrigin(travel_position);
+
+                    if (now >= travel_start_time + time_to_travel) {
+                        break;
+                    }
+
+                    wait_one_frame();
+                }
+
+                move_target.position = move.to_position;
+            } else {
+                wait(time_to_travel);
+            }
+
+            ParticleManager.ReleaseParticleIndex(chain);
+
             break;
         }
     }
 }
 
-function fast_forward_delta(delta: Battle_Delta) {
-    // TODO first collapse deltas into an internal state, then do actual operations on handles so the server doesn't lag
-    switch (delta.type) {
-        case Battle_Delta_Type.unit_spawn: {
-            spawn_unit_for_battle(delta.unit_id, delta.at_position);
-
-            break;
-        }
-
-        case Battle_Delta_Type.unit_move: {
-            const unit = find_unit_by_id(delta.unit_id);
-
-            if (unit) {
-                unit.position = delta.to_position;
-
-                // TODO set facing to between the before-last and last point in the path
-                FindClearSpaceForUnit(unit.handle, battle_position_to_world_position_center(delta.to_position), true);
-            }
-
-            break;
-        }
-
-        case Battle_Delta_Type.unit_attack: {
-            const unit = find_unit_by_id(delta.unit_id);
-
-            if (unit) {
-                unit.handle.SetForwardVector(Vector(delta.attacked_position.x - unit.position.x, delta.attacked_position.y - unit.position.y));
-            }
-
-            fast_forward_attack_delta_effects(delta);
-
-            break;
-        }
-
-        case Battle_Delta_Type.end_turn: {
-            break;
-        }
-
-        case Battle_Delta_Type.health_change: {
-            const unit = find_unit_by_id(delta.target_unit_id);
-
-            if (unit && delta.new_health == 0) {
-                unit.handle.ForceKill(false);
-            }
-
-            break;
-        }
-
-        default: unreachable(delta);
-    }
-}
-
-function play_attack_delta_effects(delta: Battle_Delta_Unit_Attack) {
-    const effect = delta.effect;
-
-    switch (effect.type) {
-        case Battle_Effect_Type.basic_attack: {
-            play_delta(effect.delta, -1);
-            break;
-        }
-    }
-}
-
-function play_delta(delta: Battle_Delta, head: number) {
+function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number) {
     print(`Well delta type is: ${delta.type}`);
 
     switch (delta.type) {
         case Battle_Delta_Type.unit_spawn: {
-            const unit = spawn_unit_for_battle(delta.unit_id, delta.at_position);
+            const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.at_position);
             unit.is_playing_a_delta = true;
 
             wait(1);
@@ -606,17 +663,17 @@ function play_delta(delta: Battle_Delta, head: number) {
             if (unit) {
                 unit.is_playing_a_delta = true;
 
-                const world_path = battle.delta_paths[head];
+                const path = battle.delta_paths[head];
 
-                if (!world_path) {
+                if (!path) {
                     print("Couldn't find path");
                     break;
                 }
 
                 unit.position = delta.to_position;
 
-                for (const world_xy of world_path) {
-                    const world_position = Vector(world_xy.world_x, world_xy.world_y);
+                for (const cell of path) {
+                    const world_position = battle_position_to_world_position_center(cell);
 
                     unit.handle.MoveToPosition(world_position);
 
@@ -683,13 +740,26 @@ function play_delta(delta: Battle_Delta, head: number) {
                     wait_one_frame();
                 }
 
-                play_attack_delta_effects(delta);
+                play_attack_delta_effects(main_player, delta, head);
 
                 while (GameRules.GetGameTime() - start_time < sequence_duration * 0.9) {
                     wait_one_frame();
                 }
 
                 attacker.is_playing_a_delta = false;
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.unit_force_move: {
+            const unit = find_unit_by_id(delta.unit_id);
+            const to = battle_position_to_world_position_center(delta.to_position);
+
+            if (unit) {
+                FindClearSpaceForUnit(unit.handle, to,  true);
+
+                unit.position = delta.to_position;
             }
 
             break;
@@ -702,8 +772,14 @@ function play_delta(delta: Battle_Delta, head: number) {
         case Battle_Delta_Type.health_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
-            if (unit && delta.new_health == 0) {
-                unit.handle.ForceKill(false);
+            if (unit) {
+                const player = PlayerResource.GetPlayer(main_player.player_id);
+
+                SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, delta.damage_dealt, player);
+
+                if (delta.new_health == 0) {
+                    unit.handle.ForceKill(false);
+                }
             }
 
             break;
@@ -777,12 +853,46 @@ function from_client_array<T>(array: Array<T>): Array<T> {
     return result
 }
 
+function from_client_tuple<T>(array: T): T {
+    let [index, value] = next(array, undefined);
+
+    const result = [];
+
+    while (index != undefined) {
+        result[tonumber(index.toString())] = value;
+
+        [index, value] = next(array, index);
+    }
+
+    return result as any as T;
+}
+
 function try_submit_state_transition(main_player: Main_Player, new_state: Player_State_Data) {
     if (new_state.state != main_player.state) {
         print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
 
         state_transition = new_state;
     }
+}
+
+function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_Snapshot) {
+    print("Fast forwarding from snapshot");
+
+    for (const unit of battle.units) {
+        unit.handle.RemoveSelf();
+    }
+
+    battle.units = snapshot.units.map(unit => {
+        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position);
+
+        new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
+
+        return new_unit;
+    });
+
+    battle.delta_head = snapshot.delta_head;
+
+    update_player_state_net_table(main_player);
 }
 
 function game_loop() {
@@ -845,6 +955,13 @@ function game_loop() {
         merge_delta_paths_from_client(event.delta_paths);
     });
 
+    on_custom_event_async<Fast_Forward_Event>("fast_forward", event => {
+        fast_forward_from_snapshot(main_player, {
+            units: from_client_array(event.units),
+            delta_head: event.delta_head
+        });
+    });
+
     fork(() => submit_and_query_movement_loop(main_player, players));
     fork(() => {
         while(true) {
@@ -882,18 +999,6 @@ function game_loop() {
             }
 
             case Player_State.in_battle: {
-                if (battle.deltas.length - battle.delta_head > 20) {
-                    for (const delta of battle.deltas) {
-                        if (!delta) break;
-
-                        fast_forward_delta(delta);
-                    }
-
-                    battle.delta_head = battle.deltas.length;
-
-                    update_player_state_net_table(main_player);
-                }
-
                 for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
                     const delta = battle.deltas[battle.delta_head];
 
@@ -901,7 +1006,7 @@ function game_loop() {
 
                     print(`Playing delta ${battle.delta_head}`);
 
-                    play_delta(delta, battle.delta_head);
+                    play_delta(main_player, delta, battle.delta_head);
                     update_player_state_net_table(main_player);
                 }
 

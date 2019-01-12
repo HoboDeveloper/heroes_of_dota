@@ -1,4 +1,4 @@
-type Move_Delta_Paths = { [delta_index: number]: { world_x: number, world_y: number }[] }
+type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
 type Player_Net_Table_Base = {
     id: number,
@@ -40,4 +40,24 @@ type Put_Battle_Deltas_Event = {
 
 type Debug_Chat_Message_Event = {
     message: string;
+}
+
+type Fast_Forward_Event = Battle_Snapshot;
+
+type Unit_Snapshot = {
+    id: number,
+    type: Unit_Type,
+    position: {
+        x: number,
+        y: number
+    },
+    facing: {
+        x: number,
+        y: number
+    }
+}
+
+type Battle_Snapshot = {
+    units: Unit_Snapshot[],
+    delta_head: number
 }

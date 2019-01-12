@@ -3,11 +3,13 @@
   "compilerOptions": {
     "target": "es5",
     "rootDir": "src",
-    "outDir": "../dist/content/panorama/scripts/custom_game",
     "noImplicitAny": true,
-    "alwaysStrict": true,
+    "alwaysStrict": false,
+    "noImplicitUseStrict": true,
     "strictNullChecks": true,
     "sourceMap": false,
+    "declaration": true,
+    "outDir": "dist",
     "lib": [
       "es2016"
     ]
@@ -15,7 +17,6 @@
   "include": [
     "**/*.ts",
     "../common/api.d.ts",
-    "../common/api_local.d.ts",
-    "../battle-sim/dist/battle_sim.d.ts"
+    "../common/api_local.d.ts"
   ]
 }

@@ -1,8 +1,12 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
-import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action, Battle} from "./battle";
+import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action} from "./battle";
 import {unreachable, XY, xy} from "./common";
 import {pull_pending_chat_messages_for_player, submit_chat_message} from "./chat";
+import {performance} from "perf_hooks"
+import {readFileSync} from "fs";
+
+eval(readFileSync("dist/battle_sim.js", "utf8"));
 
 type Request_Handler = (body: string) => Request_Result;
 
@@ -213,8 +217,8 @@ function player_to_player_state_object(player: Player): Player_State_Data {
                 state: player.state,
                 participants: battle.players,
                 grid_size: {
-                    width: battle.grid.size.x,
-                    height: battle.grid.size.y
+                    width: battle.grid_size.x,
+                    height: battle.grid_size.y
                 }
             }
         }
@@ -588,6 +592,7 @@ export function start_server(with_test_player: boolean) {
 
     createServer((req, res) => {
         const url = req.url;
+        const time_start = performance.now();
 
         if (!url) {
             req.connection.destroy();
@@ -607,9 +612,9 @@ export function start_server(with_test_player: boolean) {
         });
 
         req.on("end", () => {
-            console.log(url, body);
-
+            const handle_start = performance.now();
             const result = handle_request(url, body);
+            const handle_time = performance.now() - handle_start;
 
             switch (result.type) {
                 case Result_Type.ok: {
@@ -624,6 +629,9 @@ export function start_server(with_test_player: boolean) {
                     break;
                 }
             }
+
+            const time = performance.now() - time_start;
+            console.log(`${url} -> ${result.type == Result_Type.ok ? 'ok' : result.code}, took ${time.toFixed(2)}ms total, handle: ${handle_time.toFixed(2)}ms`)
         });
     }).listen(3638);
 }

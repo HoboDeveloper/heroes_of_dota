@@ -1,43 +1,19 @@
 let current_selected_entity: EntityId | undefined = undefined;
 let current_state = Player_State.not_logged_in;
 let this_player_id: number;
-let battle: Battle;
+let battle: UI_Battle;
 
 const battle_cell_size = 128;
 
-type XY = {
-    x: number,
-    y: number
-}
-
-type Battle_Unit = {
-    id: number,
-    owner_player_id: number,
-    position: XY,
-    move_points: number,
-    max_move_points: number,
-    health: number,
-    has_taken_an_action_this_turn: boolean,
-    dead: boolean
-}
-
-type Cell = {
-    position: XY;
-    occupied: boolean;
-    cost: number;
-    associated_particle: ParticleId;
-}
-
-type Battle = {
-    players: Battle_Player[],
-    deltas: Battle_Delta[];
-    delta_head: number;
+type UI_Battle = Battle & {
     world_origin: XY;
-    units: Battle_Unit[];
-    cells: Cell[];
-    grid_size: XY;
-    turning_player_index: number,
     entity_id_to_unit_id: { [entity_id: number]: number };
+    unit_id_to_facing: { [unit_id: number]: XY };
+    cells: UI_Cell[];
+}
+
+type UI_Cell = Cell & {
+    associated_particle: ParticleId;
 }
 
 type Cost_Population_Result = {
@@ -45,130 +21,45 @@ type Cost_Population_Result = {
     cell_index_to_parent_index: number[];
 }
 
-function xy(x: number, y: number): XY {
-    return { x: x, y: y };
-}
-
-function xy_equal(a: XY, b: XY) {
-    return a.x == b.x && a.y == b.y;
-}
-
-function find_unit_by_id(id: number): Battle_Unit | undefined {
-    return array_find(battle.units, unit => unit.id == id);
-}
-
-function grid_cell_index(at: XY) {
-    return at.x * battle.grid_size.y + at.y;
-}
-
-function grid_cell_at_unchecked(at: XY): Cell {
-    return battle.cells[grid_cell_index(at)];
-}
-
-function grid_cell_at(at: XY): Cell | undefined {
-    if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
-        return undefined;
-    }
-
-    return battle.cells[grid_cell_index(at)];
-}
-
-function pass_turn_to_next_player() {
-    battle.turning_player_index++;
-
-    if (battle.turning_player_index == battle.players.length) {
-        battle.turning_player_index -= battle.players.length;
-    }
-}
-
-function update_state_after_turn_ends() {
-    for (const unit of battle.units) {
-        unit.move_points = unit.max_move_points;
-        unit.has_taken_an_action_this_turn = false;
-    }
-}
-
-function collapse_move_delta(delta: Battle_Delta_Unit_Move, path_cost: number) {
-    const unit = find_unit_by_id(delta.unit_id);
-
-    if (unit) {
-        grid_cell_at_unchecked(unit.position).occupied = false;
-        grid_cell_at_unchecked(delta.to_position).occupied = true;
-
-        unit.position = delta.to_position;
-        unit.move_points -= path_cost;
-    }
-}
-
-function collapse_delta(delta: Battle_Delta) {
+function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
-        case Battle_Delta_Type.unit_move: {
-            throw "Use collapse_move_delta";
-        }
-
         case Battle_Delta_Type.unit_spawn: {
-            const definition = unit_definition_by_type(delta.unit_type);
-
-            battle.units.push({
-                id: delta.unit_id,
-                owner_player_id: delta.owner_id,
-                position: delta.at_position,
-                move_points: definition.move_points,
-                max_move_points: definition.move_points,
-                health: definition.health,
-                dead: false,
-                has_taken_an_action_this_turn: false
-            });
-
-            grid_cell_at_unchecked(delta.at_position).occupied = true;
+            battle.unit_id_to_facing[delta.unit_id] = xy(1, 0);
 
             break;
         }
 
-        case Battle_Delta_Type.health_change: {
-            const target = find_unit_by_id(delta.target_unit_id);
+        case Battle_Delta_Type.unit_move: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
 
-            if (target && delta.new_health == 0) {
-                grid_cell_at_unchecked(target.position).occupied = false;
+            if (unit) {
+                const path = find_grid_path(unit.position, delta.to_position);
 
-                target.dead = true;
+                if (path) {
+                    delta_paths[battle.delta_head] = path;
+
+                    const to = delta.to_position;
+
+                    battle.unit_id_to_facing[unit.id] = path.length > 1
+                        ? xy_sub(to, path[path.length - 2])
+                        : xy_sub(to, unit.position);
+                }
             }
 
             break;
         }
 
         case Battle_Delta_Type.unit_attack: {
-            switch (delta.effect.type) {
-                case Battle_Effect_Type.nothing: break;
-                case Battle_Effect_Type.basic_attack: {
-                    collapse_delta(delta.effect.delta);
-
-                    break;
-                }
-
-                default: unreachable(delta.effect);
-            }
-
-            const unit = find_unit_by_id(delta.unit_id);
+            const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
-                unit.has_taken_an_action_this_turn = true;
+                battle.unit_id_to_facing[unit.id] = xy_sub(delta.attacked_position, unit.position);
             }
 
             break;
         }
-
-        case Battle_Delta_Type.end_turn: {
-            update_state_after_turn_ends();
-            pass_turn_to_next_player();
-
-            break;
-        }
-
-        default: unreachable(delta);
     }
 }
-
 function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
     $.Msg(`Received ${deltas.length} new deltas`);
 
@@ -185,24 +76,14 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
             break;
         }
 
-        if (delta.type == Battle_Delta_Type.unit_move) {
-            const unit = find_unit_by_id(delta.unit_id);
+        update_related_visual_data_from_delta(delta, delta_paths);
+        collapse_delta(battle, delta);
+    }
 
-            if (unit) {
-                const path = find_grid_path(unit.position, delta.to_position);
+    const visualiser_head = get_visualiser_delta_head();
 
-                if (path) {
-                    delta_paths[battle.delta_head] = path.map(battle_position_to_world_position_center).map(xyz => ({
-                        world_x: xyz[0],
-                        world_y: xyz[1]
-                    }));
-
-                    collapse_move_delta(delta, path.length);
-                }
-            }
-        } else {
-            collapse_delta(delta);
-        }
+    if (visualiser_head != undefined && battle.delta_head - visualiser_head > 20) {
+        fire_event<Fast_Forward_Event>("fast_forward", make_battle_snapshot());
     }
 
     if (battle.deltas.length > 0) {
@@ -211,9 +92,9 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
             delta_paths: delta_paths,
             from_head: head_before_merge
         });
-    }
 
-    update_grid_visuals();
+        update_grid_visuals();
+    }
 }
 
 function take_battle_action(action: Turn_Action) {
@@ -223,7 +104,7 @@ function take_battle_action(action: Turn_Action) {
     };
 
     remote_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", request, response => {
-        receive_battle_deltas(response.previous_head, response.deltas)
+        receive_battle_deltas(response.previous_head, response.deltas);
     });
 }
 
@@ -276,7 +157,8 @@ function process_state_transition(from: Player_State, state_data: Player_Net_Tab
             deltas: [],
             world_origin: state_data.battle.world_origin,
             cells: [],
-            entity_id_to_unit_id: {}
+            entity_id_to_unit_id: {},
+            unit_id_to_facing: {}
         };
 
         const particle_bottom_left_origin: XYZ = [
@@ -312,7 +194,7 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
     const cell_index_to_cost: number[] = [];
     const cell_index_to_parent_index: number[] = [];
     const indices_already_checked: boolean[] = [];
-    const from_index = grid_cell_index(from);
+    const from_index = grid_cell_index(battle, from);
 
     let indices_not_checked: number[] = [];
 
@@ -337,16 +219,16 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
             }
 
             const neighbors = [
-                grid_cell_at(xy(at.x + 1, at.y)),
-                grid_cell_at(xy(at.x - 1, at.y)),
-                grid_cell_at(xy(at.x, at.y + 1)),
-                grid_cell_at(xy(at.x, at.y - 1))
+                grid_cell_at(battle, xy(at.x + 1, at.y)),
+                grid_cell_at(battle, xy(at.x - 1, at.y)),
+                grid_cell_at(battle, xy(at.x, at.y + 1)),
+                grid_cell_at(battle, xy(at.x, at.y - 1))
             ];
 
             for (const neighbor of neighbors) {
                 if (!neighbor) continue;
 
-                const neighbor_cell_index = grid_cell_index(neighbor.position);
+                const neighbor_cell_index = grid_cell_index(battle, neighbor.position);
 
                 if (indices_already_checked[neighbor_cell_index]) continue;
                 if (neighbor.occupied) {
@@ -375,8 +257,8 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
 }
 
 function find_grid_path(from: XY, to: XY): XY[] | undefined {
-    const cell_from = grid_cell_at(from);
-    const cell_to = grid_cell_at(to);
+    const cell_from = grid_cell_at(battle, from);
+    const cell_to = grid_cell_at(battle, to);
 
     if (!cell_from || !cell_to) {
         return;
@@ -388,8 +270,8 @@ function find_grid_path(from: XY, to: XY): XY[] | undefined {
         return;
     }
 
-    let current_cell_index = populated.cell_index_to_parent_index[grid_cell_index(to)];
-    const to_index = grid_cell_index(from);
+    let current_cell_index = populated.cell_index_to_parent_index[grid_cell_index(battle, to)];
+    const to_index = grid_cell_index(battle, from);
     const path = [];
 
     path.push(to);
@@ -410,24 +292,24 @@ const color_red: XYZ = [ 255, 128, 128 ];
 const color_yellow: XYZ = [ 255, 255, 0 ];
 
 function update_grid_visuals() {
-    let selected_unit: Battle_Unit | undefined;
+    let selected_unit: Unit | undefined;
     let selected_entity_path: Cost_Population_Result | undefined;
 
     if (current_selected_entity) {
-        selected_unit = find_unit_by_id(battle.entity_id_to_unit_id[current_selected_entity]);
+        selected_unit = find_unit_by_id(battle, battle.entity_id_to_unit_id[current_selected_entity]);
 
         if (selected_unit) {
             selected_entity_path = populate_path_costs(selected_unit.position);
         }
     }
 
-    function color_cell(cell: Cell, color: XYZ, alpha: number) {
+    function color_cell(cell: UI_Cell, color: XYZ, alpha: number) {
         Particles.SetParticleControl(cell.associated_particle, 2, color);
         Particles.SetParticleControl(cell.associated_particle, 3, [ alpha, 0, 0 ]);
     }
 
     for (const cell of battle.cells) {
-        const index = grid_cell_index(cell.position);
+        const index = grid_cell_index(battle, cell.position);
 
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
@@ -476,10 +358,10 @@ function update_grid_visuals() {
             alpha = 255;
         }
 
-        const cell = grid_cell_at(unit_in_cell.position);
+        const cell = grid_cell_at(battle, unit_in_cell.position);
 
         if (cell) {
-            color_cell(cell, cell_color, alpha);
+            color_cell(cell as UI_Cell, cell_color, alpha);
         }
     }
 }
@@ -551,6 +433,20 @@ function order_unit_to_move(unit_id: number, move_where: XY) {
     });
 }
 
+function make_battle_snapshot(): Battle_Snapshot {
+    return {
+        units: battle.units
+            .filter(unit => !unit.dead)
+            .map(unit => ({
+                id: unit.id,
+                position: unit.position,
+                type: unit.type,
+                facing: battle.unit_id_to_facing[unit.id]
+            })),
+        delta_head: battle.delta_head
+    }
+}
+
 function setup_mouse_filter() {
     function get_entity_under_cursor(): EntityId | undefined {
         const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
@@ -605,7 +501,7 @@ function setup_mouse_filter() {
             const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
             const battle_position = world_position_to_battle_position(world_position);
             const cursor_entity = get_entity_under_cursor();
-            const cursor_entity_unit = cursor_entity ? find_unit_by_id(battle.entity_id_to_unit_id[cursor_entity]) : undefined;
+            const cursor_entity_unit = cursor_entity ? find_unit_by_id(battle, battle.entity_id_to_unit_id[cursor_entity]) : undefined;
 
             if (wants_to_select_unit) {
                 current_selected_entity = cursor_entity;

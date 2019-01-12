@@ -75,7 +75,7 @@ function wait_until(condition: () => boolean) {
     }
 }
 
-function guarded_wait_until(limit_seconds: number, condition: () => void): boolean {
+function guarded_wait_until(limit_seconds: number, condition: () => boolean): boolean {
     const start_time = GameRules.GetGameTime();
 
     while (true) {

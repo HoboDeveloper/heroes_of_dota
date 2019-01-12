@@ -9,12 +9,14 @@ declare const enum Battle_Delta_Type {
     unit_move = 1,
     unit_attack = 2,
     unit_spawn = 3,
-    end_turn = 4
+    end_turn = 4,
+    unit_force_move = 5
 }
 
 declare const enum Battle_Effect_Type {
     nothing = 0,
-    basic_attack = 1
+    basic_attack = 1,
+    pudge_hook = 2
 }
 
 declare const enum Action_Type {
@@ -24,14 +26,20 @@ declare const enum Action_Type {
 }
 
 declare const enum Unit_Type {
-    ursa = 0
+    ursa = 0,
+    sniper = 1,
+    pudge = 2
+}
+
+declare const enum Ability_Id {
+    pudge_hook,
+    sniper_shrapnel
 }
 
 type Unit_Definition = {
     health: number;
     move_points: number;
 }
-
 
 // TODO I can see how attacking a cell would cause issues in queued actions which result in a unit being moved,
 // TODO I think there should be an Action_Attack_Cell and Action_Attack_Target
@@ -66,7 +74,8 @@ type Battle_Player = {
 
 type Battle_Effect =
     Battle_Effect_Nothing |
-    Battle_Effect_Basic_Attack;
+    Battle_Effect_Basic_Attack |
+    Battle_Effect_Pudge_Hook;
 
 type Battle_Effect_Nothing = {
     type: Battle_Effect_Type.nothing
@@ -75,6 +84,24 @@ type Battle_Effect_Nothing = {
 type Battle_Effect_Basic_Attack = {
     type: Battle_Effect_Type.basic_attack;
     delta: Battle_Delta_Health_Change
+}
+
+type Battle_Effect_Pudge_Hook_Deltas_Hit = {
+    hit: true,
+    deltas: [ Battle_Delta_Health_Change, Battle_Delta_Unit_Force_Move ]
+}
+
+type Battle_Effect_Pudge_Hook_Deltas_Missed = {
+    hit: false,
+    final_point: {
+        x: number,
+        y: number
+    }
+}
+
+type Battle_Effect_Pudge_Hook = {
+    type: Battle_Effect_Type.pudge_hook,
+    result: Battle_Effect_Pudge_Hook_Deltas_Hit | Battle_Effect_Pudge_Hook_Deltas_Missed;
 }
 
 type Battle_Delta_Health_Change = {
@@ -89,11 +116,21 @@ type Battle_Delta_Health_Change = {
 type Battle_Delta_Unit_Move = {
     type: Battle_Delta_Type.unit_move;
     unit_id: number;
+    move_cost: number,
     to_position: {
         x: number,
         y: number
     }
 };
+
+type Battle_Delta_Unit_Force_Move = {
+    type: Battle_Delta_Type.unit_force_move;
+    unit_id: number;
+    to_position: {
+        x: number,
+        y: number
+    }
+}
 
 type Battle_Delta_Unit_Attack = {
     type: Battle_Delta_Type.unit_attack,
@@ -125,6 +162,7 @@ type Battle_Delta =
     Battle_Delta_Unit_Attack |
     Battle_Delta_Unit_Move |
     Battle_Delta_Unit_Spawn |
+    Battle_Delta_Unit_Force_Move |
     Battle_Delta_End_Turn;
 
 type Movement_History_Entry = {

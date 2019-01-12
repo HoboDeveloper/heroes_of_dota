@@ -1,6 +1,6 @@
 #! /bin/bash
 git pull
-./replicate-unit-defs.sh
+./replicate-batle-sim.sh
 pushd server-remote
 tsc -p tsconfig.json
 kill -9 $(cat run.pid)

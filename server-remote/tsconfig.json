@@ -6,13 +6,15 @@
     "sourceMap": true,
     "noImplicitAny" : true,
     "noImplicitThis" : true,
-    "alwaysStrict" : true,
+    "alwaysStrict" : false,
+    "noImplicitUseStrict": true,
     "strictNullChecks" : true,
     "types": [ "node" ]
   },
   "include": [
     "src/**/*.ts",
-    "../common/api.d.ts"
+    "../common/api.d.ts",
+    "../battle-sim/dist/battle_sim.d.ts"
   ],
   "exclude": [
     "node_modules"

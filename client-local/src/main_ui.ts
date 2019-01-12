@@ -31,6 +31,16 @@ function get_access_token() {
     return net_table.token;
 }
 
+function get_visualiser_delta_head(): number | undefined {
+    const net_table = get_net_table<Player_Net_Table>("main", "player");
+
+    if (net_table.state == Player_State.in_battle) {
+        return net_table.battle.current_visual_head;
+    }
+
+    return undefined;
+}
+
 function subscribe_to_net_table_key<T>(table: string, key: string, callback: (data: T) => void){
     const listener = CustomNetTables.SubscribeNetTableListener(table, function(table, table_key, data){
         if (key == table_key){
@@ -51,18 +61,17 @@ function subscribe_to_net_table_key<T>(table: string, key: string, callback: (da
     return listener;
 }
 
-function unreachable(x: never): never {
-    throw "Didn't expect to get here";
-}
-
-function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T | undefined {
-    for (const element of array) {
-        if (predicate(element)) {
-            return element;
+if (!Array.prototype.find) {
+    // @ts-ignore
+    Array.prototype.find = function <T>(predicate: (element: T) => boolean): T | undefined {
+        for (const element of this) {
+            if (predicate(element)) {
+                return element;
+            }
         }
-    }
 
-    return undefined;
+        return undefined;
+    };
 }
 
 function from_server_array<T>(array: Array<T>): Array<T> {
