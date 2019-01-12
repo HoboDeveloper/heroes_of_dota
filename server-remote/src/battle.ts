@@ -48,10 +48,17 @@ function scan_for_unit_in_direction(
             return { hit: true, unit: unit };
         }
 
-        const cell = grid_cell_at_unchecked(battle, current_cell);
+        const cell = grid_cell_at(battle, current_cell);
+
+        if (!cell) {
+            return {
+                hit: false,
+                final_point: xy(current_cell.x - direction_normal.x, current_cell.y - direction_normal.y)
+            };
+        }
 
         if (cell.occupied) {
-            return { hit: false, final_point: cell.position };
+            return { hit: false, final_point: current_cell };
         }
     }
 

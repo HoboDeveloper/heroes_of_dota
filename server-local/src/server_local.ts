@@ -537,8 +537,6 @@ function play_attack_delta_effects(main_player: Main_Player, delta: Battle_Delta
                 return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
             }
 
-            print_table(delta);
-
             const pudge = find_unit_by_id(delta.unit_id);
 
             if (!pudge) {
@@ -632,6 +630,10 @@ function play_attack_delta_effects(main_player: Main_Player, delta: Battle_Delta
 
                 move_target.position = move.to_position;
             } else {
+                wait(time_to_travel);
+
+                ParticleManager.SetParticleControl(chain, 1, pudge_origin);
+
                 wait(time_to_travel);
             }
 
