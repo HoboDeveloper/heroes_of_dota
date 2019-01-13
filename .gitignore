@@ -8,5 +8,8 @@ server-local/declarations
 server-remote/dist
 battle-sim/dist
 client-local/**/unit_defs.ts
-server-local/**/unit_defs.ts
-server-remote/**/unit_defs.ts
+dist/content/panorama/
+dist/game/materials
+dist/game/panorama
+
+panorama_debugger.cfg

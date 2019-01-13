@@ -1,0 +1,46 @@
+.main_panel {
+  width: 100%;
+  height: 100%;
+}
+
+#battle_ui {
+  width: 100%;
+  height: 100%;
+}
+
+#ability_panel {
+  flow-children: right;
+}
+
+.ability_button {
+  width: 128px;
+  height: 128px;
+}
+
+#end_turn_button {
+  width: 200px;
+  height: 50px;
+  background-color: #688bff;
+  align: right center;
+
+  &:hover {
+    background-color: #5f7ee9;
+
+    Label {
+      color: #e1e1e1;
+    }
+  }
+
+  &:active {
+    background-color: #5f7ee9;
+    transform: translateX(1px) translateY(1px);
+  }
+
+  Label {
+    font-family: Goudy Trajan Medium, FZKai-Z03, TH Sarabun New;
+    color: white;
+    align: center center;
+    text-align: center center;
+    font-size: 24px;
+  }
+}
