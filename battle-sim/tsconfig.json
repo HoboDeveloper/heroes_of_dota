@@ -10,13 +10,14 @@
     "sourceMap": false,
     "declaration": true,
     "outDir": "dist",
+    "outFile": "dist/battle_sim.js",
     "lib": [
       "es2016"
     ]
   },
   "include": [
     "**/*.ts",
-    "../common/api.d.ts",
-    "../common/api_local.d.ts"
+    "../api_definitions/api.d.ts",
+    "../api_definitions/api_local.d.ts"
   ]
 }

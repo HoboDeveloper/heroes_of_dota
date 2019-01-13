@@ -19,25 +19,35 @@ function unreachable(x: never): never {
     throw new Error("Didn't expect to get here");
 }
 
-type Unit = {
-    type: Unit_Type;
-    id: number;
-    owner_player_id: number;
-    dead: boolean;
-    position: XY;
-    health: number;
-    move_points: number;
-    max_health: number;
-    max_move_points: number;
-    attack_damage: number;
-    has_taken_an_action_this_turn: boolean;
+declare const enum Ability_Type {
+    passive = 0,
+    no_target = 1,
+    target_ground = 2,
+    target_unit = 3
 }
 
-type Cell = {
-    occupied: boolean;
-    cost: number;
-    position: XY;
+type Unit_Definition = {
+    health: number;
+    mana: number;
+    move_points: number;
+    abilities: Ability_Definition[];
 }
+
+type Ability_Definition_Passive = {
+    type: Ability_Type.passive;
+    id: Ability_Id;
+    available_since_level: number;
+}
+
+type Ability_Definition_Active = {
+    id: Ability_Id;
+    type: Ability_Type.no_target | Ability_Type.target_ground | Ability_Type.target_unit;
+    available_since_level: number;
+    cooldown: number;
+    mana_cost: number;
+}
+
+type Ability_Definition = Ability_Definition_Passive | Ability_Definition_Active;
 
 type Battle = {
     delta_head: number;
@@ -47,6 +57,37 @@ type Battle = {
     turning_player_index: number;
     cells: Cell[];
     grid_size: XY;
+}
+
+type Cell = {
+    occupied: boolean;
+    cost: number;
+    position: XY;
+}
+
+type Unit = {
+    type: Unit_Type;
+    id: number;
+    owner_player_id: number;
+    dead: boolean;
+    position: XY;
+    health: number;
+    mana: number;
+    max_health: number;
+    max_mana: number,
+    move_points: number;
+    max_move_points: number;
+    attack_damage: number;
+    has_taken_an_action_this_turn: boolean;
+    level: number;
+}
+
+type Ability = {
+    id: Ability_Id;
+    type: Ability_Type;
+    cooldown_remaining: number;
+    cooldown: number;
+    mana_cost: number;
 }
 
 function grid_cell_at(battle: Battle, at: XY): Cell | undefined {
@@ -248,8 +289,11 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 max_move_points: definition.move_points,
                 health: definition.health,
                 max_health: definition.health,
+                mana: definition.mana,
+                max_mana: definition.mana,
                 dead: false,
-                has_taken_an_action_this_turn: false
+                has_taken_an_action_this_turn: false,
+                level: 1
             });
 
             grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
@@ -328,35 +372,5 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
         }
 
         default: unreachable(delta);
-    }
-}
-
-function unit_definition_by_type(type: Unit_Type): Unit_Definition {
-    switch (type) {
-        case Unit_Type.ursa: {
-            return {
-                health: 30,
-                move_points: 4
-            }
-        }
-
-        case Unit_Type.sniper: {
-            return {
-                health: 24,
-                move_points: 3
-            }
-        }
-
-        case Unit_Type.pudge: {
-            return {
-                health: 35,
-                move_points: 2
-            }
-        }
-    }
-
-    return {
-        health: 20,
-        move_points: 4
     }
 }

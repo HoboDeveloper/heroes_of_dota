@@ -13,7 +13,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "../common/api.d.ts",
+    "../api_definitions/api.d.ts",
     "../battle-sim/dist/battle_sim.d.ts"
   ],
   "exclude": [

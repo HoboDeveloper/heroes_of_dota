@@ -11,5 +11,6 @@ client-local/**/unit_defs.ts
 dist/content/panorama/
 dist/game/materials
 dist/game/panorama
+server-local/src/unit_defs.ts
 
 panorama_debugger.cfg

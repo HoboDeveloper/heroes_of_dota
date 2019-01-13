@@ -33,12 +33,10 @@ declare const enum Unit_Type {
 
 declare const enum Ability_Id {
     pudge_hook,
+    pudge_rot,
+    pudge_flesh_heap,
+    pudge_dismember,
     sniper_shrapnel
-}
-
-type Unit_Definition = {
-    health: number;
-    move_points: number;
 }
 
 // TODO I can see how attacking a cell would cause issues in queued actions which result in a unit being moved,
