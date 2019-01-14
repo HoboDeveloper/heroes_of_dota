@@ -10,19 +10,20 @@ declare const enum Battle_Delta_Type {
     unit_attack = 2,
     unit_spawn = 3,
     end_turn = 4,
-    unit_force_move = 5
-}
-
-declare const enum Battle_Effect_Type {
-    nothing = 0,
-    basic_attack = 1,
-    pudge_hook = 2
+    unit_force_move = 5,
+    unit_ground_target_ability = 6,
+    unit_unit_target_ability = 7,
+    unit_use_no_target_ability = 8
 }
 
 declare const enum Action_Type {
-    attack = 0,
-    move = 1,
-    end_turn = 2
+    attack_target = 0,
+    attack_ground = 1,
+    move = 2,
+    end_turn = 3,
+    ground_target_ability = 4,
+    unit_target_ability = 5,
+    use_no_target_ability = 6
 }
 
 declare const enum Unit_Type {
@@ -31,23 +32,64 @@ declare const enum Unit_Type {
     pudge = 2
 }
 
+// TODO units could have their attack ability id specified in definition
+// TODO units need attack range
+// TODO abilities need cast target validation
+
+// TODO if we split Ability_Id to Ability_No_Target_Id/Ability_Ground_Target_Id/Ability_Unit_Target_Id/Ability_Passive_Id
+// TODO then we can discriminate easier and also use unreachable(x) in more places
 declare const enum Ability_Id {
-    pudge_hook,
-    pudge_rot,
-    pudge_flesh_heap,
-    pudge_dismember,
-    sniper_shrapnel
+    basic_attack = -1,
+    pudge_hook = 0,
+    pudge_rot = 1,
+    pudge_flesh_heap = 2,
+    pudge_dismember = 3,
+    sniper_shrapnel = 4
 }
 
-// TODO I can see how attacking a cell would cause issues in queued actions which result in a unit being moved,
-// TODO I think there should be an Action_Attack_Cell and Action_Attack_Target
-type Action_Attack = {
-    type: Action_Type.attack;
+declare const enum Ability_Type {
+    passive = 0,
+    no_target = 1,
+    target_ground = 2,
+    target_unit = 3
+}
+
+type Unit_Definition = {
+    health: number;
+    mana: number;
+    move_points: number;
+    abilities: Ability_Definition[];
+}
+
+type Ability_Definition_Passive = {
+    type: Ability_Type.passive;
+    id: Ability_Id;
+    available_since_level: number;
+}
+
+type Ability_Definition_Active = {
+    id: Ability_Id;
+    type: Ability_Type.no_target | Ability_Type.target_ground | Ability_Type.target_unit;
+    available_since_level: number;
+    cooldown: number;
+    mana_cost: number;
+}
+
+type Ability_Definition = Ability_Definition_Passive | Ability_Definition_Active;
+
+type Action_Attack_Ground = {
+    type: Action_Type.attack_ground;
     unit_id: number,
     to: {
         x: number,
         y: number
     };
+}
+
+type Action_Attack_Target = {
+    type: Action_Type.attack_target;
+    unit_id: number,
+    target_unit_id: number
 }
 
 type Action_Move = {
@@ -63,33 +105,58 @@ type Action_End_Turn = {
     type: Action_Type.end_turn;
 }
 
-type Turn_Action = Action_Attack | Action_Move | Action_End_Turn;
+type Action_Ground_Target_Ability = {
+    type: Action_Type.ground_target_ability;
+    ability_id: Ability_Id;
+    unit_id: number;
+    to: {
+        x: number,
+        y: number
+    }
+}
+
+type Action_Unit_Target_Ability = {
+    type: Action_Type.unit_target_ability;
+    ability_id: Ability_Id;
+    unit_id: number;
+    target_id: number;
+}
+
+type Action_No_Target_Ability = {
+    type: Action_Type.use_no_target_ability;
+    ability_id: Ability_Id;
+    unit_id: number;
+}
+
+type Turn_Action =
+    Action_Attack_Ground |
+    Action_Attack_Target |
+    Action_Move |
+    Action_Ground_Target_Ability |
+    Action_Unit_Target_Ability |
+    Action_No_Target_Ability |
+    Action_End_Turn;
 
 type Battle_Player = {
     id: number,
     name: string
 }
 
-type Battle_Effect =
-    Battle_Effect_Nothing |
-    Battle_Effect_Basic_Attack |
-    Battle_Effect_Pudge_Hook;
+type Ability_Effect =
+    Ability_Effect_Basic_Attack |
+    Ability_Effect_Pudge_Hook;
 
-type Battle_Effect_Nothing = {
-    type: Battle_Effect_Type.nothing
+type Ability_Effect_Basic_Attack = {
+    ability_id: Ability_Id.basic_attack;
+    delta: Battle_Delta_Health_Change | undefined
 }
 
-type Battle_Effect_Basic_Attack = {
-    type: Battle_Effect_Type.basic_attack;
-    delta: Battle_Delta_Health_Change
-}
-
-type Battle_Effect_Pudge_Hook_Deltas_Hit = {
+type Ability_Effect_Pudge_Hook_Deltas_Hit = {
     hit: true,
     deltas: [ Battle_Delta_Health_Change, Battle_Delta_Unit_Force_Move ]
 }
 
-type Battle_Effect_Pudge_Hook_Deltas_Missed = {
+type Ability_Effect_Pudge_Hook_Deltas_Missed = {
     hit: false,
     final_point: {
         x: number,
@@ -97,9 +164,9 @@ type Battle_Effect_Pudge_Hook_Deltas_Missed = {
     }
 }
 
-type Battle_Effect_Pudge_Hook = {
-    type: Battle_Effect_Type.pudge_hook,
-    result: Battle_Effect_Pudge_Hook_Deltas_Hit | Battle_Effect_Pudge_Hook_Deltas_Missed;
+type Ability_Effect_Pudge_Hook = {
+    ability_id: Ability_Id.pudge_hook,
+    result: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Pudge_Hook_Deltas_Missed;
 }
 
 type Battle_Delta_Health_Change = {
@@ -132,7 +199,7 @@ type Battle_Delta_Unit_Force_Move = {
 
 type Battle_Delta_Unit_Attack = {
     type: Battle_Delta_Type.unit_attack,
-    effect: Battle_Effect;
+    effect: Ability_Effect;
     unit_id: number,
     attacked_position: {
         x: number,
@@ -151,6 +218,32 @@ type Battle_Delta_Unit_Spawn = {
     }
 };
 
+type Battle_Delta_Unit_Ground_Target_Ability = {
+    type: Battle_Delta_Type.unit_ground_target_ability,
+    effect: Ability_Effect;
+    unit_id: number,
+    ability_id: Ability_Id,
+    target_position: {
+        x: number,
+        y: number
+    }
+}
+
+type Battle_Delta_Unit_Unit_Target_Ability = {
+    type: Battle_Delta_Type.unit_unit_target_ability,
+    effect: Ability_Effect;
+    unit_id: number,
+    ability_id: Ability_Id,
+    target_unit_id: number;
+}
+
+type Battle_Delta_Unit_Use_No_Target_Ability = {
+    type: Battle_Delta_Type.unit_use_no_target_ability,
+    effect: Ability_Effect;
+    unit_id: number,
+    ability_id: Ability_Id,
+}
+
 type Battle_Delta_End_Turn = {
     type: Battle_Delta_Type.end_turn;
 };
@@ -161,6 +254,9 @@ type Battle_Delta =
     Battle_Delta_Unit_Move |
     Battle_Delta_Unit_Spawn |
     Battle_Delta_Unit_Force_Move |
+    Battle_Delta_Unit_Ground_Target_Ability |
+    Battle_Delta_Unit_Unit_Target_Ability |
+    Battle_Delta_Unit_Use_No_Target_Ability |
     Battle_Delta_End_Turn;
 
 type Movement_History_Entry = {

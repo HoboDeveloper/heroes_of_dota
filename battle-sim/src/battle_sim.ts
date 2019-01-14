@@ -19,36 +19,6 @@ function unreachable(x: never): never {
     throw new Error("Didn't expect to get here");
 }
 
-declare const enum Ability_Type {
-    passive = 0,
-    no_target = 1,
-    target_ground = 2,
-    target_unit = 3
-}
-
-type Unit_Definition = {
-    health: number;
-    mana: number;
-    move_points: number;
-    abilities: Ability_Definition[];
-}
-
-type Ability_Definition_Passive = {
-    type: Ability_Type.passive;
-    id: Ability_Id;
-    available_since_level: number;
-}
-
-type Ability_Definition_Active = {
-    id: Ability_Id;
-    type: Ability_Type.no_target | Ability_Type.target_ground | Ability_Type.target_unit;
-    available_since_level: number;
-    cooldown: number;
-    mana_cost: number;
-}
-
-type Ability_Definition = Ability_Definition_Passive | Ability_Definition_Active;
-
 type Battle = {
     delta_head: number;
     units: Unit[];
@@ -80,15 +50,25 @@ type Unit = {
     attack_damage: number;
     has_taken_an_action_this_turn: boolean;
     level: number;
+    abilities: Ability[];
 }
 
-type Ability = {
+type Ability_Active = {
     id: Ability_Id;
-    type: Ability_Type;
+    type: Ability_Type.target_unit | Ability_Type.target_ground | Ability_Type.no_target;
+    available_since_level: number;
     cooldown_remaining: number;
     cooldown: number;
     mana_cost: number;
 }
+
+type Ability_Passive = {
+    id: Ability_Id;
+    type: Ability_Type.passive;
+    available_since_level: number;
+}
+
+type Ability = Ability_Active | Ability_Passive;
 
 function grid_cell_at(battle: Battle, at: XY): Cell | undefined {
     if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
@@ -213,7 +193,7 @@ function is_attack_target_valid(battle: Battle, unit: Unit, target: XY): boolean
 
     switch (unit.type) {
         case Unit_Type.pudge: {
-            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, target, 10);
+            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, target, 1);
         }
 
         case Unit_Type.sniper: {
@@ -229,17 +209,27 @@ function is_attack_target_valid(battle: Battle, unit: Unit, target: XY): boolean
 }
 
 function pass_turn_to_next_player(battle: Battle) {
+    for (const unit of battle.units) {
+        unit.move_points = unit.max_move_points;
+        unit.has_taken_an_action_this_turn = false;
+    }
+
     battle.turning_player_index++;
 
     if (battle.turning_player_index == battle.players.length) {
         battle.turning_player_index -= battle.players.length;
     }
-}
 
-function update_state_after_turn_ends(battle: Battle) {
+    const turning_player_id = battle.players[battle.turning_player_index].id;
+
     for (const unit of battle.units) {
-        unit.move_points = unit.max_move_points;
-        unit.has_taken_an_action_this_turn = false;
+        if (unit.owner_player_id == turning_player_id) {
+            for (const ability of unit.abilities) {
+                if (ability.type != Ability_Type.passive && ability.cooldown_remaining > 0) {
+                    ability.cooldown_remaining--;
+                }
+            }
+        }
     }
 }
 
@@ -259,9 +249,76 @@ function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Batt
     }
 }
 
+function ability_definition_to_ability(definition: Ability_Definition): Ability {
+    if (definition.type == Ability_Type.passive) {
+        return {
+            id: definition.id,
+            type: Ability_Type.passive,
+            available_since_level: definition.available_since_level
+        }
+    }
+
+    return {
+        id: definition.id,
+        type: definition.type,
+        available_since_level: definition.available_since_level,
+        cooldown: definition.cooldown,
+        cooldown_remaining: 0,
+        mana_cost: definition.mana_cost
+    }
+}
+
+function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefined {
+    return unit.abilities.find(ability => ability.id == ability_id);
+}
+
+function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Ability | false {
+    const ability = find_unit_ability(unit, ability_id);
+
+    if (unit.dead) return false;
+    if (unit.has_taken_an_action_this_turn) return false;
+
+    if (!ability) return false;
+    if (ability.type == Ability_Type.passive) return false;
+    if (ability.cooldown_remaining > 0) return false;
+    if (ability.mana_cost > unit.mana) return false;
+    if (unit.level < ability.available_since_level) return false;
+
+    return ability;
+}
+
+function collapse_battle_effect(battle: Battle, effect: Ability_Effect) {
+    switch (effect.ability_id) {
+        case Ability_Id.basic_attack: {
+            if (effect.delta) {
+                collapse_delta(battle, effect.delta);
+            }
+
+            break;
+        }
+
+        case Ability_Id.pudge_hook: {
+            if (effect.result.hit) {
+                const [damage, move] = effect.result.deltas;
+
+                collapse_delta(battle, damage);
+
+                const move_target = find_unit_by_id(battle, move.unit_id);
+
+                if (move_target) {
+                    move_unit(battle, move_target, move.to_position);
+                }
+            }
+
+            break;
+        }
+
+        default: unreachable(effect);
+    }
+}
+
 // TODO figure out if we can just push battle effect deltas on the deltas stack
 // TODO implement while (have_more_deltas) collapse_deltas() loop
-
 function collapse_delta(battle: Battle, delta: Battle_Delta) {
     switch (delta.type) {
         case Battle_Delta_Type.unit_move: {
@@ -293,7 +350,8 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 max_mana: definition.mana,
                 dead: false,
                 has_taken_an_action_this_turn: false,
-                level: 1
+                level: 1,
+                abilities: definition.abilities.map(ability_definition_to_ability)
             });
 
             grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
@@ -317,33 +375,28 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             break;
         }
 
-        case Battle_Delta_Type.unit_attack: {
-            switch (delta.effect.type) {
-                case Battle_Effect_Type.nothing: break;
-                case Battle_Effect_Type.basic_attack: {
-                    collapse_delta(battle, delta.effect.delta);
+        case Battle_Delta_Type.unit_use_no_target_ability:
+        case Battle_Delta_Type.unit_unit_target_ability:
+        case Battle_Delta_Type.unit_ground_target_ability: {
+            collapse_battle_effect(battle, delta.effect);
 
-                    break;
+            const unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (unit) {
+                unit.has_taken_an_action_this_turn = true;
+
+                const ability = find_unit_ability(unit, delta.ability_id);
+
+                if (ability && ability.type != Ability_Type.passive) {
+                    unit.mana -= ability.mana_cost;
+
+                    ability.cooldown_remaining = ability.cooldown;
                 }
-
-                case Battle_Effect_Type.pudge_hook: {
-                    if (delta.effect.result.hit) {
-                        const [damage, move] = delta.effect.result.deltas;
-
-                        collapse_delta(battle, damage);
-
-                        const move_target = find_unit_by_id(battle, move.unit_id);
-
-                        if (move_target) {
-                            move_unit(battle, move_target, move.to_position);
-                        }
-                    }
-
-                    break;
-                }
-
-                default: unreachable(delta.effect);
             }
+        }
+
+        case Battle_Delta_Type.unit_attack: {
+            collapse_battle_effect(battle, delta.effect);
 
             const unit = find_unit_by_id(battle, delta.unit_id);
 
@@ -365,7 +418,6 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
         }
 
         case Battle_Delta_Type.end_turn: {
-            update_state_after_turn_ends(battle);
             pass_turn_to_next_player(battle);
 
             break;

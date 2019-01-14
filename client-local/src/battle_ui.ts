@@ -2,6 +2,12 @@ let current_selected_entity: EntityId | undefined = undefined;
 let current_state = Player_State.not_logged_in;
 let this_player_id: number;
 let battle: UI_Battle;
+let current_targeted_ability: AbilityId | undefined;
+
+const control_panel: Control_Panel = {
+    panel: $("#hero_rows"),
+    hero_rows: []
+};
 
 const battle_cell_size = 128;
 
@@ -14,6 +20,21 @@ type UI_Battle = Battle & {
 
 type UI_Cell = Cell & {
     associated_particle: ParticleId;
+}
+
+type Control_Panel = {
+    panel: Panel;
+    hero_rows: Hero_Row[];
+}
+
+type Hero_Row = {
+    unit_id: number;
+    ability_buttons: Hero_Ability_Button[];
+}
+
+type Hero_Ability_Button = {
+    ability: AbilityId;
+    panel: Panel;
 }
 
 type Cost_Population_Result = {
@@ -78,21 +99,29 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
 
         update_related_visual_data_from_delta(delta, delta_paths);
         collapse_delta(battle, delta);
+
+        if (delta.type == Battle_Delta_Type.unit_spawn) {
+            const spawned_unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
+                add_spawned_hero_to_control_panel(spawned_unit);
+            }
+        }
     }
 
     const visualiser_head = get_visualiser_delta_head();
 
     if (visualiser_head != undefined && battle.delta_head - visualiser_head > 20) {
         fire_event<Fast_Forward_Event>("fast_forward", make_battle_snapshot());
-    }
-
-    if (battle.deltas.length > 0) {
+    } else if (battle.deltas.length > 0) {
         fire_event<Put_Battle_Deltas_Event>("put_battle_deltas", {
             deltas: deltas,
             delta_paths: delta_paths,
             from_head: head_before_merge
         });
+    }
 
+    if (battle.deltas.length > 0) {
         update_grid_visuals();
     }
 }
@@ -187,6 +216,7 @@ function process_state_transition(from: Player_State, state_data: Player_Net_Tab
         }
 
         update_grid_visuals();
+        clear_control_panel();
     }
 }
 
@@ -447,6 +477,82 @@ function make_battle_snapshot(): Battle_Snapshot {
     }
 }
 
+function clear_control_panel() {
+    $("#hero_rows").RemoveAndDeleteChildren();
+}
+
+function get_ability_icon(ability_id: Ability_Id): string {
+    switch (ability_id) {
+        case Ability_Id.basic_attack: throw "Basic ability doesn't have an icon";
+        case Ability_Id.pudge_hook: return "pudge_meat_hook";
+        case Ability_Id.pudge_rot: return "pudge_rot";
+        case Ability_Id.pudge_flesh_heap: return "pudge_flesh_heap";
+        case Ability_Id.pudge_dismember: return "pudge_dismember";
+        case Ability_Id.sniper_shrapnel: return "sniper_shrapnel";
+    }
+
+    return unreachable(ability_id);
+}
+
+function get_hero_name(type: Unit_Type): string {
+    switch (type) {
+        case Unit_Type.sniper: return "sniper";
+        case Unit_Type.pudge: return "pudge";
+        case Unit_Type.ursa: return "ursa";
+
+        default: return unreachable(type);
+    }
+}
+
+function safely_set_panel_background_image(panel: Panel, image: string) {
+    panel.style.backgroundImage = `url('${image}')`;
+    panel.AddClass("fix_bg");
+    panel.RemoveClass("fix_bg");
+}
+
+function add_spawned_hero_to_control_panel(unit: Unit) {
+    const new_row: Hero_Row = {
+        unit_id: unit.id,
+        ability_buttons: []
+    };
+
+    control_panel.hero_rows.push(new_row);
+
+    function create_indicator(parent: Panel, id: string, value: number) {
+        const indicator = $.CreatePanel("Panel", parent, id);
+        const label = $.CreatePanel("Label", indicator, "");
+
+        indicator.AddClass("indicator");
+        label.text = value.toString();
+    }
+
+    const hero_row = $.CreatePanel("Panel", control_panel.panel, "");
+    hero_row.AddClass("hero_row");
+
+    const portrait = $.CreatePanel("Panel", hero_row, "hero_portrait");
+    const abilities = $.CreatePanel("Panel", hero_row, "ability_row");
+
+    safely_set_panel_background_image(portrait, `file://{images}/heroes/npc_dota_hero_${get_hero_name(unit.type)}.png`);
+
+    const indicators = $.CreatePanel("Panel", portrait, "indicators");
+
+    create_indicator(indicators, "level_indicator", unit.level);
+    create_indicator(indicators, "health_indicator", unit.health);
+    create_indicator(indicators, "mana_indicator", unit.mana);
+
+    for (const ability of unit.abilities) {
+        const ability_panel = $.CreatePanel("Panel", abilities, "");
+        ability_panel.AddClass("ability_button");
+
+        safely_set_panel_background_image(ability_panel, `file://{images}/spellicons/${get_ability_icon(ability.id)}.png`);
+
+        $.Msg(get_ability_icon(ability.id), ability.available_since_level, unit.level);
+        if (unit.level < ability.available_since_level) {
+            ability_panel.AddClass("not_learned");
+        }
+    }
+}
+
 function setup_mouse_filter() {
     function get_entity_under_cursor(): EntityId | undefined {
         const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
@@ -470,6 +576,38 @@ function setup_mouse_filter() {
         }
 
         if (event == "pressed") {
+            if (current_selected_entity != undefined && current_targeted_ability != undefined) {
+                const wants_to_use_ability =
+                    button == MouseButton.LEFT;
+
+                const wants_to_cancel =
+                    button == MouseButton.RIGHT;
+
+                const selected_unit_id = battle.entity_id_to_unit_id[current_selected_entity];
+
+                if (selected_unit_id == undefined) {
+                    return true;
+                }
+
+                if (wants_to_cancel) {
+                    current_targeted_ability = undefined;
+                } else if (wants_to_use_ability) {
+                    const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
+                    const battle_position = world_position_to_battle_position(world_position);
+
+                    take_battle_action({
+                        type: Action_Type.ground_target_ability,
+                        unit_id: selected_unit_id,
+                        ability_id: current_targeted_ability,
+                        to: battle_position
+                    });
+
+                    current_targeted_ability = undefined;
+                }
+
+                return true;
+            }
+
             const click_behaviors = GameUI.GetClickBehaviors();
 
             const wants_to_select_unit =
@@ -529,8 +667,8 @@ function setup_mouse_filter() {
                 if (cursor_entity_unit) {
                     if (cursor_entity != current_selected_entity) {
                         take_battle_action({
-                            type: Action_Type.attack,
-                            to: cursor_entity_unit.position,
+                            type: Action_Type.attack_target,
+                            target_unit_id: cursor_entity_unit.id,
                             unit_id: selected_unit_id
                         })
                     }
@@ -543,7 +681,7 @@ function setup_mouse_filter() {
                 move_order_particle(world_position);
             } else if (wants_to_attack_unconditionally) {
                 take_battle_action({
-                    type: Action_Type.attack,
+                    type: Action_Type.attack_ground,
                     to: battle_position,
                     unit_id: selected_unit_id
                 })
@@ -552,6 +690,49 @@ function setup_mouse_filter() {
 
         return true;
     });
+}
+
+function setup_custom_ability_hotkeys() {
+    function current_selected_unit(): Unit | undefined {
+        if (!current_selected_entity) {
+            return;
+        }
+
+        const unit_id = battle.entity_id_to_unit_id[current_selected_entity];
+
+        if (!unit_id) {
+            return;
+        }
+
+        return find_unit_by_id(battle, unit_id);
+    }
+
+    // TODO check that unit belongs to the player
+    // TODO check ability targeting
+
+    function bind_ability_at_index_to_command(command: string, index: number) {
+        GameUI.CustomUIConfig().register_key_bind(command, () => {
+            const unit = current_selected_unit();
+
+            if (!unit) {
+                return;
+            }
+
+            const ability = unit.abilities[index];
+
+            if (!ability) return;
+            if (!authorize_ability_use_by_unit(unit, ability.id)) return;
+
+            current_targeted_ability = ability.id;
+
+            $.Msg("selected ", get_ability_icon(ability.id));
+        });
+    }
+
+    bind_ability_at_index_to_command("AbilityPrimary1", 0);
+    bind_ability_at_index_to_command("AbilityPrimary2", 1);
+    bind_ability_at_index_to_command("AbilityPrimary3", 2);
+    bind_ability_at_index_to_command("AbilityPrimary4", 3);
 }
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
@@ -569,6 +750,6 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
 });
 
 setup_mouse_filter();
+setup_custom_ability_hotkeys();
 periodically_drop_selection_in_battle();
 periodically_request_battle_deltas_when_in_battle();
-

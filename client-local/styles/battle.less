@@ -8,20 +8,163 @@
   height: 100%;
 }
 
-#ability_panel {
-  flow-children: right;
-}
+@font-title: Goudy Trajan Medium, FZKai-Z03, TH Sarabun New;
+@font-mono: RadianceM,Radiance,FZLanTingHei-R-GBK,TH Sarabun New,Gulim,MingLiU;
 
-.ability_button {
-  width: 128px;
-  height: 128px;
+#control_panel {
+  flow-children: right;
+  align: left bottom;
+
+  #heroes_panel {
+    > #background {
+      background-image: url("s2r://panorama/images/hud/reborn/ability_bg_psd.vtex");
+      background-size: 100%;
+      width: 100%;
+      height: 100%;
+    }
+
+    > #inset_shadow {
+      background-image: url("s2r://panorama/images/hud/reborn/ability_inset_shadow_psd.vtex");
+      background-size: 100%;
+      width: 10px;
+      height: 100%;
+      transform: scaleX(-1);
+      align: right center;
+      z-index: 100;
+    }
+
+    #hero_rows {
+      flow-children: down;
+      padding: 4px;
+      padding-bottom: 0;
+
+      .hero_row {
+        flow-children: right;
+        margin-bottom: 4px;
+
+        &:hover .hero_portrait {
+          wash-color: gray;
+        }
+
+        &:hover .ability_row {
+          wash-color: gray;
+        }
+
+        #hero_portrait {
+          box-shadow: inset #151515 2px 2px 4px 4px;
+          background-size: auto 100%;
+          background-position: center;
+          background-color: black; // Else the rendering bugs out
+          width: 76px;
+          height: 42px;
+          margin-right: 8px;
+
+          #indicators {
+            margin-right: 2px;
+            width: 100%;
+            height: 100%;
+          }
+
+          #level_indicator.indicator {
+            align: left bottom;
+
+            Label {
+              padding-bottom: -6px;
+
+              color: #fff24e;
+            }
+          }
+
+          #health_indicator.indicator {
+            align: right top;
+
+            /*#background {
+              background-color: #ba1217;
+            }*/
+
+            Label {
+              color: #13d72e;
+            }
+          }
+
+          #mana_indicator.indicator {
+            align: right bottom;
+
+            Label {
+              padding-bottom: -6px;
+
+              color: #1874ba;
+            }
+
+            /*#background {
+              background-color: #1874ba;
+            }*/
+          }
+
+          .indicator {
+            > #background {
+              /*border: 1px solid black;
+              border-radius: 50%;
+              width: 20px;
+              height: 20px;
+              align: center center;*/
+            }
+
+            Label {
+              font-family: @font-mono;
+              font-size: 18px;
+              text-shadow: 0px 1px 1px 8.0 #00000077;
+              color: white;
+              align: center center;
+              text-align: center center;
+            }
+          }
+        }
+
+        #ability_row {
+          flow-children: right;
+          align: left center;
+
+          .ability_button {
+            box-shadow: inset #151515 2px 2px 4px 4px;
+            background-size: 100% auto;
+            background-position: center;
+            background-color: black; // Else the rendering bugs out
+            width: 48px;
+            height: 36px;
+            margin-left: 1px;
+            margin-right: 1px;
+
+            &.not_learned {
+              saturation: 0.1;
+              brightness: 0.2;
+
+              &:hover {
+                brightness: 0.5;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  #right_flare {
+    vertical-align: bottom;
+    background-image: url("s2r://panorama/images/hud/reborn/side_flare_tall_psd.vtex");
+    background-size: 100%;
+    transform: scaleX(-1);
+    width: 52px;
+    height: 138px;
+  }
 }
 
 #end_turn_button {
   width: 200px;
   height: 50px;
   background-color: #688bff;
-  align: right center;
+  align: right bottom;
+  margin: 40px;
 
   &:hover {
     background-color: #5f7ee9;
@@ -37,7 +180,7 @@
   }
 
   Label {
-    font-family: Goudy Trajan Medium, FZKai-Z03, TH Sarabun New;
+    font-family: @font-title;
     color: white;
     align: center center;
     text-align: center center;

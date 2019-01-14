@@ -227,15 +227,15 @@ function process_player_global_map_order(main_player: Main_Player, players: Play
 // TODO utilize this for responsiveness
 function pre_visualize_action(action: Turn_Action) {
     switch (action.type) {
-        case Action_Type.attack: {
-            const unit = find_unit_by_id(action.unit_id);
-
-            if (unit && !unit.is_playing_a_delta) {
-                unit.handle.FaceTowards(battle_position_to_world_position_center(action.to));
-            }
-
-            break;
-        }
+        // case Action_Type.attack: {
+        //     const unit = find_unit_by_id(action.unit_id);
+        //
+        //     if (unit && !unit.is_playing_a_delta) {
+        //         unit.handle.FaceTowards(battle_position_to_world_position_center(action.to));
+        //     }
+        //
+        //     break;
+        // }
 
         case Action_Type.move: {
             const unit = find_unit_by_id(action.unit_id);
@@ -520,131 +520,231 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): B
     return unit;
 }
 
+function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, effect: Ability_Effect_Pudge_Hook) {
+    function is_hook_hit(
+        effect: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Pudge_Hook_Deltas_Missed
+    ): effect is Ability_Effect_Pudge_Hook_Deltas_Hit {
+        return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
+    }
 
-function play_attack_delta_effects(main_player: Main_Player, delta: Battle_Delta_Unit_Attack, head: number) {
-    const effect = delta.effect;
+    if (!pudge) {
+        log_chat_debug_message("Error, Pudge not found");
+        return;
+    }
 
-    switch (effect.type) {
-        case Battle_Effect_Type.basic_attack: {
-            play_delta(main_player, effect.delta, head);
+    const hook_offset = Vector(0, 0, 96);
+    const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vec;
+    const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
+    const travel_direction = Vector(target.x - pudge.position.x, target.y - pudge.position.y).Normalized();
+    const travel_speed = 1600;
+
+    let travel_target: XY;
+
+    if (is_hook_hit(effect.result)) {
+        const [damage] = from_client_tuple(effect.result.deltas);
+        const target = find_unit_by_id(damage.target_unit_id);
+
+        if (!target) {
+            log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
+            return;
+        }
+
+        travel_target = target.position;
+
+        print("Travel target is ", travel_target);
+    } else {
+        travel_target = effect.result.final_point;
+    }
+
+    const distance_to_travel = battle_cell_size * Math.max(Math.abs(travel_target.x - pudge.position.x), Math.abs(travel_target.y - pudge.position.y));
+    const time_to_travel = distance_to_travel / travel_speed;
+
+    const chain = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, pudge.handle);
+    ParticleManager.SetParticleControlEnt(chain, 0, pudge.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_weapon_chain_rt", pudge_origin, true);
+    ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vec);
+    ParticleManager.SetParticleControl(chain, 2, Vector(travel_speed, distance_to_travel, 64));
+    ParticleManager.SetParticleControl(chain, 3, Vector(time_to_travel * 2, 0, 0));
+    ParticleManager.SetParticleControl(chain, 4, Vector(1, 0, 0));
+    ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
+    // TODO incorrect definition
+    //@ts-ignore
+    ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
+
+    if (is_hook_hit(effect.result)) {
+        const [damage, move] = from_client_tuple(effect.result.deltas);
+        const target = find_unit_by_id(damage.target_unit_id);
+
+        if (!target) {
+            log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
+            return;
+        }
+
+        wait(time_to_travel);
+
+        play_delta(main_player, damage);
+
+        const move_target = find_unit_by_id(move.unit_id);
+
+        if (!move_target) {
+            log_chat_debug_message("Error, Pudge MOVE TARGET not found");
+            return;
+        }
+
+        const impact_path = "particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf";
+        const impact = ParticleManager.CreateParticle(impact_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, move_target.handle);
+        ParticleManager.SetParticleControlEnt(impact, 0, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
+        ParticleManager.ReleaseParticleIndex(impact);
+
+        ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vec, true);
+
+        const travel_start_time = GameRules.GetGameTime();
+        const target_world_position = battle_position_to_world_position_center(move.to_position);
+        const travel_position_start = move_target.handle.GetAbsOrigin();
+        const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), move_target.handle);
+
+        while (true) {
+            const now = GameRules.GetGameTime();
+            const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
+            const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vec;
+
+            move_target.handle.SetAbsOrigin(travel_position);
+
+            if (now >= travel_start_time + time_to_travel) {
+                break;
+            }
+
+            wait_one_frame();
+        }
+
+        move_target.position = move.to_position;
+    } else {
+        wait(time_to_travel);
+
+        ParticleManager.SetParticleControl(chain, 1, pudge_origin);
+
+        wait(time_to_travel);
+    }
+
+    ParticleManager.ReleaseParticleIndex(chain);
+}
+
+function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
+    turn_unit_towards_target(unit, target);
+
+    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
+
+    switch (effect.ability_id) {
+        case Ability_Id.basic_attack: {
+            if (effect.delta) {
+                play_delta(main_player, effect.delta);
+            }
+
             break;
         }
 
-        case Battle_Effect_Type.pudge_hook: {
-            function is_hook_hit(
-                effect: Battle_Effect_Pudge_Hook_Deltas_Hit | Battle_Effect_Pudge_Hook_Deltas_Missed
-            ): effect is Battle_Effect_Pudge_Hook_Deltas_Hit {
-                return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
-            }
-
-            const pudge = find_unit_by_id(delta.unit_id);
-
-            if (!pudge) {
-                log_chat_debug_message("Error, Pudge not found");
-                return;
-            }
-
-            const hook_offset = Vector(0, 0, 96);
-            const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vec;
-            const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
-            const travel_direction = Vector(delta.attacked_position.x - pudge.position.x, delta.attacked_position.y - pudge.position.y).Normalized();
-            const travel_speed = 1600;
-
-            let travel_target: XY;
-
-            if (is_hook_hit(effect.result)) {
-                const [damage] = from_client_tuple(effect.result.deltas);
-                const target = find_unit_by_id(damage.target_unit_id);
-
-                if (!target) {
-                    log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
-                    return;
-                }
-
-                travel_target = target.position;
-
-                print("Travel target is ", travel_target);
-            } else {
-                travel_target = effect.result.final_point;
-            }
-
-            const distance_to_travel = battle_cell_size * Math.max(Math.abs(travel_target.x - pudge.position.x), Math.abs(travel_target.y - pudge.position.y));
-            const time_to_travel = distance_to_travel / travel_speed;
-
-            const chain = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, pudge.handle);
-            ParticleManager.SetParticleControlEnt(chain, 0, pudge.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_weapon_chain_rt", pudge_origin, true);
-            ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vec);
-            ParticleManager.SetParticleControl(chain, 2, Vector(travel_speed, distance_to_travel, 64));
-            ParticleManager.SetParticleControl(chain, 3, Vector(time_to_travel * 2, 0, 0));
-            ParticleManager.SetParticleControl(chain, 4, Vector(1, 0, 0));
-            ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
-            // TODO incorrect definition
-            //@ts-ignore
-            ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
-
-            if (is_hook_hit(effect.result)) {
-                const [damage, move] = from_client_tuple(effect.result.deltas);
-                const target = find_unit_by_id(damage.target_unit_id);
-
-                if (!target) {
-                    log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
-                    return;
-                }
-
-                wait(time_to_travel);
-
-                play_delta(main_player, damage, head);
-
-                const move_target = find_unit_by_id(move.unit_id);
-
-                if (!move_target) {
-                    log_chat_debug_message("Error, Pudge MOVE TARGET not found");
-                    return;
-                }
-
-                const impact_path = "particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf";
-                const impact = ParticleManager.CreateParticle(impact_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, move_target.handle);
-                ParticleManager.SetParticleControlEnt(impact, 0, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
-                ParticleManager.ReleaseParticleIndex(impact);
-
-                ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vec, true);
-
-                const travel_start_time = GameRules.GetGameTime();
-                const target_world_position = battle_position_to_world_position_center(move.to_position);
-                const travel_position_start = move_target.handle.GetAbsOrigin();
-                const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), move_target.handle);
-
-                while (true) {
-                    const now = GameRules.GetGameTime();
-                    const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
-                    const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vec;
-
-                    move_target.handle.SetAbsOrigin(travel_position);
-
-                    if (now >= travel_start_time + time_to_travel) {
-                        break;
-                    }
-
-                    wait_one_frame();
-                }
-
-                move_target.position = move.to_position;
-            } else {
-                wait(time_to_travel);
-
-                ParticleManager.SetParticleControl(chain, 1, pudge_origin);
-
-                wait(time_to_travel);
-            }
-
-            ParticleManager.ReleaseParticleIndex(chain);
-
+        case Ability_Id.pudge_hook: {
+            pudge_hook(main_player, unit, target, effect);
             break;
         }
+
+        default: {
+            // TODO uncomment that when this compiles, so far we don't have enough ability effects
+            // log_chat_debug_message(`Error: ground target ability ${effect.ability_id} not found`);
+        }
+    }
+
+    wait(time_remaining * 0.95);
+}
+
+function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: Battle_Unit) {
+    turn_unit_towards_target(unit, target.position);
+
+    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
+
+    switch (effect.ability_id) {
+        default: {
+            log_chat_debug_message(`Error: unit target ability ${effect.ability_id} not found`);
+        }
+    }
+
+    wait(time_remaining * 0.95);
+}
+
+function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect) {
+    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
+
+    switch (effect.ability_id) {
+        default: {
+            log_chat_debug_message(`Error: no target ability ${effect.ability_id} not found`);
+        }
+    }
+
+    wait(time_remaining * 0.95);
+}
+
+function get_ability_activity(id: Ability_Id): GameActivity_t {
+    switch (id) {
+        case Ability_Id.basic_attack: return GameActivity_t.ACT_DOTA_ATTACK;
+        case Ability_Id.pudge_hook: return GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1;
+        case Ability_Id.pudge_rot: return GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT;
+        case Ability_Id.pudge_flesh_heap: return GameActivity_t.ACT_DOTA_IDLE;
+        case Ability_Id.pudge_dismember: return GameActivity_t.ACT_DOTA_CAST_ABILITY_4;
+        case Ability_Id.sniper_shrapnel: return GameActivity_t.ACT_DOTA_CAST_ABILITY_1;
+
+        default: return unreachable(id);
     }
 }
 
-function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number) {
+function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
+    const towards_world_position = battle_position_to_world_position_center(towards);
+    const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vec).Normalized();
+
+    {
+        // TODO guarded_wait_until
+        const guard_hit = guarded_wait_until(3, () => {
+            unit.handle.FaceTowards(towards_world_position);
+
+            return desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95;
+        });
+
+        if (guard_hit) {
+            log_chat_debug_message(`Failed waiting on FaceTowards`);
+        }
+    }
+    /*while (true) {
+        unit.handle.FaceTowards(attacked_world_position);
+
+        if (desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95) {
+            break;
+        }
+
+        wait_one_frame();
+    }*/
+}
+
+function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t): number {
+    unit.handle.StopFacing();
+    unit.handle.Stop();
+    unit.handle.ForcePlayActivityOnce(activity);
+
+    const sequence = unit.handle.GetSequence();
+    const sequence_duration = unit.handle.SequenceDuration(sequence);
+    const start_time = GameRules.GetGameTime();
+
+    while (GameRules.GetGameTime() - start_time < sequence_duration * 0.4) {
+        if (unit.handle.GetSequence() != sequence) {
+            unit.handle.ForcePlayActivityOnce(activity);
+        }
+
+        wait_one_frame();
+    }
+
+    const time_passed = GameRules.GetGameTime() - start_time;
+
+    return sequence_duration - time_passed;
+}
+
+function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
     switch (delta.type) {
@@ -696,57 +796,55 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number)
         }
 
         case Battle_Delta_Type.unit_attack: {
-            const attacked_world_position = battle_position_to_world_position_center(delta.attacked_position);
             const attacker = find_unit_by_id(delta.unit_id);
 
             if (attacker) {
                 attacker.is_playing_a_delta = true;
 
-                const desired_forward = ((attacked_world_position - attacker.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vec).Normalized();
+                play_ground_target_ability_delta(main_player, attacker, delta.effect, delta.attacked_position);
 
-                {
-                    // TODO guarded_wait_until
-                    const guard_hit = guarded_wait_until(3, () => {
-                        attacker.handle.FaceTowards(attacked_world_position);
+                attacker.is_playing_a_delta = false;
+            }
 
-                        return desired_forward.Dot(attacker.handle.GetForwardVector()) > 0.95;
-                    });
+            break;
+        }
 
-                    if (guard_hit) {
-                        log_chat_debug_message(`Failed waiting on FaceTowards`);
-                    }
-                }
-                /*while (true) {
-                    attacker.handle.FaceTowards(attacked_world_position);
+        case Battle_Delta_Type.unit_ground_target_ability: {
+            const attacker = find_unit_by_id(delta.unit_id);
 
-                    if (desired_forward.Dot(attacker.handle.GetForwardVector()) > 0.95) {
-                        break;
-                    }
+            if (attacker) {
+                attacker.is_playing_a_delta = true;
 
-                    wait_one_frame();
-                }*/
+                play_ground_target_ability_delta(main_player, attacker, delta.effect, delta.target_position);
 
-                attacker.handle.StopFacing();
-                attacker.handle.Stop();
-                attacker.handle.ForcePlayActivityOnce(GameActivity_t.ACT_DOTA_ATTACK);
+                attacker.is_playing_a_delta = false;
+            }
 
-                const sequence = attacker.handle.GetSequence();
-                const sequence_duration = attacker.handle.SequenceDuration(sequence);
-                const start_time = GameRules.GetGameTime();
+            break;
+        }
 
-                while (GameRules.GetGameTime() - start_time < sequence_duration * 0.4) {
-                    if (attacker.handle.GetSequence() != sequence) {
-                        attacker.handle.ForcePlayActivityOnce(GameActivity_t.ACT_DOTA_ATTACK);
-                    }
+        case Battle_Delta_Type.unit_unit_target_ability: {
+            const attacker = find_unit_by_id(delta.unit_id);
+            const target = find_unit_by_id(delta.target_unit_id);
 
-                    wait_one_frame();
-                }
+            if (attacker && target) {
+                attacker.is_playing_a_delta = true;
 
-                play_attack_delta_effects(main_player, delta, head);
+                play_unit_target_ability_delta(main_player, attacker, delta.effect, target);
 
-                while (GameRules.GetGameTime() - start_time < sequence_duration * 0.9) {
-                    wait_one_frame();
-                }
+                attacker.is_playing_a_delta = false;
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.unit_use_no_target_ability: {
+            const attacker = find_unit_by_id(delta.unit_id);
+
+            if (attacker) {
+                attacker.is_playing_a_delta = true;
+
+                play_no_target_ability_delta(main_player, attacker, delta.effect);
 
                 attacker.is_playing_a_delta = false;
             }
