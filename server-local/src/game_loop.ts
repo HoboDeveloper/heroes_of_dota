@@ -1,4 +1,56 @@
+/** !TupleReturn */
+declare function next(a: any, prev: any): [any, any];
+declare function type(a: any): "table" | "string" | "number";
+declare function tonumber(a: string): number;
+
+declare namespace table {
+    function maxn(array: any[]): number;
+}
+
 let state_transition: Player_State_Data | undefined = undefined;
+
+function print_table(a: object, indent: string = "") {
+    let [index, value] = next(a, undefined);
+
+    while (index != undefined) {
+        print(indent, `${index} (${type(index)})`, value);
+
+        if (type(value) == "table") {
+            print_table(value, indent + "    ");
+        }
+
+        [index, value] = next(a, index);
+    }
+}
+
+// Panorama arrays are passed as dictionaries with string indices
+function from_client_array<T>(array: Array<T>): Array<T> {
+    let [index, value] = next(array, undefined);
+
+    const result: Array<T> = [];
+
+    while (index != undefined) {
+        result[tonumber(index.toString())] = value;
+
+        [index, value] = next(array, index);
+    }
+
+    return result
+}
+
+function from_client_tuple<T>(array: T): T {
+    let [index, value] = next(array, undefined);
+
+    const result = [];
+
+    while (index != undefined) {
+        result[tonumber(index.toString())] = value;
+
+        [index, value] = next(array, index);
+    }
+
+    return result as any as T;
+}
 
 function unreachable(x: never): never {
     throw "Didn't expect to get here";
@@ -307,6 +359,7 @@ function game_loop() {
     while (true) {
         if (state_transition) {
             process_state_transition(main_player, main_player.state, state_transition);
+            state_transition = undefined;
         }
 
         switch (main_player.state) {
@@ -317,7 +370,9 @@ function game_loop() {
             }
 
             case Player_State.in_battle: {
-                for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+                const target_head = get_battle_remote_head();
+
+                for (; battle.delta_head < target_head; battle.delta_head++) {
                     const delta = battle.deltas[battle.delta_head];
 
                     if (!delta) break;

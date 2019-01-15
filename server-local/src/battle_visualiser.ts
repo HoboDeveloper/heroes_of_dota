@@ -35,6 +35,10 @@ function get_battle_cell_size(): number {
     return battle_cell_size;
 }
 
+function get_battle_remote_head(): number {
+    return table.maxn(battle.deltas);
+}
+
 function find_unit_by_id(id: number): Battle_Unit | undefined {
     return array_find(battle.units, unit => unit.id == id);
 }
@@ -69,13 +73,14 @@ function pre_visualize_action(action: Turn_Action) {
             break;
         }
     }
-
 }
 
 function merge_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
+
+    print("Merged", deltas.length, "deltas from head", head_before_merge, "new head", get_battle_remote_head());
 }
 
 function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
@@ -152,11 +157,15 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         }
 
         travel_target = target.position;
-
-        print("Travel target is ", travel_target);
     } else {
         travel_target = effect.result.final_point;
     }
+
+    turn_unit_towards_target(pudge, target);
+
+    pudge.handle.StartGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
+
+    wait(0.15);
 
     const distance_to_travel = battle_cell_size * Math.max(Math.abs(travel_target.x - pudge.position.x), Math.abs(travel_target.y - pudge.position.y));
     const time_to_travel = distance_to_travel / travel_speed;
@@ -227,18 +236,21 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         wait(time_to_travel);
     }
 
+    pudge.handle.FadeGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
+
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
 function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
-    turn_unit_towards_target(unit, target);
-
-    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
-
     switch (effect.ability_id) {
         case Ability_Id.basic_attack: {
             if (effect.delta) {
+                turn_unit_towards_target(unit, target);
+
+                const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
+
                 play_delta(main_player, effect.delta);
+                wait(time_remaining * 0.95);
             }
 
             break;
@@ -254,8 +266,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             // log_chat_debug_message(`Error: ground target ability ${effect.ability_id} not found`);
         }
     }
-
-    wait(time_remaining * 0.95);
 }
 
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: Battle_Unit) {
@@ -522,7 +532,7 @@ function load_battle_data() {
 }
 
 function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_Snapshot) {
-    print("Fast forwarding from snapshot");
+    print("Fast forwarding from snapshot, new head", snapshot.delta_head);
 
     for (const unit of battle.units) {
         unit.handle.RemoveSelf();

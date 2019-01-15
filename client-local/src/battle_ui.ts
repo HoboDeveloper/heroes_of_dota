@@ -113,7 +113,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
 
     if (visualiser_head != undefined && battle.delta_head - visualiser_head > 20) {
         fire_event<Fast_Forward_Event>("fast_forward", make_battle_snapshot());
-    } else if (battle.deltas.length > 0) {
+    } else if (deltas.length > 0) {
         fire_event<Put_Battle_Deltas_Event>("put_battle_deltas", {
             deltas: deltas,
             delta_paths: delta_paths,
@@ -121,7 +121,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
         });
     }
 
-    if (battle.deltas.length > 0) {
+    if (deltas.length > 0) {
         update_grid_visuals();
     }
 }

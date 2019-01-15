@@ -20,54 +20,6 @@ type Player_Map = { [id: number]: Player };
 const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
 
-/** !TupleReturn */
-declare function next(a: any, prev: any): [any, any];
-declare function type(a: any): "table" | "string" | "number";
-declare function tonumber(a: string): number;
-
-function print_table(a: object, indent: string = "") {
-    let [index, value] = next(a, undefined);
-
-    while (index != undefined) {
-        print(indent, `${index} (${type(index)})`, value);
-
-        if (type(value) == "table") {
-            print_table(value, indent + "    ");
-        }
-
-        [index, value] = next(a, index);
-    }
-}
-
-// Panorama arrays are passed as dictionaries with string indices
-function from_client_array<T>(array: Array<T>): Array<T> {
-    let [index, value] = next(array, undefined);
-
-    const result: Array<T> = [];
-
-    while (index != undefined) {
-        result[tonumber(index.toString())] = value;
-
-        [index, value] = next(array, index);
-    }
-
-    return result
-}
-
-function from_client_tuple<T>(array: T): T {
-    let [index, value] = next(array, undefined);
-
-    const result = [];
-
-    while (index != undefined) {
-        result[tonumber(index.toString())] = value;
-
-        [index, value] = next(array, index);
-    }
-
-    return result as any as T;
-}
-
 function submit_player_movement(main_player: Main_Player) {
     const current_location = main_player.hero_unit.GetAbsOrigin();
     const request: Submit_Player_Movement_Request = {
