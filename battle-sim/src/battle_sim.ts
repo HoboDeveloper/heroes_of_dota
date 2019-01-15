@@ -1,4 +1,4 @@
-interface XY {
+type XY = {
     x: number;
     y: number;
 }
@@ -18,6 +18,28 @@ function xy_sub(b: XY, a: XY) {
 function unreachable(x: never): never {
     throw new Error("Didn't expect to get here");
 }
+
+declare const enum Ability_Error {
+    other = 0,
+    dead = 1,
+    no_mana = 2,
+    on_cooldown = 3,
+    invalid_target = 4,
+    already_acted_this_turn = 5,
+    not_learned_yet = 6
+}
+
+type Ability_Authorization_Ok = {
+    success: true;
+    ability: Ability;
+}
+
+type Ability_Authorization_Error = {
+    success: false;
+    error: Ability_Error;
+}
+
+type Ability_Authorization = Ability_Authorization_Ok | Ability_Authorization_Error;
 
 type Battle = {
     delta_head: number;
@@ -272,19 +294,31 @@ function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefi
     return unit.abilities.find(ability => ability.id == ability_id);
 }
 
-function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Ability | false {
+function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Ability_Authorization {
+    function error(err: Ability_Error): Ability_Authorization_Error {
+        return {
+            success: false,
+            error: err
+        }
+    }
+
     const ability = find_unit_ability(unit, ability_id);
 
-    if (unit.dead) return false;
-    if (unit.has_taken_an_action_this_turn) return false;
+    if (unit.dead) return error(Ability_Error.dead);
+    if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
 
-    if (!ability) return false;
-    if (ability.type == Ability_Type.passive) return false;
-    if (ability.cooldown_remaining > 0) return false;
-    if (ability.mana_cost > unit.mana) return false;
-    if (unit.level < ability.available_since_level) return false;
+    if (!ability) return error(Ability_Error.other);
 
-    return ability;
+    if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
+
+    if (ability.type == Ability_Type.passive) return error(Ability_Error.other);
+    if (ability.cooldown_remaining > 0) return error(Ability_Error.on_cooldown);
+    if (ability.mana_cost > unit.mana) return error(Ability_Error.no_mana);
+
+    return {
+        success: true,
+        ability: ability
+    };
 }
 
 function collapse_battle_effect(battle: Battle, effect: Ability_Effect) {

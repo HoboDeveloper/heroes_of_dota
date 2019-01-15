@@ -692,6 +692,20 @@ function setup_mouse_filter() {
     });
 }
 
+function ability_error_to_reason(error: Ability_Error): number {
+    switch (error) {
+        case Ability_Error.other: return 0; // TODO
+        case Ability_Error.dead: return 20;
+        case Ability_Error.no_mana: return 14;
+        case Ability_Error.on_cooldown: return 15;
+        case Ability_Error.invalid_target: return 0; // TODO
+        case Ability_Error.not_learned_yet: return 16;
+        case Ability_Error.already_acted_this_turn: return 0; // TODO
+
+        default: return unreachable(error);
+    }
+}
+
 function setup_custom_ability_hotkeys() {
     function current_selected_unit(): Unit | undefined {
         if (!current_selected_entity) {
@@ -721,7 +735,15 @@ function setup_custom_ability_hotkeys() {
             const ability = unit.abilities[index];
 
             if (!ability) return;
-            if (!authorize_ability_use_by_unit(unit, ability.id)) return;
+
+            const ability_use = authorize_ability_use_by_unit(unit, ability.id);
+
+            if (!ability_use.success) {
+                const error_data = { reason: ability_error_to_reason(ability_use.error) };
+                GameEvents.SendEventClientSide("dota_hud_error_message", error_data);
+
+                return;
+            }
 
             current_targeted_ability = ability.id;
 
@@ -732,7 +754,7 @@ function setup_custom_ability_hotkeys() {
     bind_ability_at_index_to_command("AbilityPrimary1", 0);
     bind_ability_at_index_to_command("AbilityPrimary2", 1);
     bind_ability_at_index_to_command("AbilityPrimary3", 2);
-    bind_ability_at_index_to_command("AbilityPrimary4", 3);
+    bind_ability_at_index_to_command("AbilityUltimate", 3);
 }
 
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {

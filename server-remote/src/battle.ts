@@ -220,11 +220,11 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             if (!unit) return;
 
-            const ability = authorize_ability_use_by_unit(unit, action.ability_id);
+            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
 
-            if (!ability) return;
+            if (!ability_use.success) return;
 
-            const effect  = perform_ability_cast_no_target(battle, unit, ability);
+            const effect  = perform_ability_cast_no_target(battle, unit, ability_use.ability);
 
             if (!effect) return;
 
@@ -240,15 +240,15 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             if (!unit) return;
 
-            const ability = authorize_ability_use_by_unit(unit, action.ability_id);
+            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
 
-            if (!ability) return;
+            if (!ability_use.success) return;
 
             const target = find_unit_by_id(battle, action.target_id);
 
             if (!target) return;
 
-            const effect  = perform_ability_cast_unit_target(battle, unit, ability, target);
+            const effect  = perform_ability_cast_unit_target(battle, unit, ability_use.ability, target);
 
             if (!effect) return;
 
@@ -265,15 +265,15 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             if (!unit) return;
 
-            const ability = authorize_ability_use_by_unit(unit, action.ability_id);
+            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
 
-            if (!ability) return;
+            if (!ability_use.success) return;
 
             const cell = grid_cell_at(battle, action.to);
 
             if (!cell) return;
 
-            const effect  = perform_ability_cast_ground(battle, unit, ability, action.to);
+            const effect  = perform_ability_cast_ground(battle, unit, ability_use.ability, action.to);
 
             if (!effect) return;
 
