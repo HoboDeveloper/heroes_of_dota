@@ -385,7 +385,7 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             if (unit) {
                 unit.has_taken_an_action_this_turn = true;
 
-                const ability = find_unit_ability(unit, delta.ability_id);
+                const ability = find_unit_ability(unit, delta.effect.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
                     unit.mana -= ability.mana_cost;
@@ -393,6 +393,8 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                     ability.cooldown_remaining = ability.cooldown;
                 }
             }
+
+            break;
         }
 
         case Battle_Delta_Type.unit_attack: {

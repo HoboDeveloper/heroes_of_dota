@@ -230,7 +230,6 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             return [{
                 type: Battle_Delta_Type.unit_use_no_target_ability,
-                ability_id: action.ability_id,
                 unit_id: action.unit_id,
                 effect: effect
             }]
@@ -255,7 +254,6 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             return [{
                 type: Battle_Delta_Type.unit_unit_target_ability,
-                ability_id: action.ability_id,
                 unit_id: action.unit_id,
                 target_unit_id: action.target_id,
                 effect: effect
@@ -281,7 +279,6 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
 
             return [{
                 type: Battle_Delta_Type.unit_ground_target_ability,
-                ability_id: action.ability_id,
                 unit_id: action.unit_id,
                 target_position: action.to,
                 effect: effect

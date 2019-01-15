@@ -1,4 +1,6 @@
-require("server_local");
+require("game_loop");
+require("global_map");
+require("battle_visualiser");
 require("scheduler");
 require("requests");
 require("calls");

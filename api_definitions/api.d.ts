@@ -222,7 +222,6 @@ type Battle_Delta_Unit_Ground_Target_Ability = {
     type: Battle_Delta_Type.unit_ground_target_ability,
     effect: Ability_Effect;
     unit_id: number,
-    ability_id: Ability_Id,
     target_position: {
         x: number,
         y: number
@@ -233,7 +232,6 @@ type Battle_Delta_Unit_Unit_Target_Ability = {
     type: Battle_Delta_Type.unit_unit_target_ability,
     effect: Ability_Effect;
     unit_id: number,
-    ability_id: Ability_Id,
     target_unit_id: number;
 }
 
@@ -241,7 +239,6 @@ type Battle_Delta_Unit_Use_No_Target_Ability = {
     type: Battle_Delta_Type.unit_use_no_target_ability,
     effect: Ability_Effect;
     unit_id: number,
-    ability_id: Ability_Id,
 }
 
 type Battle_Delta_End_Turn = {
