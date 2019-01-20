@@ -1,15 +1,9 @@
 call replicate-battle-sim
 
-pushd client-local
-call tsc -p tsconfig.json
-popd
-
-pushd server-local
-call tstl -p tsconfig.json
-popd
-
-pushd server-remote
-call tsc -p tsconfig.json
+pushd codegen
+call npx ttsc -p ../client-local/tsconfig.json
+call npx ttsc -p ../server-remote/tsconfig.json
+call npx ttsc -p ../server-local/tsconfig.json
 popd
 
 echo "Done"

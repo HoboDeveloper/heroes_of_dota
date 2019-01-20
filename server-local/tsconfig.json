@@ -2,12 +2,18 @@
   "compilerOptions": {
     "noImplicitAny": true,
     "noImplicitThis": true,
-    "alwaysStrict": true,
+    "alwaysStrict": false,
+    "noImplicitUseStrict": true,
     "strictNullChecks": true,
+    "sourceMap": false,
     "target": "es6",
 //    "typeRoots": ["declarations"],
     "rootDir": "src",
-    "outDir": "../dist/game/scripts/vscripts"
+    "outDir": "../dist/game/scripts/vscripts",
+    "plugins": [
+      { "transform": "../codegen/src/ability_generator.ts" },
+      { "transform": "../codegen/src/lua_generator.ts", "after": true }
+    ]
   },
   "include": [
     "**/*.ts",

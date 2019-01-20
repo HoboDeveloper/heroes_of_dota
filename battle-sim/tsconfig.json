@@ -13,6 +13,11 @@
     "outFile": "dist/battle_sim.js",
     "lib": [
       "es2016"
+    ],
+    "plugins": [
+      {
+        "transform": "../codegen/src/ability_generator.ts"
+      }
     ]
   },
   "include": [

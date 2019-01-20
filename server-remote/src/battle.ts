@@ -110,8 +110,9 @@ function perform_attack(battle: Battle, attacker: Unit, target: XY): Ability_Eff
 function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability, target: XY): Ability_Effect | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_hook: {
+            const distance = ability.targeting.line_length;
             const direction = direction_normal_between_points(battle, unit.position, target);
-            const actual_target = xy(unit.position.x + direction.x * 10, unit.position.y + direction.y * 10);
+            const actual_target = xy(unit.position.x + direction.x * distance, unit.position.y + direction.y * distance);
             const scan = scan_for_unit_in_direction(battle, unit.position, actual_target, direction);
 
             if (scan.hit) {
@@ -164,12 +165,35 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
         return unit;
     }
 
+    function find_valid_unit_and_authorize_ability(unit_id: number, ability_id: number): { unit: Unit, ability: Ability } | undefined {
+        const unit = find_valid_unit_for_action(unit_id);
+
+        if (!unit) return;
+
+        const ability_use = authorize_ability_use_by_unit(unit, ability_id);
+
+        if (!ability_use.success) return;
+
+        const ability = ability_use.ability;
+
+        return { unit: unit, ability: ability };
+    }
+
     function attack_ground(unit_id: number, target: XY): Battle_Delta[] | undefined {
         const attacker = find_valid_unit_for_action(unit_id);
 
         if (!attacker) return;
-        if (!is_attack_target_valid(battle, attacker, target)) return;
 
+        const attack_targeting: Ability_Targeting = {
+            type: Ability_Targeting_Type.line,
+            line_length: attacker.attack_range,
+            stop_at_first_obstacle_hit: true
+        };
+
+        const is_attack_target_valid = can_ground_target_ability_be_cast_at_target_from_source(attack_targeting, attacker.position, target);
+        if (!is_attack_target_valid) return;
+
+        // TODO delete this
         const effect = perform_attack(battle, attacker, target);
 
         return [{
@@ -216,15 +240,12 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
         }
 
         case Action_Type.use_no_target_ability: {
-            const unit = find_valid_unit_for_action(action.unit_id);
+            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
 
-            if (!unit) return;
+            if (!actors) return;
+            if (actors.ability.type != Ability_Type.no_target) return;
 
-            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
-
-            if (!ability_use.success) return;
-
-            const effect  = perform_ability_cast_no_target(battle, unit, ability_use.ability);
+            const effect = perform_ability_cast_no_target(battle, actors.unit, actors.ability);
 
             if (!effect) return;
 
@@ -236,19 +257,16 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
         }
 
         case Action_Type.unit_target_ability: {
-            const unit = find_valid_unit_for_action(action.unit_id);
+            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
 
-            if (!unit) return;
-
-            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
-
-            if (!ability_use.success) return;
+            if (!actors) return;
+            if (actors.ability.type != Ability_Type.target_unit) return;
 
             const target = find_unit_by_id(battle, action.target_id);
 
             if (!target) return;
 
-            const effect  = perform_ability_cast_unit_target(battle, unit, ability_use.ability, target);
+            const effect  = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
 
             if (!effect) return;
 
@@ -261,19 +279,17 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
         }
 
         case Action_Type.ground_target_ability: {
-            const unit = find_valid_unit_for_action(action.unit_id);
+            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
 
-            if (!unit) return;
-
-            const ability_use = authorize_ability_use_by_unit(unit, action.ability_id);
-
-            if (!ability_use.success) return;
+            if (!actors) return;
+            if (actors.ability.type != Ability_Type.target_ground) return;
 
             const cell = grid_cell_at(battle, action.to);
 
             if (!cell) return;
+            if (!can_ground_target_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, action.to)) return;
 
-            const effect  = perform_ability_cast_ground(battle, unit, ability_use.ability, action.to);
+            const effect  = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
 
             if (!effect) return;
 

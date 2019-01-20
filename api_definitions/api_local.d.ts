@@ -1,5 +1,11 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
+type Visualizer_Unit_Data = {
+    id: number,
+    health: number,
+    mana: number
+}
+
 type Player_Net_Table_Base = {
     id: number,
     token: string
@@ -25,7 +31,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
             width: number,
             height: number
         }
-        entity_id_to_unit_id: { [entity_id: number]: number },
+        entity_id_to_unit_data: { [entity_id: number]: Visualizer_Unit_Data },
         current_visual_head: number
     }
 }

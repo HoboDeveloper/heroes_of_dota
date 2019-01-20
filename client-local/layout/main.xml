@@ -29,6 +29,8 @@
             <Button id="end_turn_button" onactivate="end_turn();">
                 <Label text="End turn"/>
             </Button>
+
+            <Panel id="health_bar_container"/>
         </Panel>
 
         <Panel id="global_map_ui">

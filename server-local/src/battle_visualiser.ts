@@ -25,6 +25,8 @@ type Battle_Unit = {
     // TODO in world coordinates
     position: XY;
     is_playing_a_delta: boolean;
+    health: number;
+    mana: number;
 }
 
 declare let battle: Battle;
@@ -109,17 +111,20 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
 }
 
 function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): Battle_Unit {
+    const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
 
-    const unit = {
+    const unit: Battle_Unit = {
         handle: handle,
         id: unit_id,
         position: at,
-        is_playing_a_delta: false
+        is_playing_a_delta: false,
+        health: definition.health,
+        mana: definition.mana
     };
 
     battle.units.push(unit);
@@ -488,6 +493,10 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
                 const player = PlayerResource.GetPlayer(main_player.player_id);
 
                 SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, delta.damage_dealt, player);
+
+                unit.health = delta.new_health;
+
+                update_player_state_net_table(main_player);
 
                 if (delta.new_health == 0) {
                     unit.handle.ForceKill(false);

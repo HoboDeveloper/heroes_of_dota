@@ -36,8 +36,12 @@ declare const enum Unit_Type {
 // TODO units need attack range
 // TODO abilities need cast target validation
 
-// TODO if we split Ability_Id to Ability_No_Target_Id/Ability_Ground_Target_Id/Ability_Unit_Target_Id/Ability_Passive_Id
-// TODO then we can discriminate easier and also use unreachable(x) in more places
+declare const enum Ability_Targeting_Type {
+    line = 0,
+    unit_in_manhattan_distance = 2,
+    rectangular_area_around_caster = 3
+}
+
 declare const enum Ability_Id {
     basic_attack = -1,
     pudge_hook = 0,
@@ -58,24 +62,74 @@ type Unit_Definition = {
     health: number;
     mana: number;
     move_points: number;
+    attack_range: number;
+    attack_damage: number;
     abilities: Ability_Definition[];
 }
 
-type Ability_Definition_Passive = {
-    type: Ability_Type.passive;
-    id: Ability_Id;
-    available_since_level: number;
-}
-
-type Ability_Definition_Active = {
-    id: Ability_Id;
-    type: Ability_Type.no_target | Ability_Type.target_ground | Ability_Type.target_unit;
+type Ability_Definition_Active_Base = {
     available_since_level: number;
     cooldown: number;
     mana_cost: number;
 }
 
-type Ability_Definition = Ability_Definition_Passive | Ability_Definition_Active;
+type Ability_Definition_Passive_Base = {
+    available_since_level: number
+}
+
+type Ability_Pudge_Hook = Ability_Definition_Active_Base & {
+    id: Ability_Id.pudge_hook,
+    type: Ability_Type.target_ground,
+    targeting: Ability_Targeting_Line,
+}
+
+type Ability_Pudge_Rot = Ability_Definition_Active_Base & {
+    id: Ability_Id.pudge_rot,
+    type: Ability_Type.no_target,
+    targeting: Ability_Targeting_Rectangular_Area_Around_Caster,
+}
+
+type Ability_Pudge_Flesh_Heap = Ability_Definition_Passive_Base & {
+    id: Ability_Id.pudge_flesh_heap,
+    type: Ability_Type.passive,
+}
+
+type Ability_Pudge_Dismember = Ability_Definition_Active_Base & {
+    id: Ability_Id.pudge_dismember,
+    type: Ability_Type.target_unit,
+    targeting: Ability_Targeting_Unit_In_Manhattan_Distance,
+}
+
+type Ability_Definition_Active =
+    Ability_Pudge_Hook |
+    Ability_Pudge_Rot |
+    Ability_Pudge_Dismember;
+
+type Ability_Definition_Passive =
+    Ability_Pudge_Flesh_Heap;
+
+type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive;
+
+type Ability_Targeting_Line = {
+    type: Ability_Targeting_Type.line,
+    line_length: number,
+    stop_at_first_obstacle_hit: boolean
+}
+
+type Ability_Targeting_Unit_In_Manhattan_Distance = {
+    type: Ability_Targeting_Type.unit_in_manhattan_distance,
+    distance: number
+}
+
+type Ability_Targeting_Rectangular_Area_Around_Caster = {
+    type: Ability_Targeting_Type.rectangular_area_around_caster,
+    area_radius: number;
+}
+
+type Ability_Targeting =
+    Ability_Targeting_Line |
+    Ability_Targeting_Unit_In_Manhattan_Distance |
+    Ability_Targeting_Rectangular_Area_Around_Caster;
 
 type Action_Attack_Ground = {
     type: Action_Type.attack_ground;

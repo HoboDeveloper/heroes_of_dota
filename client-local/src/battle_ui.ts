@@ -11,11 +11,16 @@ const control_panel: Control_Panel = {
 
 const battle_cell_size = 128;
 
+type UI_Unit_Data = Visualizer_Unit_Data & {
+    health_bar_label: LabelPanel
+}
+
 type UI_Battle = Battle & {
     world_origin: XY;
-    entity_id_to_unit_id: { [entity_id: number]: number };
+    entity_id_to_unit_data: { [entity_id: number]: UI_Unit_Data },
     unit_id_to_facing: { [unit_id: number]: XY };
     cells: UI_Cell[];
+    cell_index_to_unit: Unit[];
 }
 
 type UI_Cell = Cell & {
@@ -27,19 +32,37 @@ type Control_Panel = {
     hero_rows: Hero_Row[];
 }
 
+type Stat_Indicator = {
+    label: LabelPanel;
+}
+
 type Hero_Row = {
     unit_id: number;
     ability_buttons: Hero_Ability_Button[];
+    health: Stat_Indicator;
+    mana: Stat_Indicator;
+    level: Stat_Indicator;
 }
 
 type Hero_Ability_Button = {
     ability: AbilityId;
-    panel: Panel;
+    ability_panel: Panel;
+    cooldown_layer: Panel;
 }
 
 type Cost_Population_Result = {
     cell_index_to_cost: number[];
     cell_index_to_parent_index: number[];
+}
+
+function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Unit | undefined {
+    if (entity_id == undefined) return;
+
+    const unit_data = battle.entity_id_to_unit_data[entity_id];
+
+    if (!unit_data) return;
+
+    return find_unit_by_id(battle, unit_data.id);
 }
 
 function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths: Move_Delta_Paths) {
@@ -81,6 +104,17 @@ function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths:
         }
     }
 }
+
+function rebuild_cell_index_to_unit() {
+    battle.cell_index_to_unit = [];
+
+    for (const unit of battle.units) {
+        if (!unit.dead) {
+            battle.cell_index_to_unit[grid_cell_index(battle, unit.position)] = unit;
+        }
+    }
+}
+
 function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
     $.Msg(`Received ${deltas.length} new deltas`);
 
@@ -109,6 +143,10 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
         }
     }
 
+    for (const unit of battle.units) {
+        update_hero_control_panel_state(unit);
+    }
+
     const visualiser_head = get_visualiser_delta_head();
 
     if (visualiser_head != undefined && battle.delta_head - visualiser_head > 20) {
@@ -122,6 +160,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
     }
 
     if (deltas.length > 0) {
+        rebuild_cell_index_to_unit();
         update_grid_visuals();
     }
 }
@@ -166,8 +205,8 @@ function create_cell_particle_at(position: XYZ) {
     return particle;
 }
 
-function process_state_transition(from: Player_State, state_data: Player_Net_Table) {
-    $.Msg(`Transition from ${from} to ${state_data.state}`);
+function process_state_transition(from: Player_State, new_state: Player_Net_Table) {
+    $.Msg(`Transition from ${from} to ${new_state.state}`);
 
     if (from == Player_State.in_battle) {
         for (const cell of battle.cells) {
@@ -176,17 +215,18 @@ function process_state_transition(from: Player_State, state_data: Player_Net_Tab
         }
     }
 
-    if (state_data.state == Player_State.in_battle) {
+    if (new_state.state == Player_State.in_battle) {
         battle = {
-            players: from_server_array(state_data.battle.participants),
+            players: from_server_array(new_state.battle.participants),
             units: [],
             delta_head: 0,
-            grid_size: xy(state_data.battle.grid_size.width, state_data.battle.grid_size.height),
+            grid_size: xy(new_state.battle.grid_size.width, new_state.battle.grid_size.height),
             turning_player_index: 0,
             deltas: [],
-            world_origin: state_data.battle.world_origin,
+            world_origin: new_state.battle.world_origin,
             cells: [],
-            entity_id_to_unit_id: {},
+            cell_index_to_unit: [],
+            entity_id_to_unit_data: {},
             unit_id_to_facing: {}
         };
 
@@ -217,6 +257,8 @@ function process_state_transition(from: Player_State, state_data: Player_Net_Tab
 
         update_grid_visuals();
         clear_control_panel();
+
+        $("#health_bar_container").RemoveAndDeleteChildren();
     }
 }
 
@@ -325,8 +367,8 @@ function update_grid_visuals() {
     let selected_unit: Unit | undefined;
     let selected_entity_path: Cost_Population_Result | undefined;
 
-    if (current_selected_entity) {
-        selected_unit = find_unit_by_id(battle, battle.entity_id_to_unit_id[current_selected_entity]);
+    if (current_selected_entity != undefined) {
+        selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
         if (selected_unit) {
             selected_entity_path = populate_path_costs(selected_unit.position);
@@ -338,61 +380,67 @@ function update_grid_visuals() {
         Particles.SetParticleControl(cell.associated_particle, 3, [ alpha, 0, 0 ]);
     }
 
+    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
+
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
 
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path) {
-            const cost = selected_entity_path.cell_index_to_cost[index];
+        const unit_in_cell = battle.cell_index_to_unit[index];
 
-            if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
-                cell_color = color_green;
-                alpha = 35;
+        if (unit_in_cell) {
+            const is_ally = unit_in_cell.owner_player_id == this_player_id;
+
+            if (is_ally) {
+                if (your_turn) {
+                    if (unit_in_cell.has_taken_an_action_this_turn) {
+                        cell_color = color_yellow;
+                    } else {
+                        cell_color = color_green;
+                    }
+                } else {
+                    cell_color = color_yellow;
+                }
+            } else {
+                cell_color = color_red;
+            }
+
+            alpha = 50;
+
+            if (selected_unit == unit_in_cell) {
+                alpha = 255;
+            }
+        }
+
+        if (selected_unit && selected_entity_path) {
+            if (current_targeted_ability != undefined) {
+                const ability = find_unit_ability(selected_unit, current_targeted_ability);
+
+                if (ability) {
+                    switch (ability.type) {
+                        case Ability_Type.target_ground: {
+                            if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+                                alpha = 80;
+                                cell_color = color_red;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            } else {
+                const cost = selected_entity_path.cell_index_to_cost[index];
+
+                if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
+                    cell_color = color_green;
+                    alpha = 35;
+                }
             }
         }
 
         color_cell(cell, cell_color, alpha);
-    }
-
-    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
-
-    for (const unit_in_cell of battle.units) {
-        if (unit_in_cell.dead) {
-            continue;
-        }
-
-        const is_ally = unit_in_cell.owner_player_id == this_player_id;
-
-        let cell_color: XYZ = color_nothing;
-        let alpha = 10;
-
-        if (is_ally) {
-            if (your_turn) {
-                if (unit_in_cell.has_taken_an_action_this_turn) {
-                    cell_color = color_yellow;
-                } else {
-                    cell_color = color_green;
-                }
-            } else {
-                cell_color = color_yellow;
-            }
-        } else {
-            cell_color = color_red;
-        }
-
-        alpha = 50;
-
-        if (selected_unit == unit_in_cell) {
-            alpha = 255;
-        }
-
-        const cell = grid_cell_at(battle, unit_in_cell.position);
-
-        if (cell) {
-            color_cell(cell as UI_Cell, cell_color, alpha);
-        }
     }
 }
 
@@ -419,6 +467,19 @@ function end_turn() {
     });
 }
 
+function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
+    return {
+        id: data.id,
+        health: data.health,
+        mana: data.mana,
+        health_bar_label: $.CreatePanel("Label", $("#health_bar_container"), "")
+    }
+}
+
+function update_unit_health_bar_data(data: UI_Unit_Data) {
+    data.health_bar_label.text = data.health.toString();
+}
+
 function process_state_update(state: Player_Net_Table) {
     if (state.state == Player_State.not_logged_in) {
         return;
@@ -427,7 +488,22 @@ function process_state_update(state: Player_Net_Table) {
     this_player_id = state.id;
 
     if (battle && state.state == Player_State.in_battle) {
-        battle.entity_id_to_unit_id = state.battle.entity_id_to_unit_id;
+        for (const entity_id in state.battle.entity_id_to_unit_data) {
+            const new_data = state.battle.entity_id_to_unit_data[entity_id];
+            const existing_data = battle.entity_id_to_unit_data[entity_id];
+
+            if (existing_data) {
+                existing_data.health = new_data.health;
+                existing_data.mana = new_data.mana;
+
+                update_unit_health_bar_data(existing_data);
+            } else {
+                const created_data = create_ui_unit_data(new_data);
+                update_unit_health_bar_data(created_data);
+
+                battle.entity_id_to_unit_data[entity_id] = created_data;
+            }
+        }
     }
 }
 
@@ -479,6 +555,8 @@ function make_battle_snapshot(): Battle_Snapshot {
 
 function clear_control_panel() {
     $("#hero_rows").RemoveAndDeleteChildren();
+
+    control_panel.hero_rows = [];
 }
 
 function get_ability_icon(ability_id: Ability_Id): string {
@@ -511,19 +589,16 @@ function safely_set_panel_background_image(panel: Panel, image: string) {
 }
 
 function add_spawned_hero_to_control_panel(unit: Unit) {
-    const new_row: Hero_Row = {
-        unit_id: unit.id,
-        ability_buttons: []
-    };
-
-    control_panel.hero_rows.push(new_row);
-
-    function create_indicator(parent: Panel, id: string, value: number) {
+    function create_indicator(parent: Panel, id: string, value: number): Stat_Indicator {
         const indicator = $.CreatePanel("Panel", parent, id);
         const label = $.CreatePanel("Label", indicator, "");
 
         indicator.AddClass("indicator");
         label.text = value.toString();
+
+        return {
+            label: label
+        }
     }
 
     const hero_row = $.CreatePanel("Panel", control_panel.panel, "");
@@ -536,21 +611,124 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
     const indicators = $.CreatePanel("Panel", portrait, "indicators");
 
-    create_indicator(indicators, "level_indicator", unit.level);
-    create_indicator(indicators, "health_indicator", unit.health);
-    create_indicator(indicators, "mana_indicator", unit.mana);
+    const level = create_indicator(indicators, "level_indicator", unit.level);
+    const health = create_indicator(indicators, "health_indicator", unit.health);
+    const mana = create_indicator(indicators, "mana_indicator", unit.mana);
+
+    const ability_buttons: Hero_Ability_Button[] = [];
 
     for (const ability of unit.abilities) {
         const ability_panel = $.CreatePanel("Panel", abilities, "");
         ability_panel.AddClass("ability_button");
 
-        safely_set_panel_background_image(ability_panel, `file://{images}/spellicons/${get_ability_icon(ability.id)}.png`);
+        const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
+        safely_set_panel_background_image(ability_image, `file://{images}/spellicons/${get_ability_icon(ability.id)}.png`);
 
-        $.Msg(get_ability_icon(ability.id), ability.available_since_level, unit.level);
-        if (unit.level < ability.available_since_level) {
-            ability_panel.AddClass("not_learned");
+        const cooldown_layer = $.CreatePanel("Panel", ability_panel, "cooldown_layer");
+
+        ability_buttons.push({
+            ability: ability.id,
+            ability_panel: ability_panel,
+            cooldown_layer: cooldown_layer
+        })
+    }
+
+    const new_row: Hero_Row = {
+        unit_id: unit.id,
+        ability_buttons: ability_buttons,
+        health: health,
+        mana: mana,
+        level: level
+    };
+
+    control_panel.hero_rows.push(new_row);
+}
+
+function update_hero_control_panel_state(unit: Unit) {
+    const row = control_panel.hero_rows.find(row => row.unit_id == unit.id);
+
+    if (!row) return;
+
+    // TODO if we had deltas for mana change we would be able to granularly update labels
+    row.health.label.text = unit.health.toString();
+    row.mana.label.text = unit.mana.toString();
+    row.level.label.text = unit.level.toString();
+
+    for (const ability_button of row.ability_buttons) {
+        const ability = find_unit_ability(unit, ability_button.ability);
+
+        if (!ability) continue;
+
+        const is_available = unit.level >= ability.available_since_level;
+
+        ability_button.ability_panel.SetHasClass("not_learned", !is_available);
+
+        if (is_available && ability.type != Ability_Type.passive) {
+            const on_cooldown = ability.cooldown_remaining > 0;
+            const not_enough_mana = ability.mana_cost > unit.mana;
+
+            ability_button.ability_panel.SetHasClass("on_cooldown", on_cooldown);
+            ability_button.ability_panel.SetHasClass("not_enough_mana", !on_cooldown && not_enough_mana);
         }
     }
+}
+
+function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
+    current_targeted_ability = new_ability_id;
+
+    update_grid_visuals();
+}
+
+function update_current_ability_based_on_cursor_state() {
+    const click_behaviors = GameUI.GetClickBehaviors();
+
+    switch (click_behaviors) {
+        case CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK: {
+            set_current_targeted_ability(Ability_Id.basic_attack);
+
+            break;
+        }
+
+        default: {
+            if (current_targeted_ability == Ability_Id.basic_attack) {
+                set_current_targeted_ability(undefined);
+            }
+
+            break;
+        }
+    }
+}
+
+function update_health_bar_positions() {
+    const screen_ratio = Game.GetScreenHeight() / 1080;
+
+    // TODO with the fixed camera we can have the luxury of updating only when units actually move
+    for (const entity_id_string in battle.entity_id_to_unit_data) {
+        const entity_id = Number(entity_id_string); // TODO holy shit why javascript, why
+        const unit_data = battle.entity_id_to_unit_data[entity_id_string];
+        const entity_origin = Entities.GetAbsOrigin(entity_id);
+
+        if (!entity_origin) continue;
+
+        const offset = 150;
+
+        const screen_x = Game.WorldToScreenX(entity_origin[0], entity_origin[1], entity_origin[2] + offset);
+        const screen_y = Game.WorldToScreenY(entity_origin[0], entity_origin[1], entity_origin[2] + offset);
+
+        if (screen_x == -1 || screen_y == -1) {
+            continue
+        }
+
+        unit_data.health_bar_label.style.x = Math.floor(screen_x / screen_ratio) + "px";
+        unit_data.health_bar_label.style.y = Math.floor(screen_y / screen_ratio) + "px";
+    }
+}
+
+function periodically_update_ui() {
+    $.Schedule(0, periodically_update_ui);
+
+    update_current_ability_based_on_cursor_state();
+    update_health_bar_positions();
 }
 
 function setup_mouse_filter() {
@@ -576,6 +754,8 @@ function setup_mouse_filter() {
         }
 
         if (event == "pressed") {
+            const click_behaviors = GameUI.GetClickBehaviors();
+
             if (current_selected_entity != undefined && current_targeted_ability != undefined) {
                 const wants_to_use_ability =
                     button == MouseButton.LEFT;
@@ -583,32 +763,59 @@ function setup_mouse_filter() {
                 const wants_to_cancel =
                     button == MouseButton.RIGHT;
 
-                const selected_unit_id = battle.entity_id_to_unit_id[current_selected_entity];
+                const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-                if (selected_unit_id == undefined) {
+                if (!selected_unit) {
                     return true;
                 }
 
                 if (wants_to_cancel) {
-                    current_targeted_ability = undefined;
+                    set_current_targeted_ability(undefined);
+
+                    if (click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE) {
+                        return false;
+                    }
                 } else if (wants_to_use_ability) {
                     const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
                     const battle_position = world_position_to_battle_position(world_position);
 
+                    if (!selected_unit) return true;
+
+                    const ability = find_unit_ability(selected_unit, current_targeted_ability);
+
+                    if (!ability) return true;
+
+                    switch (ability.type) {
+                        case Ability_Type.target_ground: {
+                            if (!can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
+                                show_ability_error(Ability_Error.invalid_target);
+
+                                return true;
+                            }
+
+                            break;
+                        }
+
+                        case Ability_Type.passive: {
+                            break;
+                        }
+
+                        // TODO ded boi
+                        // default: unreachable(ability.type);
+                    }
+
                     take_battle_action({
                         type: Action_Type.ground_target_ability,
-                        unit_id: selected_unit_id,
+                        unit_id: selected_unit.id,
                         ability_id: current_targeted_ability,
                         to: battle_position
                     });
 
-                    current_targeted_ability = undefined;
+                    set_current_targeted_ability(undefined);
                 }
 
                 return true;
             }
-
-            const click_behaviors = GameUI.GetClickBehaviors();
 
             const wants_to_select_unit =
                 button == MouseButton.LEFT &&
@@ -639,7 +846,7 @@ function setup_mouse_filter() {
             const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
             const battle_position = world_position_to_battle_position(world_position);
             const cursor_entity = get_entity_under_cursor();
-            const cursor_entity_unit = cursor_entity ? find_unit_by_id(battle, battle.entity_id_to_unit_id[cursor_entity]) : undefined;
+            const cursor_entity_unit = cursor_entity ? find_unit_by_id(battle, battle.entity_id_to_unit_data[cursor_entity].id) : undefined;
 
             if (wants_to_select_unit) {
                 current_selected_entity = cursor_entity;
@@ -657,9 +864,9 @@ function setup_mouse_filter() {
                 return true;
             }
 
-            const selected_unit_id = current_selected_entity ? battle.entity_id_to_unit_id[current_selected_entity] : undefined;
+            const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-            if (selected_unit_id == undefined) {
+            if (!selected_unit) {
                 return true;
             }
 
@@ -669,21 +876,21 @@ function setup_mouse_filter() {
                         take_battle_action({
                             type: Action_Type.attack_target,
                             target_unit_id: cursor_entity_unit.id,
-                            unit_id: selected_unit_id
+                            unit_id: selected_unit.id
                         })
                     }
                 } else {
-                    order_unit_to_move(selected_unit_id, battle_position);
+                    order_unit_to_move(selected_unit.id, battle_position);
                     move_order_particle(world_position);
                 }
             } else if (wants_to_move_unconditionally) {
-                order_unit_to_move(selected_unit_id, battle_position);
+                order_unit_to_move(selected_unit.id, battle_position);
                 move_order_particle(world_position);
             } else if (wants_to_attack_unconditionally) {
                 take_battle_action({
                     type: Action_Type.attack_ground,
                     to: battle_position,
-                    unit_id: selected_unit_id
+                    unit_id: selected_unit.id
                 })
             }
         }
@@ -706,27 +913,18 @@ function ability_error_to_reason(error: Ability_Error): number {
     }
 }
 
+function show_ability_error(error: Ability_Error) {
+    const error_data = { reason: ability_error_to_reason(error) };
+    GameEvents.SendEventClientSide("dota_hud_error_message", error_data);
+}
+
 function setup_custom_ability_hotkeys() {
-    function current_selected_unit(): Unit | undefined {
-        if (!current_selected_entity) {
-            return;
-        }
-
-        const unit_id = battle.entity_id_to_unit_id[current_selected_entity];
-
-        if (!unit_id) {
-            return;
-        }
-
-        return find_unit_by_id(battle, unit_id);
-    }
-
     // TODO check that unit belongs to the player
     // TODO check ability targeting
 
     function bind_ability_at_index_to_command(command: string, index: number) {
         GameUI.CustomUIConfig().register_key_bind(command, () => {
-            const unit = current_selected_unit();
+            const unit = find_unit_by_entity_id(battle, current_selected_entity);
 
             if (!unit) {
                 return;
@@ -738,16 +936,21 @@ function setup_custom_ability_hotkeys() {
 
             const ability_use = authorize_ability_use_by_unit(unit, ability.id);
 
-            if (!ability_use.success) {
-                const error_data = { reason: ability_error_to_reason(ability_use.error) };
-                GameEvents.SendEventClientSide("dota_hud_error_message", error_data);
-
-                return;
+            if (ability_use.success) {
+                if (ability.type == Ability_Type.no_target) {
+                    take_battle_action({
+                        type: Action_Type.use_no_target_ability,
+                        unit_id: unit.id,
+                        ability_id: ability.id
+                    })
+                } else {
+                    set_current_targeted_ability(ability.id);
+                }
+            } else {
+                show_ability_error(ability_use.error);
             }
 
-            current_targeted_ability = ability.id;
-
-            $.Msg("selected ", get_ability_icon(ability.id));
+            $.Msg("clicked ", get_ability_icon(ability.id));
         });
     }
 
@@ -773,5 +976,6 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
 
 setup_mouse_filter();
 setup_custom_ability_hotkeys();
+periodically_update_ui();
 periodically_drop_selection_in_battle();
 periodically_request_battle_deltas_when_in_battle();

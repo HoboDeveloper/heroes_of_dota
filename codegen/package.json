@@ -1,0 +1,14 @@
+{
+  "name": "codegen",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {},
+  "devDependencies": {
+    "path": "^0.12.7",
+    "ttypescript": "^1.5.5",
+    "typescript": "^2.9.2",
+    "typescript-to-lua": "^0.13.1"
+  },
+  "author": "",
+  "license": "ISC"
+}

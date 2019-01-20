@@ -1,8 +1,15 @@
 #! /bin/bash
 git pull
-./replicate-batle-sim.sh
+
+pushd codegen
+npm install
+npx ttsc -p ../battle-sim/tsconfig.json
+npx ttsc -p ../server-remote/tsconfig.json
+popd
+
+cp battle-sim/dist/battle_sim.js server-remote/dist/battle_sim.js
+
 pushd server-remote
-tsc -p tsconfig.json
 kill -9 $(cat run.pid)
 node dist/main.js > server-log.txt&
 echo $! > run.pid

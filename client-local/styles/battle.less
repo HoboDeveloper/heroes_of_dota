@@ -58,6 +58,7 @@
           width: 76px;
           height: 42px;
           margin-right: 8px;
+          border-radius: 2px;
 
           #indicators {
             margin-right: 2px;
@@ -127,18 +128,50 @@
 
           .ability_button {
             box-shadow: inset #151515 2px 2px 4px 4px;
-            background-size: 100% auto;
-            background-position: center;
-            background-color: black; // Else the rendering bugs out
             width: 48px;
             height: 36px;
             margin-left: 1px;
             margin-right: 1px;
+            border-radius: 2px;
 
-            &.not_learned {
+            &.not_learned #ability_image {
               saturation: 0.1;
               brightness: 0.2;
+            }
 
+            &.on_cooldown #cooldown_layer {
+              visibility: visible;
+            }
+
+            &.on_cooldown #ability_image {
+              saturation: 0.5;
+            }
+
+            &.not_enough_mana #ability_image {
+              wash-color: #1874baee;
+            }
+
+            #ability_image {
+              width: 100%;
+              height: 100%;
+              background-size: 100% auto;
+              background-position: center;
+              background-color: black; // Else the rendering bugs out
+            }
+
+            #cooldown_layer {
+              background-image: url("file://{images}/custom_game/hourglass.png");
+              width: 20px;
+              height: 20px;
+              align: center center;
+              visibility: collapse;
+            }
+
+            &:hover {
+              brightness: 1.5;
+            }
+
+            &.not_learned {
               &:hover {
                 brightness: 0.5;
               }
@@ -156,6 +189,18 @@
     transform: scaleX(-1);
     width: 52px;
     height: 138px;
+  }
+}
+
+#health_bar_container {
+  width: 100%;
+  height: 100%;
+
+  Label {
+    font-family: @font-mono;
+    color: white;
+    font-size: 22px;
+    text-shadow: 0px 0px 4px 4.0 rgba(162, 0, 0, 0.47);
   }
 }
 

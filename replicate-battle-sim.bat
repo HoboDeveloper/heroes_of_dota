@@ -1,5 +1,5 @@
-pushd battle-sim
-call tsc -p tsconfig.json
+pushd codegen
+call npx ttsc -p ../battle-sim/tsconfig.json
 popd
 
 copy /Y battle-sim\dist\battle_sim.js server-remote\dist\battle_sim.js

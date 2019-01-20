@@ -1,23 +1,4 @@
-type XY = {
-    x: number;
-    y: number;
-}
-
-function xy(x: number, y: number): XY {
-    return { x: x, y: y };
-}
-
-function xy_equal(a: XY, b: XY) {
-    return a.x == b.x && a.y == b.y;
-}
-
-function xy_sub(b: XY, a: XY) {
-    return xy(b.x - a.x, b.y - a.y);
-}
-
-function unreachable(x: never): never {
-    throw new Error("Didn't expect to get here");
-}
+declare function ability_definition_to_ability(definition: Ability_Definition): Ability;
 
 declare const enum Ability_Error {
     other = 0,
@@ -69,28 +50,41 @@ type Unit = {
     max_mana: number,
     move_points: number;
     max_move_points: number;
+    attack_range: number;
     attack_damage: number;
     has_taken_an_action_this_turn: boolean;
     level: number;
     abilities: Ability[];
 }
 
-type Ability_Active = {
-    id: Ability_Id;
-    type: Ability_Type.target_unit | Ability_Type.target_ground | Ability_Type.no_target;
-    available_since_level: number;
+type Ability_Passive = Ability_Definition_Passive;
+
+type Ability_Active = Ability_Definition_Active & {
     cooldown_remaining: number;
-    cooldown: number;
-    mana_cost: number;
 }
 
-type Ability_Passive = {
-    id: Ability_Id;
-    type: Ability_Type.passive;
-    available_since_level: number;
+type Ability = Ability_Passive | Ability_Active;
+
+type XY = {
+    x: number;
+    y: number;
 }
 
-type Ability = Ability_Active | Ability_Passive;
+function xy(x: number, y: number): XY {
+    return { x: x, y: y };
+}
+
+function xy_equal(a: XY, b: XY) {
+    return a.x == b.x && a.y == b.y;
+}
+
+function xy_sub(b: XY, a: XY) {
+    return xy(b.x - a.x, b.y - a.y);
+}
+
+function unreachable(x: never): never {
+    throw new Error("Didn't expect to get here");
+}
 
 function grid_cell_at(battle: Battle, at: XY): Cell | undefined {
     if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
@@ -171,6 +165,18 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
+function can_ground_target_ability_be_cast_at_target_from_source(targeting: Ability_Targeting_Line, from: XY, at: XY): boolean {
+    switch (targeting.type) {
+        case Ability_Targeting_Type.line: {
+            if (xy_equal(from, at)) return false;
+
+            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, at, targeting.line_length);
+        }
+    }
+
+    return false;
+}
+
 function fill_grid(battle: Battle) {
     for (let x = 0; x < battle.grid_size.x; x++) {
         for (let y = 0; y < battle.grid_size.y; y++) {
@@ -208,26 +214,6 @@ function are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(a:
     }
 
     return false;
-}
-
-function is_attack_target_valid(battle: Battle, unit: Unit, target: XY): boolean {
-    const from = unit.position;
-
-    switch (unit.type) {
-        case Unit_Type.pudge: {
-            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, target, 1);
-        }
-
-        case Unit_Type.sniper: {
-            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, target, 4);
-        }
-
-        case Unit_Type.ursa: {
-            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, target, 1);
-        }
-    }
-
-    return true;
 }
 
 function pass_turn_to_next_player(battle: Battle) {
@@ -268,25 +254,6 @@ function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Batt
         }
 
         collapse_delta(battle, delta);
-    }
-}
-
-function ability_definition_to_ability(definition: Ability_Definition): Ability {
-    if (definition.type == Ability_Type.passive) {
-        return {
-            id: definition.id,
-            type: Ability_Type.passive,
-            available_since_level: definition.available_since_level
-        }
-    }
-
-    return {
-        id: definition.id,
-        type: definition.type,
-        available_since_level: definition.available_since_level,
-        cooldown: definition.cooldown,
-        cooldown_remaining: 0,
-        mana_cost: definition.mana_cost
     }
 }
 
@@ -375,7 +342,8 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 id: delta.unit_id,
                 owner_player_id: delta.owner_id,
                 position: delta.at_position,
-                attack_damage: 6,
+                attack_range: definition.attack_range,
+                attack_damage: definition.attack_damage,
                 move_points: definition.move_points,
                 max_move_points: definition.move_points,
                 health: definition.health,

@@ -89,10 +89,14 @@ function log_chat_debug_message(message: string) {
 function player_state_to_player_net_table(main_player: Main_Player): Player_Net_Table {
     switch (main_player.state) {
         case Player_State.in_battle: {
-            const entity_id_to_unit_id: { [entity_id:number]:number } = {};
+            const entity_id_to_unit_data: { [entity_id:number]:Visualizer_Unit_Data } = {};
 
             for (const unit of battle.units) {
-                entity_id_to_unit_id[unit.handle.entindex()] = unit.id;
+                entity_id_to_unit_data[unit.handle.entindex()] = {
+                    id: unit.id,
+                    health: unit.health,
+                    mana: unit.mana
+                }
             }
 
             return {
@@ -107,7 +111,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     },
                     grid_size: battle.grid_size,
                     current_visual_head: battle.delta_head,
-                    entity_id_to_unit_id: entity_id_to_unit_id
+                    entity_id_to_unit_data: entity_id_to_unit_data
                 }
             };
         }
