@@ -588,6 +588,9 @@ function make_battle_snapshot(): Battle_Snapshot {
             .filter(unit => !unit.dead)
             .map(unit => ({
                 id: unit.id,
+                level: unit.level,
+                health: unit.health,
+                mana: unit.mana,
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id]

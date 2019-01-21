@@ -588,6 +588,10 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     battle.units = snapshot.units.map(unit => {
         const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position);
 
+        new_unit.health = unit.health;
+        new_unit.level = unit.level;
+        new_unit.mana = unit.mana;
+
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;

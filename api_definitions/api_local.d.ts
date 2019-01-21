@@ -51,8 +51,7 @@ type Debug_Chat_Message_Event = {
 
 type Fast_Forward_Event = Battle_Snapshot;
 
-type Unit_Snapshot = {
-    id: number,
+type Unit_Snapshot = Visualizer_Unit_Data & {
     type: Unit_Type,
     position: {
         x: number,
