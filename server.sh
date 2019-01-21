@@ -1,6 +1,10 @@
 #! /bin/bash
 git pull
 
+pushd server-remote
+npm install
+popd
+
 pushd codegen
 npm install
 npx ttsc -p ../battle-sim/tsconfig.json

@@ -14,3 +14,5 @@ dist/game/panorama
 server-local/src/unit_defs.ts
 
 panorama_debugger.cfg
+run.pid
+server-log.txt
