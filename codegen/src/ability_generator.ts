@@ -66,12 +66,22 @@ export default function run_transformer(program: ts.Program, options: Options): 
                                     if (ts.isNumericLiteral(enum_member.initializer)) {
                                         const literal = ts.createLiteral(parseInt(enum_member.initializer.getText()));
 
-                                        // ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, reference_name.right.getText());
+                                        ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, reference_name.right.getText());
 
                                         return ts.createPropertyAssignment(signature.name.getText(), literal);
+                                    } else if (ts.isPrefixUnaryExpression(enum_member.initializer)) {
+                                        if (ts.isNumericLiteral(enum_member.initializer.operand)) {
+                                            const literal = ts.createLiteral(parseInt(enum_member.initializer.getText()));
+
+                                            ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, reference_name.right.getText());
+
+                                            return ts.createPropertyAssignment(signature.name.getText(), literal);
+                                        } else {
+                                            error_out(enum_member, "Unsupported operand: " + enum_member.initializer.operand.kind);
+                                        }
                                     }
 
-                                    error_out(enum_member, "Unsupported initializer kind");
+                                    error_out(enum_member, "Unsupported initializer kind: " + enum_member.initializer.kind);
                                 } else {
                                     error_out(reference, "Unsupported reference kind");
                                 }
@@ -104,6 +114,9 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     ts.createPropertyAssignment("available_since_level", ts.createPropertyAccess(identifier, "available_since_level")),
                     ts.createPropertyAssignment("cooldown", ts.createPropertyAccess(identifier, "cooldown")),
                     ts.createPropertyAssignment("mana_cost", ts.createPropertyAccess(identifier, "mana_cost")),
+
+                    // Specials
+                    ts.createPropertyAssignment("damage", ts.createPropertyAccess(identifier, "damage")),
 
                     // Defaults
                     ts.createPropertyAssignment("cooldown_remaining",   ts.createLiteral(0)),

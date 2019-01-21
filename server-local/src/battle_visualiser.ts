@@ -20,11 +20,9 @@ type Battle = {
 type Battle_Unit = {
     id: number;
     handle: CDOTA_BaseNPC;
-    // TODO Actual battle position is not really necessary and is currently
-    // TODO used only for turning unit during fast_forward which can be calculated on the client
-    // TODO in world coordinates
     position: XY;
     is_playing_a_delta: boolean;
+    level: number;
     health: number;
     mana: number;
 }
@@ -123,6 +121,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): B
         id: unit_id,
         position: at,
         is_playing_a_delta: false,
+        level: 1,
         health: definition.health,
         mana: definition.mana
     };
@@ -252,7 +251,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             if (effect.delta) {
                 turn_unit_towards_target(unit, target);
 
-                const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
+                const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
                 play_delta(main_player, effect.delta);
                 wait(time_remaining * 0.95);
@@ -267,8 +266,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         default: {
-            // TODO uncomment that when this compiles, so far we don't have enough ability effects
-            // log_chat_debug_message(`Error: ground target ability ${effect.ability_id} not found`);
+            log_chat_debug_message(`Error: ground target ability ${effect.ability_id} not found`);
         }
     }
 }
@@ -276,39 +274,51 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
 
-    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
-
     switch (effect.ability_id) {
+        case Ability_Id.pudge_dismember: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
+
+            play_delta(main_player, effect.damage_delta);
+            play_delta(main_player, effect.heal_delta);
+
+            break;
+        }
+
         default: {
             log_chat_debug_message(`Error: unit target ability ${effect.ability_id} not found`);
         }
     }
-
-    wait(time_remaining * 0.95);
 }
 
 function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect) {
-    const time_remaining = unit_play_activity(unit, get_ability_activity(effect.ability_id));
-
     switch (effect.ability_id) {
+        case Ability_Id.pudge_rot: {
+            const particle_path = "particles/units/heroes/hero_pudge/pudge_rot.vpcf";
+            const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+
+            ParticleManager.SetParticleControl(fx, 1, Vector(300, 1, 1));
+
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
+
+            wait(0.2);
+
+            for (const delta of from_client_array(effect.deltas)) {
+                play_delta(main_player, delta);
+            }
+
+            wait(1.0);
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
+
+            ParticleManager.DestroyParticle(fx, false);
+            ParticleManager.ReleaseParticleIndex(fx);
+
+            break;
+        }
+
         default: {
             log_chat_debug_message(`Error: no target ability ${effect.ability_id} not found`);
         }
-    }
-
-    wait(time_remaining * 0.95);
-}
-
-function get_ability_activity(id: Ability_Id): GameActivity_t {
-    switch (id) {
-        case Ability_Id.basic_attack: return GameActivity_t.ACT_DOTA_ATTACK;
-        case Ability_Id.pudge_hook: return GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1;
-        case Ability_Id.pudge_rot: return GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT;
-        case Ability_Id.pudge_flesh_heap: return GameActivity_t.ACT_DOTA_IDLE;
-        case Ability_Id.pudge_dismember: return GameActivity_t.ACT_DOTA_CAST_ABILITY_4;
-        case Ability_Id.sniper_shrapnel: return GameActivity_t.ACT_DOTA_CAST_ABILITY_1;
-
-        default: return unreachable(id);
     }
 }
 
@@ -412,20 +422,6 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_attack: {
-            const attacker = find_unit_by_id(delta.unit_id);
-
-            if (attacker) {
-                attacker.is_playing_a_delta = true;
-
-                play_ground_target_ability_delta(main_player, attacker, delta.effect, delta.attacked_position);
-
-                attacker.is_playing_a_delta = false;
-            }
-
-            break;
-        }
-
         case Battle_Delta_Type.unit_ground_target_ability: {
             const attacker = find_unit_by_id(delta.unit_id);
 
@@ -486,13 +482,55 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
+        case Battle_Delta_Type.unit_level_change: {
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (unit) {
+                unit.level = delta.new_level;
+                unit.handle.EmitSound("hero_level_up");
+
+                const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
+                const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+
+                ParticleManager.ReleaseParticleIndex(fx);
+
+                update_player_state_net_table(main_player);
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.mana_change: {
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (unit) {
+                unit.mana = delta.new_mana;
+
+                if (delta.mana_change != 0) {
+                    const player = PlayerResource.GetPlayer(main_player.player_id);
+
+                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_MANA_LOSS, unit.handle, delta.mana_change, player);
+                }
+
+                update_player_state_net_table(main_player);
+            }
+
+            break;
+        }
+
         case Battle_Delta_Type.health_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
             if (unit) {
                 const player = PlayerResource.GetPlayer(main_player.player_id);
 
-                SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, delta.damage_dealt, player);
+                if (delta.damage_dealt > 0) {
+                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, delta.damage_dealt, player);
+                }
+
+                if (delta.health_restored > 0) {
+                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_HEAL, unit.handle, delta.health_restored, player);
+                }
 
                 unit.health = delta.new_health;
 

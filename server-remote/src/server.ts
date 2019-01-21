@@ -1,6 +1,12 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
-import {find_battle_by_id, get_battle_deltas_after, start_battle, try_take_turn_action} from "./battle";
+import {
+    find_battle_by_id,
+    get_battle_deltas_after,
+    start_battle,
+    submit_battle_deltas,
+    try_take_turn_action
+} from "./battle";
 import {unreachable, XY, xy} from "./common";
 import {pull_pending_chat_messages_for_player, submit_chat_message} from "./chat";
 import {performance} from "perf_hooks"
@@ -507,6 +513,75 @@ handlers.set("/take_battle_action", body => {
                 previous_head: previous_head
             }
         }
+    });
+
+    return action_on_player_to_result(result);
+});
+
+handlers.set("/battle_cheat", body => {
+    // TODO validate admin profile
+
+    const request = JSON.parse(body) as Battle_Cheat_Command_Request;
+    const result = try_do_with_player<true>(request.access_token, player => {
+        const parts = request.cheat.split(" ");
+
+        const battle = find_battle_by_id(player.current_battle_id);
+
+        if (!battle) return;
+
+        function refresh_unit(battle: Battle, unit: Unit) {
+            submit_battle_deltas(battle, [
+                {
+                    type: Battle_Delta_Type.health_change,
+                    source_unit_id: unit.id,
+                    target_unit_id: unit.id,
+                    source_ability_id: Ability_Id.basic_attack,
+                    health_restored: unit.max_health - unit.health,
+                    new_health: unit.max_health,
+                    damage_dealt: 0
+                },
+                {
+                    type: Battle_Delta_Type.mana_change,
+                    unit_id: unit.id,
+                    mana_change: unit.max_mana - unit.mana,
+                    new_mana: unit.max_mana
+                }
+            ]);
+        }
+
+        switch (parts[0]) {
+            case "lvl": {
+                submit_battle_deltas(battle, [{
+                    type: Battle_Delta_Type.unit_level_change,
+                    unit_id: request.selected_unit_id,
+                    new_level: parseInt(parts[1])
+                }]);
+
+                break;
+            }
+
+            case "ref": {
+                const unit = find_unit_by_id(battle, request.selected_unit_id);
+
+                if (!unit) return;
+
+                refresh_unit(battle, unit);
+
+                break;
+            }
+
+            case "refall": {
+                for (const unit of battle.units) {
+                    if (!unit.dead) {
+                        refresh_unit(battle, unit);
+                    }
+                }
+
+                break;
+            }
+        }
+
+        return true;
     });
 
     return action_on_player_to_result(result);

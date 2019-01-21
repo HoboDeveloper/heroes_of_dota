@@ -6,19 +6,18 @@ declare const enum Player_State {
 
 declare const enum Battle_Delta_Type {
     health_change = 0,
-    unit_move = 1,
-    unit_attack = 2,
+    mana_change = 1,
+    unit_move = 2,
     unit_spawn = 3,
     end_turn = 4,
     unit_force_move = 5,
     unit_ground_target_ability = 6,
     unit_unit_target_ability = 7,
-    unit_use_no_target_ability = 8
+    unit_use_no_target_ability = 8,
+    unit_level_change = 9
 }
 
 declare const enum Action_Type {
-    attack_target = 0,
-    attack_ground = 1,
     move = 2,
     end_turn = 3,
     ground_target_ability = 4,
@@ -31,10 +30,6 @@ declare const enum Unit_Type {
     sniper = 1,
     pudge = 2
 }
-
-// TODO units could have their attack ability id specified in definition
-// TODO units need attack range
-// TODO abilities need cast target validation
 
 declare const enum Ability_Targeting_Type {
     line = 0,
@@ -62,8 +57,7 @@ type Unit_Definition = {
     health: number;
     mana: number;
     move_points: number;
-    attack_range: number;
-    attack_damage: number;
+    attack: Ability_Definition_Active;
     abilities: Ability_Definition[];
 }
 
@@ -76,6 +70,13 @@ type Ability_Definition_Active_Base = {
 type Ability_Definition_Passive_Base = {
     available_since_level: number
 }
+
+type Ability_Basic_Attack = Ability_Definition_Active_Base & {
+    id: Ability_Id.basic_attack,
+    type: Ability_Type.target_ground,
+    targeting: Ability_Targeting_Line,
+    damage: number
+};
 
 type Ability_Pudge_Hook = Ability_Definition_Active_Base & {
     id: Ability_Id.pudge_hook,
@@ -100,7 +101,14 @@ type Ability_Pudge_Dismember = Ability_Definition_Active_Base & {
     targeting: Ability_Targeting_Unit_In_Manhattan_Distance,
 }
 
+type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
+    id: Ability_Id.sniper_shrapnel,
+    type: Ability_Type.target_ground,
+    targeting: Ability_Targeting_Rectangular_Area_Around_Caster
+}
+
 type Ability_Definition_Active =
+    Ability_Basic_Attack |
     Ability_Pudge_Hook |
     Ability_Pudge_Rot |
     Ability_Pudge_Dismember;
@@ -130,21 +138,6 @@ type Ability_Targeting =
     Ability_Targeting_Line |
     Ability_Targeting_Unit_In_Manhattan_Distance |
     Ability_Targeting_Rectangular_Area_Around_Caster;
-
-type Action_Attack_Ground = {
-    type: Action_Type.attack_ground;
-    unit_id: number,
-    to: {
-        x: number,
-        y: number
-    };
-}
-
-type Action_Attack_Target = {
-    type: Action_Type.attack_target;
-    unit_id: number,
-    target_unit_id: number
-}
 
 type Action_Move = {
     type: Action_Type.move;
@@ -183,8 +176,6 @@ type Action_No_Target_Ability = {
 }
 
 type Turn_Action =
-    Action_Attack_Ground |
-    Action_Attack_Target |
     Action_Move |
     Action_Ground_Target_Ability |
     Action_Unit_Target_Ability |
@@ -198,7 +189,9 @@ type Battle_Player = {
 
 type Ability_Effect =
     Ability_Effect_Basic_Attack |
-    Ability_Effect_Pudge_Hook;
+    Ability_Effect_Pudge_Hook |
+    Ability_Effect_Pudge_Rot |
+    Ability_Effect_Pudge_Dismember;
 
 type Ability_Effect_Basic_Attack = {
     ability_id: Ability_Id.basic_attack;
@@ -223,13 +216,32 @@ type Ability_Effect_Pudge_Hook = {
     result: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Pudge_Hook_Deltas_Missed;
 }
 
+type Ability_Effect_Pudge_Rot = {
+    ability_id: Ability_Id.pudge_rot,
+    deltas: Battle_Delta_Health_Change[]
+}
+
+type Ability_Effect_Pudge_Dismember = {
+    ability_id: Ability_Id.pudge_dismember,
+    heal_delta: Battle_Delta_Health_Change,
+    damage_delta: Battle_Delta_Health_Change
+}
+
 type Battle_Delta_Health_Change = {
     type: Battle_Delta_Type.health_change;
+    source_ability_id: Ability_Id;
     source_unit_id: number;
     target_unit_id: number;
     new_health: number;
     damage_dealt: number;
     health_restored: number;
+}
+
+type Battle_Delta_Mana_Change = {
+    type: Battle_Delta_Type.mana_change;
+    unit_id: number;
+    new_mana: number;
+    mana_change: number;
 }
 
 type Battle_Delta_Unit_Move = {
@@ -246,16 +258,6 @@ type Battle_Delta_Unit_Force_Move = {
     type: Battle_Delta_Type.unit_force_move;
     unit_id: number;
     to_position: {
-        x: number,
-        y: number
-    }
-}
-
-type Battle_Delta_Unit_Attack = {
-    type: Battle_Delta_Type.unit_attack,
-    effect: Ability_Effect;
-    unit_id: number,
-    attacked_position: {
         x: number,
         y: number
     }
@@ -299,15 +301,22 @@ type Battle_Delta_End_Turn = {
     type: Battle_Delta_Type.end_turn;
 };
 
+type Battle_Delta_Unit_Level_Change = {
+    type: Battle_Delta_Type.unit_level_change,
+    unit_id: number,
+    new_level: number
+}
+
 type Battle_Delta =
     Battle_Delta_Health_Change |
-    Battle_Delta_Unit_Attack |
+    Battle_Delta_Mana_Change |
     Battle_Delta_Unit_Move |
     Battle_Delta_Unit_Spawn |
     Battle_Delta_Unit_Force_Move |
     Battle_Delta_Unit_Ground_Target_Ability |
     Battle_Delta_Unit_Unit_Target_Ability |
     Battle_Delta_Unit_Use_No_Target_Ability |
+    Battle_Delta_Unit_Level_Change |
     Battle_Delta_End_Turn;
 
 type Movement_History_Entry = {
@@ -448,4 +457,10 @@ type Chat_Message = {
     from_player_id: number;
     from_player_name: string;
     message: string;
+}
+
+type Battle_Cheat_Command_Request = {
+    access_token: string,
+    cheat: string,
+    selected_unit_id: number
 }

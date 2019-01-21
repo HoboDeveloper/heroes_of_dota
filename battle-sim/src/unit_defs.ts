@@ -1,8 +1,14 @@
-type Active_Ability_Stats<T extends Ability_Definition_Active> = Pick<T, keyof Ability_Definition_Active_Base> & { targeting: T["targeting"] };
+type Ability_Active_Discriminator = {
+    id: Ability_Id,
+    type: Ability_Type,
+    targeting: Ability_Targeting
+}
+
+type Active_Ability_Stats<T extends Ability_Definition_Active> = Pick<T, Exclude<keyof T, keyof Ability_Active_Discriminator>> & { targeting: T["targeting"] }
 type Passive_Ability_Stats<T extends Ability_Definition_Passive> = Pick<T, keyof Ability_Definition_Passive_Base>;
 
-declare function active_ability<T extends Ability_Definition_Active>(stats: Active_Ability_Stats<T>): Ability_Definition;
-declare function passive_ability<T extends Ability_Definition_Passive>(stats: Passive_Ability_Stats<T>): Ability_Definition;
+declare function active_ability<T extends Ability_Definition_Active>(stats: Active_Ability_Stats<T>): T;
+declare function passive_ability<T extends Ability_Definition_Passive>(stats: Passive_Ability_Stats<T>): T;
 
 function unit_definition_by_type(type: Unit_Type): Unit_Definition {
     function target_line(length: number): Ability_Targeting_Line {
@@ -27,14 +33,23 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         }
     }
 
+    function basic_attack(damage: number, range: number): Ability_Basic_Attack {
+        return active_ability<Ability_Basic_Attack>({
+            available_since_level: 0,
+            targeting: target_line(range),
+            damage: damage,
+            cooldown: 0,
+            mana_cost: 0
+        });
+    }
+
     switch (type) {
         case Unit_Type.ursa: {
             return {
                 health: 30,
                 mana: 10,
                 move_points: 4,
-                attack_damage: 6,
-                attack_range: 1,
+                attack: basic_attack(6, 1),
                 abilities: [
                 ]
             }
@@ -45,8 +60,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 health: 24,
                 mana: 10,
                 move_points: 3,
-                attack_damage: 5,
-                attack_range: 4,
+                attack: basic_attack(5, 4),
                 abilities: [
                 ]
             }
@@ -57,8 +71,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 health: 35,
                 mana: 10,
                 move_points: 2,
-                attack_damage: 7,
-                attack_range: 1,
+                attack: basic_attack(7, 1),
                 abilities: [
                     active_ability<Ability_Pudge_Hook>({
                         available_since_level: 1,

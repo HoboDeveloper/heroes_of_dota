@@ -2,6 +2,7 @@ type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
 type Visualizer_Unit_Data = {
     id: number,
+    level: number,
     health: number,
     mana: number
 }

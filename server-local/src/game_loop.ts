@@ -94,6 +94,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
             for (const unit of battle.units) {
                 entity_id_to_unit_data[unit.handle.entindex()] = {
                     id: unit.id,
+                    level: unit.level,
                     health: unit.health,
                     mana: unit.mana
                 }

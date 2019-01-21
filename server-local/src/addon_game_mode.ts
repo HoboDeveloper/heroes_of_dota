@@ -8,5 +8,5 @@ require("unit_defs");
 
 function Activate() { main(); }
 function Precache(context: CScriptPrecacheContext) {
-    PrecacheResource("", "", context);
+    PrecacheResource("soundfile", "soundevents/custom_game/game_sounds.vsndevts", context);
 }

@@ -1,4 +1,4 @@
-declare function ability_definition_to_ability(definition: Ability_Definition): Ability;
+declare function ability_definition_to_ability<T>(definition: Ability_Definition): Ability;
 
 declare const enum Ability_Error {
     other = 0,
@@ -50,10 +50,9 @@ type Unit = {
     max_mana: number,
     move_points: number;
     max_move_points: number;
-    attack_range: number;
-    attack_damage: number;
     has_taken_an_action_this_turn: boolean;
     level: number;
+    attack: Ability;
     abilities: Ability[];
 }
 
@@ -165,7 +164,7 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
-function can_ground_target_ability_be_cast_at_target_from_source(targeting: Ability_Targeting_Line, from: XY, at: XY): boolean {
+function can_ground_target_ability_be_cast_at_target_from_source(targeting: Ability_Targeting, from: XY, at: XY): boolean {
     switch (targeting.type) {
         case Ability_Targeting_Type.line: {
             if (xy_equal(from, at)) return false;
@@ -241,23 +240,53 @@ function pass_turn_to_next_player(battle: Battle) {
     }
 }
 
-function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Battle_Delta[]) {
+function flatten_deltas(deltas: Battle_Delta[]): Battle_Delta[] {
+    const flattened: Battle_Delta[] = [];
+
+    for (const delta of deltas) {
+        flattened.push(delta);
+
+        switch (delta.type) {
+            case Battle_Delta_Type.unit_ground_target_ability:
+            case Battle_Delta_Type.unit_unit_target_ability:
+            case Battle_Delta_Type.unit_use_no_target_ability: {
+                const effect_deltas = ability_effect_to_deltas(delta.effect);
+
+                if (effect_deltas) {
+                    flattened.push(...effect_deltas);
+                }
+
+                break;
+            }
+        }
+    }
+
+    return flattened;
+}
+
+function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Battle_Delta[]): Battle_Delta[] {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
 
-    for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
-        const delta = battle.deltas[battle.delta_head];
+    const flattened = flatten_deltas(deltas);
 
-        if (!delta) {
+    for (let flattened_delta of flattened) {
+        if (!flattened_delta) {
             break;
         }
 
-        collapse_delta(battle, delta);
+        collapse_delta(battle, flattened_delta);
     }
+
+    battle.delta_head += deltas.length;
+
+    return flattened;
 }
 
 function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefined {
+    if (ability_id == unit.attack.id) return unit.attack;
+
     return unit.abilities.find(ability => ability.id == ability_id);
 }
 
@@ -288,38 +317,17 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
-function collapse_battle_effect(battle: Battle, effect: Ability_Effect) {
+function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | undefined {
     switch (effect.ability_id) {
-        case Ability_Id.basic_attack: {
-            if (effect.delta) {
-                collapse_delta(battle, effect.delta);
-            }
-
-            break;
-        }
-
-        case Ability_Id.pudge_hook: {
-            if (effect.result.hit) {
-                const [damage, move] = effect.result.deltas;
-
-                collapse_delta(battle, damage);
-
-                const move_target = find_unit_by_id(battle, move.unit_id);
-
-                if (move_target) {
-                    move_unit(battle, move_target, move.to_position);
-                }
-            }
-
-            break;
-        }
+        case Ability_Id.basic_attack: return effect.delta ? [ effect.delta ] : undefined;
+        case Ability_Id.pudge_hook: if (effect.result.hit) return effect.result.deltas; else return;
+        case Ability_Id.pudge_rot: return effect.deltas;
+        case Ability_Id.pudge_dismember: return [ effect.damage_delta, effect.heal_delta ];
 
         default: unreachable(effect);
     }
 }
 
-// TODO figure out if we can just push battle effect deltas on the deltas stack
-// TODO implement while (have_more_deltas) collapse_deltas() loop
 function collapse_delta(battle: Battle, delta: Battle_Delta) {
     switch (delta.type) {
         case Battle_Delta_Type.unit_move: {
@@ -342,8 +350,7 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 id: delta.unit_id,
                 owner_player_id: delta.owner_id,
                 position: delta.at_position,
-                attack_range: definition.attack_range,
-                attack_damage: definition.attack_damage,
+                attack: ability_definition_to_ability(definition.attack),
                 move_points: definition.move_points,
                 max_move_points: definition.move_points,
                 health: definition.health,
@@ -377,11 +384,19 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             break;
         }
 
+        case Battle_Delta_Type.mana_change: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (unit) {
+                unit.mana = delta.new_mana;
+            }
+
+            break;
+        }
+
         case Battle_Delta_Type.unit_use_no_target_ability:
         case Battle_Delta_Type.unit_unit_target_ability:
         case Battle_Delta_Type.unit_ground_target_ability: {
-            collapse_battle_effect(battle, delta.effect);
-
             const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
@@ -390,22 +405,8 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 const ability = find_unit_ability(unit, delta.effect.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
-                    unit.mana -= ability.mana_cost;
-
                     ability.cooldown_remaining = ability.cooldown;
                 }
-            }
-
-            break;
-        }
-
-        case Battle_Delta_Type.unit_attack: {
-            collapse_battle_effect(battle, delta.effect);
-
-            const unit = find_unit_by_id(battle, delta.unit_id);
-
-            if (unit) {
-                unit.has_taken_an_action_this_turn = true;
             }
 
             break;
@@ -423,6 +424,16 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
 
         case Battle_Delta_Type.end_turn: {
             pass_turn_to_next_player(battle);
+
+            break;
+        }
+
+        case Battle_Delta_Type.unit_level_change: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (unit) {
+                unit.level = delta.new_level;
+            }
 
             break;
         }

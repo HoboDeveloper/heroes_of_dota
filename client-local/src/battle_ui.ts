@@ -12,7 +12,10 @@ const control_panel: Control_Panel = {
 const battle_cell_size = 128;
 
 type UI_Unit_Data = Visualizer_Unit_Data & {
-    health_bar_label: LabelPanel
+    stat_bar_panel: Panel,
+    level_label: LabelPanel,
+    health_label: LabelPanel,
+    mana_label: LabelPanel
 }
 
 type UI_Battle = Battle & {
@@ -93,11 +96,22 @@ function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths:
             break;
         }
 
-        case Battle_Delta_Type.unit_attack: {
+        case Battle_Delta_Type.unit_unit_target_ability: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+            const target = find_unit_by_id(battle, delta.target_unit_id);
+
+            if (unit && target) {
+                battle.unit_id_to_facing[unit.id] = xy_sub(target.position, unit.position);
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.unit_ground_target_ability: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
-                battle.unit_id_to_facing[unit.id] = xy_sub(delta.attacked_position, unit.position);
+                battle.unit_id_to_facing[unit.id] = xy_sub(delta.target_position, unit.position);
             }
 
             break;
@@ -131,14 +145,18 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
             break;
         }
 
-        update_related_visual_data_from_delta(delta, delta_paths);
-        collapse_delta(battle, delta);
+        const flat_deltas = flatten_deltas([ delta ]);
 
-        if (delta.type == Battle_Delta_Type.unit_spawn) {
-            const spawned_unit = find_unit_by_id(battle, delta.unit_id);
+        for (let flat_delta of flat_deltas) {
+            update_related_visual_data_from_delta(flat_delta, delta_paths);
+            collapse_delta(battle, flat_delta);
 
-            if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
-                add_spawned_hero_to_control_panel(spawned_unit);
+            if (flat_delta.type == Battle_Delta_Type.unit_spawn) {
+                const spawned_unit = find_unit_by_id(battle, flat_delta.unit_id);
+
+                if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
+                    add_spawned_hero_to_control_panel(spawned_unit);
+                }
             }
         }
     }
@@ -468,16 +486,41 @@ function end_turn() {
 }
 
 function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
+    const panel = $.CreatePanel("Panel", $("#health_bar_container"), "");
+    const level_label = $.CreatePanel("Label", panel, "level_label");
+    const health_label = $.CreatePanel("Label", panel, "health_label");
+    const mana_label = $.CreatePanel("Label", panel, "mana_label");
+
+    panel.AddClass("unit_stat_bar");
+
     return {
         id: data.id,
         health: data.health,
         mana: data.mana,
-        health_bar_label: $.CreatePanel("Label", $("#health_bar_container"), "")
+        level: data.level,
+        stat_bar_panel: panel,
+        level_label: level_label,
+        health_label: health_label,
+        mana_label: mana_label
     }
 }
 
-function update_unit_health_bar_data(data: UI_Unit_Data) {
-    data.health_bar_label.text = data.health.toString();
+function update_unit_stat_bar_data(data: UI_Unit_Data) {
+    data.level_label.text = data.level.toString();
+    data.health_label.text = data.health.toString();
+    data.mana_label.text = data.mana.toString();
+
+    function try_find_associated_unit() {
+        const unit = find_unit_by_id(battle, data.id);
+
+        if (unit) {
+            data.stat_bar_panel.SetHasClass("enemy", unit.owner_player_id != this_player_id);
+        } else {
+            $.Schedule(0, try_find_associated_unit);
+        }
+    }
+
+    try_find_associated_unit();
 }
 
 function process_state_update(state: Player_Net_Table) {
@@ -496,10 +539,10 @@ function process_state_update(state: Player_Net_Table) {
                 existing_data.health = new_data.health;
                 existing_data.mana = new_data.mana;
 
-                update_unit_health_bar_data(existing_data);
+                update_unit_stat_bar_data(existing_data);
             } else {
                 const created_data = create_ui_unit_data(new_data);
-                update_unit_health_bar_data(created_data);
+                update_unit_stat_bar_data(created_data);
 
                 battle.entity_id_to_unit_data[entity_id] = created_data;
             }
@@ -658,6 +701,7 @@ function update_hero_control_panel_state(unit: Unit) {
         const ability = find_unit_ability(unit, ability_button.ability);
 
         if (!ability) continue;
+        if (ability.id == Ability_Id.basic_attack) continue;
 
         const is_available = unit.level >= ability.available_since_level;
 
@@ -699,7 +743,7 @@ function update_current_ability_based_on_cursor_state() {
     }
 }
 
-function update_health_bar_positions() {
+function update_stat_bar_positions() {
     const screen_ratio = Game.GetScreenHeight() / 1080;
 
     // TODO with the fixed camera we can have the luxury of updating only when units actually move
@@ -710,25 +754,27 @@ function update_health_bar_positions() {
 
         if (!entity_origin) continue;
 
-        const offset = 150;
+        const offset = -40;
 
-        const screen_x = Game.WorldToScreenX(entity_origin[0], entity_origin[1], entity_origin[2] + offset);
-        const screen_y = Game.WorldToScreenY(entity_origin[0], entity_origin[1], entity_origin[2] + offset);
+        const screen_x = Game.WorldToScreenX(entity_origin[0] + 30, entity_origin[1], entity_origin[2] + offset);
+        const screen_y = Game.WorldToScreenY(entity_origin[0] + 30, entity_origin[1], entity_origin[2] + offset);
 
         if (screen_x == -1 || screen_y == -1) {
             continue
         }
 
-        unit_data.health_bar_label.style.x = Math.floor(screen_x / screen_ratio) + "px";
-        unit_data.health_bar_label.style.y = Math.floor(screen_y / screen_ratio) + "px";
+        unit_data.stat_bar_panel.style.x = Math.floor(screen_x / screen_ratio) - unit_data.stat_bar_panel.actuallayoutwidth / 2.0 + "px";
+        unit_data.stat_bar_panel.style.y = Math.floor(screen_y / screen_ratio) + "px";
     }
 }
 
 function periodically_update_ui() {
     $.Schedule(0, periodically_update_ui);
 
+    if (current_state != Player_State.in_battle) return;
+
     update_current_ability_based_on_cursor_state();
-    update_health_bar_positions();
+    update_stat_bar_positions();
 }
 
 function setup_mouse_filter() {
@@ -755,6 +801,11 @@ function setup_mouse_filter() {
 
         if (event == "pressed") {
             const click_behaviors = GameUI.GetClickBehaviors();
+            const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
+            const battle_position = world_position_to_battle_position(world_position);
+            const cursor_entity = get_entity_under_cursor();
+            const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
+            const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
             if (current_selected_entity != undefined && current_targeted_ability != undefined) {
                 const wants_to_use_ability =
@@ -763,7 +814,6 @@ function setup_mouse_filter() {
                 const wants_to_cancel =
                     button == MouseButton.RIGHT;
 
-                const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
                 if (!selected_unit) {
                     return true;
@@ -776,9 +826,6 @@ function setup_mouse_filter() {
                         return false;
                     }
                 } else if (wants_to_use_ability) {
-                    const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
-                    const battle_position = world_position_to_battle_position(world_position);
-
                     if (!selected_unit) return true;
 
                     const ability = find_unit_ability(selected_unit, current_targeted_ability);
@@ -787,7 +834,14 @@ function setup_mouse_filter() {
 
                     switch (ability.type) {
                         case Ability_Type.target_ground: {
-                            if (!can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
+                            if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
+                                take_battle_action({
+                                    type: Action_Type.ground_target_ability,
+                                    unit_id: selected_unit.id,
+                                    ability_id: current_targeted_ability,
+                                    to: battle_position
+                                });
+                            } else {
                                 show_ability_error(Ability_Error.invalid_target);
 
                                 return true;
@@ -796,20 +850,24 @@ function setup_mouse_filter() {
                             break;
                         }
 
+                        case Ability_Type.target_unit: {
+                            if (cursor_entity_unit) {
+                                take_battle_action({
+                                    type: Action_Type.unit_target_ability,
+                                    unit_id: selected_unit.id,
+                                    ability_id: current_targeted_ability,
+                                    target_id: cursor_entity_unit.id
+                                });
+                            }
+                        }
+
+                        case Ability_Type.no_target:
                         case Ability_Type.passive: {
                             break;
                         }
 
-                        // TODO ded boi
-                        // default: unreachable(ability.type);
+                        default: unreachable(ability);
                     }
-
-                    take_battle_action({
-                        type: Action_Type.ground_target_ability,
-                        unit_id: selected_unit.id,
-                        ability_id: current_targeted_ability,
-                        to: battle_position
-                    });
 
                     set_current_targeted_ability(undefined);
                 }
@@ -843,11 +901,6 @@ function setup_mouse_filter() {
                 return false;
             }
 
-            const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
-            const battle_position = world_position_to_battle_position(world_position);
-            const cursor_entity = get_entity_under_cursor();
-            const cursor_entity_unit = cursor_entity ? find_unit_by_id(battle, battle.entity_id_to_unit_data[cursor_entity].id) : undefined;
-
             if (wants_to_select_unit) {
                 current_selected_entity = cursor_entity;
 
@@ -864,8 +917,6 @@ function setup_mouse_filter() {
                 return true;
             }
 
-            const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
-
             if (!selected_unit) {
                 return true;
             }
@@ -874,9 +925,13 @@ function setup_mouse_filter() {
                 if (cursor_entity_unit) {
                     if (cursor_entity != current_selected_entity) {
                         take_battle_action({
-                            type: Action_Type.attack_target,
-                            target_unit_id: cursor_entity_unit.id,
-                            unit_id: selected_unit.id
+                            type: Action_Type.ground_target_ability,
+                            ability_id: selected_unit.attack.id,
+                            unit_id: selected_unit.id,
+                            to: {
+                                x: cursor_entity_unit.position.x,
+                                y: cursor_entity_unit.position.y
+                            }
                         })
                     }
                 } else {
@@ -888,9 +943,10 @@ function setup_mouse_filter() {
                 move_order_particle(world_position);
             } else if (wants_to_attack_unconditionally) {
                 take_battle_action({
-                    type: Action_Type.attack_ground,
-                    to: battle_position,
-                    unit_id: selected_unit.id
+                    type: Action_Type.ground_target_ability,
+                    ability_id: selected_unit.attack.id,
+                    unit_id: selected_unit.id,
+                    to: battle_position
                 })
             }
         }
