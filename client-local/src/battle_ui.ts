@@ -13,9 +13,9 @@ const battle_cell_size = 128;
 
 type UI_Unit_Data = Visualizer_Unit_Data & {
     stat_bar_panel: Panel,
-    level_label: LabelPanel,
     health_label: LabelPanel,
-    mana_label: LabelPanel
+    level_ticks: Panel[],
+    current_displayed_health: number
 }
 
 type UI_Battle = Battle & {
@@ -487,28 +487,44 @@ function end_turn() {
 
 function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
     const panel = $.CreatePanel("Panel", $("#health_bar_container"), "");
-    const level_label = $.CreatePanel("Label", panel, "level_label");
+    const level_bar = $.CreatePanel("Panel", panel, "level_bar");
     const health_label = $.CreatePanel("Label", panel, "health_label");
-    const mana_label = $.CreatePanel("Label", panel, "mana_label");
+    const level_ticks: Panel[] = [];
+
+    for (let index = 0; index < max_unit_level; index++) {
+        const level_tick = $.CreatePanel("Panel", level_bar, "");
+
+        level_tick.AddClass("level_tick");
+
+        level_ticks.push(level_tick);
+    }
 
     panel.AddClass("unit_stat_bar");
 
     return {
         id: data.id,
         health: data.health,
+        current_displayed_health: data.health,
         mana: data.mana,
         level: data.level,
         stat_bar_panel: panel,
-        level_label: level_label,
         health_label: health_label,
-        mana_label: mana_label
+        level_ticks: level_ticks
     }
 }
 
 function update_unit_stat_bar_data(data: UI_Unit_Data) {
-    data.level_label.text = data.level.toString();
-    data.health_label.text = data.health.toString();
-    data.mana_label.text = data.mana.toString();
+    if (data.health != data.current_displayed_health) {
+        const which_animation = data.health < data.current_displayed_health ? "animate_damage" : "animate_heal";
+
+        data.health_label.RemoveClass(which_animation);
+        data.health_label.AddClass(which_animation);
+    }
+
+    data.health_label.text = data.current_displayed_health.toString();
+    data.level_ticks.forEach((tick, index) => {
+        tick.SetHasClass("active", index < data.level);
+    });
 
     function try_find_associated_unit() {
         const unit = find_unit_by_id(battle, data.id);
@@ -538,6 +554,7 @@ function process_state_update(state: Player_Net_Table) {
             if (existing_data) {
                 existing_data.health = new_data.health;
                 existing_data.mana = new_data.mana;
+                existing_data.level = new_data.level;
 
                 update_unit_stat_bar_data(existing_data);
             } else {
@@ -695,7 +712,7 @@ function update_hero_control_panel_state(unit: Unit) {
 
     if (!row) return;
 
-    // TODO if we had deltas for mana change we would be able to granularly update labels
+    // TODO Might be worth it to try and granularly update labels. But probably not
     row.health.label.text = unit.health.toString();
     row.mana.label.text = unit.mana.toString();
     row.level.label.text = unit.level.toString();
@@ -746,6 +763,15 @@ function update_current_ability_based_on_cursor_state() {
     }
 }
 
+function try_update_stat_bar_displayed_health(ui_data: UI_Unit_Data) {
+    if (ui_data.health != ui_data.current_displayed_health) {
+        const direction = Math.sign(ui_data.health - ui_data.current_displayed_health);
+
+        ui_data.current_displayed_health += direction;
+        ui_data.health_label.text = ui_data.current_displayed_health.toString();
+    }
+}
+
 function update_stat_bar_positions() {
     const screen_ratio = Game.GetScreenHeight() / 1080;
 
@@ -778,6 +804,16 @@ function periodically_update_ui() {
 
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
+}
+
+function periodically_update_stat_bar_display() {
+    $.Schedule(0.05, periodically_update_stat_bar_display);
+
+    if (current_state != Player_State.in_battle) return;
+
+    for (const id in battle.entity_id_to_unit_data) {
+        try_update_stat_bar_displayed_health(battle.entity_id_to_unit_data[id]);
+    }
 }
 
 function setup_mouse_filter() {
@@ -1036,5 +1072,6 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
 setup_mouse_filter();
 setup_custom_ability_hotkeys();
 periodically_update_ui();
+periodically_update_stat_bar_display();
 periodically_drop_selection_in_battle();
 periodically_request_battle_deltas_when_in_battle();

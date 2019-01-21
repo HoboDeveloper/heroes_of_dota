@@ -12,7 +12,6 @@ type Battle_Record = Battle & {
 }
 
 const battles: Battle_Record[] = [];
-const max_unit_level = 4;
 
 // This will only work correctly if cells are on the same line
 function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {

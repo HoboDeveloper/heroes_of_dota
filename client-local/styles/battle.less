@@ -198,28 +198,42 @@
   height: 100%;
 
   > .unit_stat_bar {
-    background-color: #000000aa;
-    border-radius: 3px;
-    flow-children: right;
+    background-color: #000000cc;
+    border-radius: 4px;
+    width: 32px;
+    flow-children: down;
 
-    &.enemy {
-      background-color: #aa0000aa;
-    }
-
-    > Label#level_label {
-      text-shadow: 0px 0px 2px 2.0 rgb(162, 152, 0);
+    &.enemy Label#health_label {
+      text-shadow: 0px 0px 2px 2.0 #aa0000aa;
     }
 
     > Label#health_label {
       text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0);
+      horizontal-align: center;
+      text-align: center;
     }
 
-    > Label#mana_label {
-      text-shadow: 0px 0px 2px 2.0 rgb(28, 100, 223);
+    #level_bar {
+      flow-children: right;
+      horizontal-align: center;
+
+      .level_tick {
+        width: 4px;
+        height: 4px;
+        background-color: gray;
+        opacity-mask: url("s2r://panorama/images/masks/softedge_circle_sharper_png.vtex");
+        margin: 1px;
+
+        &.active {
+          background-color: #e2df22dd;
+        }
+      }
+
+      margin-top: 3px;
     }
 
     Label {
-      font-family: @font-mono;
+      font-family: @font-regular;
       color: white;
       font-size: 16px;
       margin-left: 3px;
@@ -255,5 +269,51 @@
     align: center center;
     text-align: center center;
     font-size: 24px;
+  }
+}
+
+.animate_damage {
+  animation-duration: 0.4s;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  animation-name: damage_animation;
+}
+
+.animate_heal {
+  animation-duration: 0.4s;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  animation-name: heal_animation;
+}
+
+@damage_animation: 'damage_animation';
+@keyframes @damage_animation {
+  0% {
+    transform: scale3d(1, 1, 1);
+  }
+
+  50% {
+    transform: scale3d(1.2, 1.2, 1.2);
+    color: red;
+  }
+
+  100% {
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@heal_animation: 'heal_animation';
+@keyframes @heal_animation {
+  0% {
+    transform: scale3d(1, 1, 1);
+  }
+
+  50% {
+    transform: scale3d(1.2, 1.2, 1.2);
+    color: #00d000;
+  }
+
+  100% {
+    transform: scale3d(1, 1, 1);
   }
 }

@@ -69,6 +69,8 @@ type XY = {
     y: number;
 }
 
+const max_unit_level = 4;
+
 function xy(x: number, y: number): XY {
     return { x: x, y: y };
 }
