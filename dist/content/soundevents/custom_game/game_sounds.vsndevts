@@ -98,6 +98,50 @@
         rand_delay_max = 0.17
     }
 
+    pudge_ability_hook_throw = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/pudge/hook_throw.vsnd",
+        ]
+        soundlevel = 81
+    }
+
+    pudge_ability_hook_impact = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/pudge/hook_impact.vsnd",
+        ]
+        soundlevel = 81
+    }
+
+    pudge_ability_hook_miss = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/pudge/hook_retract_stop.vsnd",
+        ]
+        soundlevel = 81
+    }
+
+    pudge_ability_rot = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/pudge/rot.vsnd",
+        ]
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 75
+        mixgroup = "Weapons"
+        volume_fade_in = 0.5
+        volume_fade_out = 0.8
+        volume_falloff_min = 10
+        volume_falloff_max = 1500
+        spread_radius = 300
+    }
+
     ursa_pre_attack = {
         type = "dota_update_default"
         vsnd_files =

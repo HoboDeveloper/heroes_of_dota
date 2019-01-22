@@ -169,7 +169,10 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
     turn_unit_towards_target(pudge, target);
 
+    const chain_sound = "pudge_ability_hook_throw";
+
     pudge.handle.StartGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
+    pudge.handle.EmitSound(chain_sound);
 
     wait(0.15);
 
@@ -195,8 +198,11 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         }
 
         wait(time_to_travel);
-
         play_delta(main_player, damage);
+
+        pudge.handle.StopSound(chain_sound);
+        target.handle.EmitSound("pudge_ability_hook_impact");
+        target.handle.EmitSound(chain_sound);
 
         const move_target = find_unit_by_id(move.unit_id);
 
@@ -231,11 +237,16 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
             wait_one_frame();
         }
 
+        target.handle.StopSound(chain_sound);
+
         move_target.position = move.to_position;
     } else {
         wait(time_to_travel);
 
         ParticleManager.SetParticleControl(chain, 1, pudge_origin);
+
+        pudge.handle.StopSound("pudge_ability_hook_throw");
+        EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(travel_target), "pudge_ability_hook_miss", pudge.handle);
 
         wait(time_to_travel);
     }
@@ -292,8 +303,8 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             if (ranged_attack_particle) {
                 turn_unit_towards_target(unit, target);
                 try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
+                unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, 0.1);
 
-                const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, 0.1);
                 const fx = ParticleManager.CreateParticle(ranged_attack_particle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, unit.handle);
                 const speed = 1600;
 
@@ -324,12 +335,14 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
                 } else {
                     // TODO actual miss location, not just target location
                     const world_miss_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
+                    const world_distance = (attachment_world_origin(unit.handle, out_attach) - world_miss_location as Vector).Length();
 
                     ParticleManager.SetParticleControl(fx, 1, world_miss_location);
 
-                    wait(time_remaining * 0.95);
+                    wait(world_distance / speed);
                 }
 
+                ParticleManager.DestroyParticle(fx, false);
                 ParticleManager.ReleaseParticleIndex(fx);
             } else {
                 turn_unit_towards_target(unit, target);
@@ -383,10 +396,12 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         case Ability_Id.pudge_rot: {
             const particle_path = "particles/units/heroes/hero_pudge/pudge_rot.vpcf";
             const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+            const snd = "pudge_ability_rot";
 
             ParticleManager.SetParticleControl(fx, 1, Vector(300, 1, 1));
 
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
+            unit.handle.EmitSound(snd);
 
             wait(0.2);
 
@@ -396,6 +411,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(1.0);
 
+            unit.handle.StopSound(snd);
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
 
             ParticleManager.DestroyParticle(fx, false);
