@@ -1,3 +1,6 @@
 [submodule "server-local/declarations"]
 	path = server-local/declarations
 	url = https://github.com/TypeScriptToLua/Dota2Declarations
+[submodule "client-local/declarations"]
+	path = client-local/declarations
+	url = https://github.com/ModDota/TypescriptPanoramaDeclarations.git
