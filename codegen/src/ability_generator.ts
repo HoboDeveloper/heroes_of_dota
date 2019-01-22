@@ -7,8 +7,6 @@ export interface Options {
 export default function run_transformer(program: ts.Program, options: Options): ts.TransformerFactory<ts.Node> {
     const checker = program.getTypeChecker();
 
-    console.log("Generating code...");
-
     function error_out(node: ts.Node, error: string) {
         const source = node.getSourceFile();
         const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
@@ -141,7 +139,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
     }
 
     function process_source_file(context: ts.TransformationContext, file: ts.SourceFile) {
-        console.log("Visiting", file.fileName);
+        console.log("Processing", file.fileName);
 
         function visitor(node: ts.Node): ts.Node {
             const new_node_or_nothing = process_node(node);
@@ -170,24 +168,14 @@ export default function run_transformer(program: ts.Program, options: Options): 
     }
 
     return context => (node: ts.Node) => {
-        const new_files = program.getSourceFiles().map(file => {
-            if (!file.isDeclarationFile) {
-                return process_and_update_source_file(context, file);
-            }
-        }).filter(file => file);
-
-        return ts.createBundle(new_files);
-
-        /*if (ts.isSourceFile(node)) {
-            return process_and_update_source_file(context, node);
-        }
-
         if (ts.isBundle(node)) {
             const new_files = node.sourceFiles.map(file => process_and_update_source_file(context, file));
 
             return ts.updateBundle(node, new_files);
+        } else if (ts.isSourceFile(node)) {
+            return process_and_update_source_file(context, node);
         }
 
-        return node;*/
+        return node;
     }
 }
