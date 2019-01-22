@@ -212,8 +212,6 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
 
         PlayerResource.SetCameraTarget(main_player.player_id, main_player.hero_unit);
         wait_one_frame();
-        // TODO incorrect definition
-        // @ts-ignore
         PlayerResource.SetCameraTarget(main_player.player_id, undefined);
     }
 
@@ -226,7 +224,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.players = next_state.participants;
         battle.grid_size = next_state.grid_size;
 
-        const battle_center = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height) * get_battle_cell_size() / 2 as Vec;
+        const battle_center = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height) * get_battle_cell_size() / 2 as Vector;
 
         battle.camera_dummy.SetAbsOrigin(battle_center);
 

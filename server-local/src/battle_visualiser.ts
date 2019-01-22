@@ -8,7 +8,7 @@ type Battle = {
     deltas: Battle_Delta[];
     delta_paths: Move_Delta_Paths;
     delta_head: number;
-    world_origin: Vec;
+    world_origin: Vector;
     units: Battle_Unit[];
     grid_size: {
         width: number,
@@ -92,7 +92,7 @@ function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
     }
 }
 
-function battle_position_to_world_position_center(position: { x: number, y: number }): Vec {
+function battle_position_to_world_position_center(position: { x: number, y: number }): Vector {
     return Vector(
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
         battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
@@ -146,7 +146,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     }
 
     const hook_offset = Vector(0, 0, 96);
-    const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vec;
+    const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vector;
     const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
     const travel_direction = Vector(target.x - pudge.position.x, target.y - pudge.position.y).Normalized();
     const travel_speed = 1600;
@@ -178,13 +178,11 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
     const chain = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, pudge.handle);
     ParticleManager.SetParticleControlEnt(chain, 0, pudge.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_weapon_chain_rt", pudge_origin, true);
-    ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vec);
+    ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vector);
     ParticleManager.SetParticleControl(chain, 2, Vector(travel_speed, distance_to_travel, 64));
     ParticleManager.SetParticleControl(chain, 3, Vector(time_to_travel * 2, 0, 0));
     ParticleManager.SetParticleControl(chain, 4, Vector(1, 0, 0));
     ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
-    // TODO incorrect definition
-    //@ts-ignore
     ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
 
     if (is_hook_hit(effect.result)) {
@@ -212,7 +210,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         ParticleManager.SetParticleControlEnt(impact, 0, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
         ParticleManager.ReleaseParticleIndex(impact);
 
-        ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vec, true);
+        ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vector, true);
 
         const travel_start_time = GameRules.GetGameTime();
         const target_world_position = battle_position_to_world_position_center(move.to_position);
@@ -222,7 +220,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         while (true) {
             const now = GameRules.GetGameTime();
             const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
-            const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vec;
+            const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vector;
 
             move_target.handle.SetAbsOrigin(travel_position);
 
@@ -349,7 +347,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
 function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
-    const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vec).Normalized();
+    const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
 
     {
         // TODO guarded_wait_until
@@ -433,7 +431,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
 
                     // TODO guarded_wait_until
                     const guard_hit = guarded_wait_until(3, () => {
-                        return (unit.handle.GetAbsOrigin() - world_position as Vec).Length2D() < battle_cell_size / 4;
+                        return (unit.handle.GetAbsOrigin() - world_position as Vector).Length2D() < battle_cell_size / 4;
                     });
 
                     if (guard_hit) {
@@ -576,9 +574,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
 function load_battle_data() {
     const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
 
-    // TODO incorrect definition
     const camera_entity = CreateModifierThinker(
-        // @ts-ignore
         undefined,
         undefined,
         "",

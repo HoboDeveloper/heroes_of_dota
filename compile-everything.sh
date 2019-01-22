@@ -8,7 +8,7 @@ pushd codegen
 npm install
 popd
 
-./replicate-battle-sim
+./replicate-battle-sim.sh
 
 pushd codegen
 npx ttsc -p ../client-local/tsconfig.json

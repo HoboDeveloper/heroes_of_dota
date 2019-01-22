@@ -99,7 +99,7 @@ function update_player_from_movement_history(player: Player) {
     let closest_entry_index = 0;
 
     player.movement_history.forEach((entry, entry_index) => {
-        const delta = current_unit_position - Vector(entry.location_x, entry.location_y) as Vec;
+        const delta = current_unit_position - Vector(entry.location_x, entry.location_y) as Vector;
         const distance = delta.Length2D();
 
         if (distance <= snap_distance && distance <= minimum_distance) {
