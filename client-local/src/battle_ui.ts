@@ -517,7 +517,8 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
     if (data.health != data.current_displayed_health) {
         const which_animation = data.health < data.current_displayed_health ? "animate_damage" : "animate_heal";
 
-        data.health_label.RemoveClass(which_animation);
+        data.health_label.RemoveClass("animate_damage");
+        data.health_label.RemoveClass("animate_heal");
         data.health_label.AddClass(which_animation);
     }
 

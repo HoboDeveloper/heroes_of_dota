@@ -19,6 +19,7 @@ type Battle = {
 
 type Battle_Unit = {
     id: number;
+    type: Unit_Type;
     handle: CDOTA_BaseNPC;
     position: XY;
     is_playing_a_delta: boolean;
@@ -119,6 +120,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): B
     const unit: Battle_Unit = {
         handle: handle,
         id: unit_id,
+        type: unit_type,
         position: at,
         is_playing_a_delta: false,
         level: 1,
@@ -246,14 +248,37 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 }
 
 function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
+    function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
+        switch (type) {
+            case Unit_Type.pudge: return "pudge_pre_attack";
+            case Unit_Type.ursa: return "ursa_pre_attack";
+        }
+    }
+
+    function get_unit_attack_sound(type: Unit_Type) {
+        switch (type) {
+            case Unit_Type.pudge: return "pudge_attack";
+            case Unit_Type.ursa: return "ursa_attack";
+        }
+    }
+
     switch (effect.ability_id) {
         case Ability_Id.basic_attack: {
             if (effect.delta) {
                 turn_unit_towards_target(unit, target);
 
+                const pre_attack_sound = get_unit_pre_attack_sound(unit.type);
+                if (pre_attack_sound) unit.handle.EmitSound(pre_attack_sound);
+
+                print("pre attack", pre_attack_sound, get_unit_attack_sound(unit.type));
+
                 const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
                 play_delta(main_player, effect.delta);
+
+                const attack = get_unit_attack_sound(unit.type);
+                if (attack) unit.handle.EmitSound(attack);
+
                 wait(time_remaining * 0.95);
             }
 
