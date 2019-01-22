@@ -148,4 +148,30 @@
         soundevent_layer2_on = 1
         limiter_on = 0
     }
+
+    sniper_attack = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/sniper/sniper_attack.vsnd"
+        ]
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 78
+        event_type = 1
+    }
+
+    sniper_impact = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/sniper/projectile_impact01.vsnd",
+            "sounds/weapons/hero/sniper/projectile_impact02.vsnd"
+        ]
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 72
+        event_type = 1
+    }
+
 }
