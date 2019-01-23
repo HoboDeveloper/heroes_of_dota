@@ -20,7 +20,7 @@ type Battle = {
 type Battle_Unit = {
     id: number;
     type: Unit_Type;
-    handle: CDOTA_BaseNPC;
+    handle: CDOTA_BaseNPC_Hero;
     position: XY;
     is_playing_a_delta: boolean;
     level: number;
@@ -112,7 +112,7 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
 function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): Battle_Unit {
     const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
-    const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+    const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
@@ -170,9 +170,12 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     turn_unit_towards_target(pudge, target);
 
     const chain_sound = "pudge_ability_hook_throw";
+    const hook_wearable = pudge.handle.GetTogglableWearable(DOTASlotType_t.DOTA_LOADOUT_TYPE_WEAPON);
 
     pudge.handle.StartGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
     pudge.handle.EmitSound(chain_sound);
+
+    hook_wearable.AddEffects(Effects.EF_NODRAW);
 
     wait(0.15);
 
@@ -251,8 +254,8 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         wait(time_to_travel);
     }
 
+    hook_wearable.RemoveEffects(Effects.EF_NODRAW);
     pudge.handle.FadeGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
-
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
