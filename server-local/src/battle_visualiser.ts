@@ -256,11 +256,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
-function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
-    return unit.GetAttachmentOrigin(unit.ScriptLookupAttachment(attachment_name));
-}
-
-function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
+function basic_attack(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Basic_Attack, target: XY) {
     function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
         switch (type) {
             case Unit_Type.pudge: return "pudge_pre_attack";
@@ -296,67 +292,75 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
     }
 
+    const ranged_attack_particle = get_ranged_attack_particle(unit.type);
+
+    if (ranged_attack_particle) {
+        turn_unit_towards_target(unit, target);
+        try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
+        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, 0.1);
+
+        const fx = ParticleManager.CreateParticle(ranged_attack_particle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, unit.handle);
+        const speed = 1600;
+
+        try_play_sound_for_unit(unit, get_unit_attack_sound);
+
+        const out_attach = "attach_attack1";
+        const in_attach = "attach_hitloc";
+
+        ParticleManager.SetParticleControlEnt(fx, 0, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_attack1", Vector(), true);
+        ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
+
+        if (effect.delta) {
+            const target = find_unit_by_id(effect.delta.target_unit_id);
+
+            if (!target) {
+                log_chat_debug_message(`Error: unit ${effect.delta.target_unit_id} not found`);
+                return;
+            }
+
+            ParticleManager.SetParticleControlEnt(fx, 1, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
+
+            const world_distance = (attachment_world_origin(unit.handle, out_attach) - attachment_world_origin(target.handle, in_attach) as Vector).Length();
+
+            wait(world_distance / speed);
+            play_delta(main_player, effect.delta);
+
+            try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target);
+        } else {
+            // TODO actual miss location, not just target location
+            const world_miss_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
+            const world_distance = (attachment_world_origin(unit.handle, out_attach) - world_miss_location as Vector).Length();
+
+            ParticleManager.SetParticleControl(fx, 1, world_miss_location);
+
+            wait(world_distance / speed);
+        }
+
+        ParticleManager.DestroyParticle(fx, false);
+        ParticleManager.ReleaseParticleIndex(fx);
+    } else {
+        turn_unit_towards_target(unit, target);
+        try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
+
+        const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
+
+        if (effect.delta) {
+            play_delta(main_player, effect.delta);
+        }
+
+        try_play_sound_for_unit(unit, get_unit_attack_sound);
+        wait(time_remaining * 0.95);
+    }
+}
+
+function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
+    return unit.GetAttachmentOrigin(unit.ScriptLookupAttachment(attachment_name));
+}
+
+function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
     switch (effect.ability_id) {
         case Ability_Id.basic_attack: {
-            const ranged_attack_particle = get_ranged_attack_particle(unit.type);
-
-            if (ranged_attack_particle) {
-                turn_unit_towards_target(unit, target);
-                try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
-                unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, 0.1);
-
-                const fx = ParticleManager.CreateParticle(ranged_attack_particle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, unit.handle);
-                const speed = 1600;
-
-                try_play_sound_for_unit(unit, get_unit_attack_sound);
-
-                const out_attach = "attach_attack1";
-                const in_attach = "attach_hitloc";
-
-                ParticleManager.SetParticleControlEnt(fx, 0, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_attack1", Vector(), true);
-                ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
-
-                if (effect.delta) {
-                    const target = find_unit_by_id(effect.delta.target_unit_id);
-
-                    if (!target) {
-                        log_chat_debug_message(`Error: unit ${effect.delta.target_unit_id} not found`);
-                        return;
-                    }
-
-                    ParticleManager.SetParticleControlEnt(fx, 1, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
-
-                    const world_distance = (attachment_world_origin(unit.handle, out_attach) - attachment_world_origin(target.handle, in_attach) as Vector).Length();
-
-                    wait(world_distance / speed);
-                    play_delta(main_player, effect.delta);
-
-                    try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target);
-                } else {
-                    // TODO actual miss location, not just target location
-                    const world_miss_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
-                    const world_distance = (attachment_world_origin(unit.handle, out_attach) - world_miss_location as Vector).Length();
-
-                    ParticleManager.SetParticleControl(fx, 1, world_miss_location);
-
-                    wait(world_distance / speed);
-                }
-
-                ParticleManager.DestroyParticle(fx, false);
-                ParticleManager.ReleaseParticleIndex(fx);
-            } else {
-                turn_unit_towards_target(unit, target);
-                try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
-
-                const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
-
-                if (effect.delta) {
-                    play_delta(main_player, effect.delta);
-                }
-
-                try_play_sound_for_unit(unit, get_unit_attack_sound);
-                wait(time_remaining * 0.95);
-            }
+            basic_attack(main_player, unit, effect, target);
 
             break;
         }
