@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 pushd codegen
 npx ttsc -p ../battle-sim/tsconfig.json
 popd

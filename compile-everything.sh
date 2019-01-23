@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 chmod +x replicate-battle-sim.sh
 
 pushd server-remote
