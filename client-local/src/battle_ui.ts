@@ -167,7 +167,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
 
     const visualiser_head = get_visualiser_delta_head();
 
-    if (visualiser_head != undefined && battle.delta_head - visualiser_head > 20) {
+    if (visualiser_head != undefined && battle.delta_head - visualiser_head > 40) {
         fire_event<Fast_Forward_Event>("fast_forward", make_battle_snapshot());
     } else if (deltas.length > 0) {
         fire_event<Put_Battle_Deltas_Event>("put_battle_deltas", {
@@ -406,6 +406,15 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
+        if (selected_unit && selected_entity_path && current_targeted_ability == undefined) {
+            const cost = selected_entity_path.cell_index_to_cost[index];
+
+            if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
+                cell_color = color_green;
+                alpha = 35;
+            }
+        }
+
         const unit_in_cell = battle.cell_index_to_unit[index];
 
         if (unit_in_cell) {
@@ -432,28 +441,19 @@ function update_grid_visuals() {
             }
         }
 
-        if (selected_unit && selected_entity_path) {
-            if (current_targeted_ability != undefined) {
-                const ability = find_unit_ability(selected_unit, current_targeted_ability);
+        if (selected_unit && current_targeted_ability != undefined) {
+            const ability = find_unit_ability(selected_unit, current_targeted_ability);
 
-                if (ability) {
-                    switch (ability.type) {
-                        case Ability_Type.target_ground: {
-                            if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
-                                alpha = 80;
-                                cell_color = color_red;
-                            }
-
-                            break;
+            if (ability) {
+                switch (ability.type) {
+                    case Ability_Type.target_ground: {
+                        if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+                            alpha = 80;
+                            cell_color = color_red;
                         }
-                    }
-                }
-            } else {
-                const cost = selected_entity_path.cell_index_to_cost[index];
 
-                if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
-                    cell_color = color_green;
-                    alpha = 35;
+                        break;
+                    }
                 }
             }
         }
