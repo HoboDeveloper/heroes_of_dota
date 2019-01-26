@@ -259,7 +259,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
-function basic_attack(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Basic_Attack, target: XY) {
+function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Basic_Attack, target: XY) {
     function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
         switch (type) {
             case Unit_Type.pudge: return "pudge_pre_attack";
@@ -363,8 +363,7 @@ function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
 function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
     switch (effect.ability_id) {
         case Ability_Id.basic_attack: {
-            basic_attack(main_player, unit, effect, target);
-
+            perform_basic_attack(main_player, unit, effect, target);
             break;
         }
 
@@ -429,6 +428,23 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
         default: {
             log_chat_debug_message(`Error: no target ability ${effect.ability_id} not found`);
+        }
+    }
+}
+
+function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, effect: Ability_Effect) {
+    switch (effect.ability_id) {
+        case Ability_Id.pudge_flesh_heap: {
+            const path = "particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf";
+            const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, target.handle);
+            ParticleManager.SetParticleControl(fx, 1, target.handle.GetAbsOrigin());
+            ParticleManager.ReleaseParticleIndex(fx);
+
+            target.handle.EmitSound("pudge_ability_fresh_meat");
+
+            for (const delta of from_client_tuple(effect.deltas)) {
+                play_delta(main_player, delta);
+            }
         }
     }
 }
@@ -594,10 +610,10 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
         }
 
         case Battle_Delta_Type.unit_level_change: {
-            const unit = find_unit_by_id(delta.unit_id);
+            const unit = find_unit_by_id(delta.target_unit_id);
 
             if (unit) {
-                unit.level = delta.new_level;
+                unit.level = delta.new_value;
                 unit.handle.EmitSound("hero_level_up");
 
                 const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
@@ -635,23 +651,40 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             if (unit) {
                 const player = PlayerResource.GetPlayer(main_player.player_id);
 
-                if (delta.damage_dealt > 0) {
-                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, delta.damage_dealt, player);
+                if (delta.value_delta > 0) {
+                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_HEAL, unit.handle, delta.value_delta, player);
+
+                } else if (delta.value_delta < 0) {
+                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, -delta.value_delta, player);
                 }
 
-                if (delta.health_restored > 0) {
-                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_HEAL, unit.handle, delta.health_restored, player);
-                }
-
-                unit.health = delta.new_health;
+                unit.health = delta.new_value;
 
                 update_player_state_net_table(main_player);
 
-                if (delta.new_health == 0) {
+                if (delta.new_value == 0) {
                     unit.handle.ForceKill(false);
                 }
             }
 
+            break;
+        }
+
+        case Battle_Delta_Type.modifier_appled: {
+            const source = find_unit_by_id(delta.source_unit_id);
+            const target = find_unit_by_id(delta.target_unit_id);
+
+            if (source && target) {
+                play_modifier_applied_delta(main_player, source, target, delta.effect);
+
+                update_player_state_net_table(main_player);
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.modifier_removed:
+        case Battle_Delta_Type.unit_max_health_change: {
             break;
         }
 

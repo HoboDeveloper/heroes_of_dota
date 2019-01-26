@@ -142,6 +142,19 @@
         spread_radius = 300
     }
 
+    pudge_ability_fresh_meat = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/weapons/hero/bloodseeker/bloodbath01.vsnd",
+            "sounds/weapons/hero/bloodseeker/bloodbath02.vsnd"
+        ]
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 95
+        event_type = 1
+    }
+
     ursa_pre_attack = {
         type = "dota_update_default"
         vsnd_files =

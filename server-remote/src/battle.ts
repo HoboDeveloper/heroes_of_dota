@@ -5,9 +5,10 @@ eval(readFileSync("dist/battle_sim.js", "utf8"));
 
 let battle_id_auto_increment = 0;
 
-type Battle_Record = Battle & {
+export type Battle_Record = Battle & {
     id: number,
     unit_id_auto_increment: number,
+    modifier_id_auto_increment: number,
     finished: boolean
 }
 
@@ -95,15 +96,35 @@ function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, dis
     return units;
 }
 
-function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number): Battle_Delta_Health_Change {
+function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number, max_health_override: number = target.max_health): Battle_Delta_Health_Change {
     return {
         source_unit_id: source.id,
         source_ability_id: source_ability,
         target_unit_id: target.id,
         type: Battle_Delta_Type.health_change,
-        new_health: Math.min(target.max_health, target.health + heal),
-        health_restored: 0,
-        damage_dealt: heal
+        new_value: Math.min(max_health_override, target.health + heal),
+        value_delta: heal
+    };
+}
+
+function increase_max_health_delta(source: Unit, source_ability: Ability_Id, target: Unit, value_delta: number): Battle_Delta_Unit_Max_Health_Change {
+    return {
+        source_unit_id: source.id,
+        source_ability_id: source_ability,
+        target_unit_id: target.id,
+        type: Battle_Delta_Type.unit_max_health_change,
+        new_value: target.max_health + value_delta,
+        value_delta: value_delta
+    };
+}
+
+function apply_modifier_delta(battle: Battle_Record, source: Unit, target: Unit, effect: Ability_Effect): Battle_Delta_Modifier_Applied {
+    return {
+        type: Battle_Delta_Type.modifier_appled,
+        modifier_id: get_next_modifier_id(battle),
+        target_unit_id: target.id,
+        source_unit_id: source.id,
+        effect: effect
     };
 }
 
@@ -113,9 +134,8 @@ function damage_delta(source: Unit, source_ability: Ability_Id, target: Unit, da
         source_ability_id: source_ability,
         target_unit_id: target.id,
         type: Battle_Delta_Type.health_change,
-        new_health: Math.max(0, target.health - damage),
-        health_restored: 0,
-        damage_dealt: damage
+        new_value: Math.max(0, target.health - damage),
+        value_delta: -damage
     };
 }
 
@@ -360,6 +380,10 @@ function get_next_unit_id(battle: Battle_Record) {
     return battle.unit_id_auto_increment++;
 }
 
+function get_next_modifier_id(battle: Battle_Record) {
+    return battle.modifier_id_auto_increment++;
+}
+
 function try_compute_battle_winner(battle: Battle): number | undefined {
     let last_alive_unit_player_id: number | undefined = undefined;
 
@@ -376,27 +400,87 @@ function try_compute_battle_winner(battle: Battle): number | undefined {
     return last_alive_unit_player_id;
 }
 
-function process_collapsed_deltas(battle: Battle, deltas: Battle_Delta[]): Battle_Delta[] | undefined {
-    let new_deltas: Battle_Delta[] | undefined;
+function push_pudge_flesh_heap_deltas(battle: Battle_Record, pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Battle_Delta[]) {
+    const delta = apply_modifier_delta(battle, pudge, pudge, {
+        ability_id: ability.id,
+        deltas: [
+            increase_max_health_delta(pudge, ability.id, pudge, ability.health_per_kill),
+            heal_delta(pudge, ability.id, pudge, ability.health_per_kill, pudge.max_health + ability.health_per_kill)
+        ]
+    });
+
+    target_deltas.push(delta);
+}
+
+function process_on_death_delta(battle: Battle_Record, delta: Battle_Delta_Health_Change, target_deltas: Battle_Delta[]) {
+    const source = find_unit_by_id(battle, delta.source_unit_id);
+    const target = find_unit_by_id(battle, delta.target_unit_id);
+
+    if (!source || !target) return;
+    if (source.owner_player_id == target.owner_player_id) return;
+
+    if (source.level < max_unit_level) {
+        target_deltas.push({
+            type: Battle_Delta_Type.unit_level_change,
+            received_from_enemy_kill: true,
+            target_unit_id: source.id,
+            new_value: source.level + 1,
+            value_delta: 1,
+            source_unit_id: source.id,
+            source_ability_id: delta.source_ability_id
+        });
+    }
+
+    for (const ability of source.abilities) {
+        if (source.level < ability.available_since_level) continue;
+
+        if (ability.id == Ability_Id.pudge_flesh_heap) {
+            push_pudge_flesh_heap_deltas(battle, source, ability, target_deltas);
+        }
+    }
+}
+
+function process_on_level_up_from_kill_delta(battle: Battle_Record, delta: Battle_Delta_Unit_Level_Change, target_deltas: Battle_Delta[]) {
+    const unit = find_unit_by_id(battle, delta.target_unit_id);
+
+    if (!unit) return;
+
+    for (const ability of unit.abilities) {
+        if (unit.level < ability.available_since_level) continue;
+
+        const just_received_this_ability = unit.level == ability.available_since_level;
+
+        if (ability.id == Ability_Id.pudge_flesh_heap && just_received_this_ability) {
+            push_pudge_flesh_heap_deltas(battle, unit, ability, target_deltas);
+        }
+    }
+}
+
+function process_collapsed_deltas(battle: Battle_Record, deltas: Battle_Delta[]): Battle_Delta[] | undefined {
+    const new_deltas: Battle_Delta[] = [];
 
     for (const delta of deltas) {
-        if (delta.type == Battle_Delta_Type.health_change && delta.new_health == 0) {
-            const source = find_unit_by_id(battle, delta.source_unit_id);
-            const target = find_unit_by_id(battle, delta.target_unit_id);
+        switch (delta.type) {
+            case Battle_Delta_Type.health_change: {
+                if (delta.new_value == 0) {
+                    process_on_death_delta(battle, delta, new_deltas);
+                }
 
-            if (!source || !target) continue;
-            if (source.owner_player_id == target.owner_player_id) continue;
+                break;
+            }
 
-            if (source.level < max_unit_level) {
-                if (!new_deltas) new_deltas = [];
+            case Battle_Delta_Type.unit_level_change: {
+                if (delta.received_from_enemy_kill) {
+                    process_on_level_up_from_kill_delta(battle, delta, new_deltas);
+                }
 
-                new_deltas.push({
-                    type: Battle_Delta_Type.unit_level_change,
-                    unit_id: source.id,
-                    new_level: source.level + 1
-                });
+                break;
             }
         }
+    }
+
+    if (new_deltas.length == 0) {
+        return;
     }
 
     return new_deltas;
@@ -428,7 +512,7 @@ export function try_take_turn_action(battle: Battle_Record, player: Player, acti
     return get_battle_deltas_after(battle, initial_head);
 }
 
-export function submit_battle_deltas(battle: Battle, battle_deltas: Battle_Delta[] | undefined): boolean {
+export function submit_battle_deltas(battle: Battle_Record, battle_deltas: Battle_Delta[] | undefined): boolean {
     let new_deltas = battle_deltas;
     let collapsed_anything = false;
 
@@ -455,6 +539,7 @@ export function start_battle(players: Player[]): number {
         id: battle_id_auto_increment++,
         delta_head: 0,
         unit_id_auto_increment: 0,
+        modifier_id_auto_increment: 0,
         units: [],
         players: players.map(player => ({
             id: player.id,

@@ -14,7 +14,10 @@ declare const enum Battle_Delta_Type {
     unit_ground_target_ability = 6,
     unit_unit_target_ability = 7,
     unit_use_no_target_ability = 8,
-    unit_level_change = 9
+    unit_level_change = 9,
+    unit_max_health_change = 10,
+    modifier_appled = 11,
+    modifier_removed = 12
 }
 
 declare const enum Action_Type {
@@ -29,6 +32,12 @@ declare const enum Unit_Type {
     ursa = 0,
     sniper = 1,
     pudge = 2
+}
+
+declare const enum Unit_State {
+    stunned = 0,
+    silenced = 1,
+    rooted = 2
 }
 
 declare const enum Ability_Targeting_Type {
@@ -93,6 +102,7 @@ type Ability_Pudge_Rot = Ability_Definition_Active_Base & {
 type Ability_Pudge_Flesh_Heap = Ability_Definition_Passive_Base & {
     id: Ability_Id.pudge_flesh_heap,
     type: Ability_Type.passive,
+    health_per_kill: number
 }
 
 type Ability_Pudge_Dismember = Ability_Definition_Active_Base & {
@@ -191,6 +201,7 @@ type Ability_Effect =
     Ability_Effect_Basic_Attack |
     Ability_Effect_Pudge_Hook |
     Ability_Effect_Pudge_Rot |
+    Ability_Effect_Pudge_Flesh_Heap |
     Ability_Effect_Pudge_Dismember;
 
 type Ability_Effect_Basic_Attack = {
@@ -221,20 +232,27 @@ type Ability_Effect_Pudge_Rot = {
     deltas: Battle_Delta_Health_Change[]
 }
 
+type Ability_Effect_Pudge_Flesh_Heap = {
+    ability_id: Ability_Id.pudge_flesh_heap,
+    deltas: [ Battle_Delta_Unit_Max_Health_Change, Battle_Delta_Health_Change ]
+}
+
 type Ability_Effect_Pudge_Dismember = {
     ability_id: Ability_Id.pudge_dismember,
     heal_delta: Battle_Delta_Health_Change,
     damage_delta: Battle_Delta_Health_Change
 }
 
-type Battle_Delta_Health_Change = {
-    type: Battle_Delta_Type.health_change;
+type Unit_Field_Change = {
     source_ability_id: Ability_Id;
-    source_unit_id: number;
+    source_unit_id: number,
     target_unit_id: number;
-    new_health: number;
-    damage_dealt: number;
-    health_restored: number;
+    new_value: number,
+    value_delta: number,
+}
+
+type Battle_Delta_Health_Change = Unit_Field_Change & {
+    type: Battle_Delta_Type.health_change;
 }
 
 type Battle_Delta_Mana_Change = {
@@ -299,12 +317,28 @@ type Battle_Delta_Unit_Use_No_Target_Ability = {
 
 type Battle_Delta_End_Turn = {
     type: Battle_Delta_Type.end_turn;
-};
+}
 
-type Battle_Delta_Unit_Level_Change = {
+type Battle_Delta_Unit_Level_Change = Unit_Field_Change & {
     type: Battle_Delta_Type.unit_level_change,
-    unit_id: number,
-    new_level: number
+    received_from_enemy_kill: boolean
+}
+
+type Battle_Delta_Unit_Max_Health_Change = Unit_Field_Change & {
+    type: Battle_Delta_Type.unit_max_health_change;
+}
+
+type Battle_Delta_Modifier_Applied = {
+    type: Battle_Delta_Type.modifier_appled,
+    modifier_id: number,
+    effect: Ability_Effect,
+    target_unit_id: number,
+    source_unit_id: number
+}
+
+type Battle_Delta_Modifier_Removed = {
+    type: Battle_Delta_Type.modifier_removed,
+    modifier_id: number
 }
 
 type Battle_Delta =
@@ -317,6 +351,9 @@ type Battle_Delta =
     Battle_Delta_Unit_Unit_Target_Ability |
     Battle_Delta_Unit_Use_No_Target_Ability |
     Battle_Delta_Unit_Level_Change |
+    Battle_Delta_Unit_Max_Health_Change |
+    Battle_Delta_Modifier_Applied |
+    Battle_Delta_Modifier_Removed |
     Battle_Delta_End_Turn;
 
 type Movement_History_Entry = {

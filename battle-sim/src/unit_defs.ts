@@ -4,8 +4,13 @@ type Ability_Active_Discriminator = {
     targeting: Ability_Targeting
 }
 
+type Ability_Passive_Discriminator = {
+    id: Ability_Id,
+    type: Ability_Type,
+}
+
 type Active_Ability_Stats<T extends Ability_Definition_Active> = Pick<T, Exclude<keyof T, keyof Ability_Active_Discriminator>> & { targeting: T["targeting"] }
-type Passive_Ability_Stats<T extends Ability_Definition_Passive> = Pick<T, keyof Ability_Definition_Passive_Base>;
+type Passive_Ability_Stats<T extends Ability_Definition_Passive> = Pick<T, Exclude<keyof T, keyof Ability_Passive_Discriminator>>;
 
 declare function active_ability<T extends Ability_Definition_Active>(stats: Active_Ability_Stats<T>): T;
 declare function passive_ability<T extends Ability_Definition_Passive>(stats: Passive_Ability_Stats<T>): T;
@@ -79,14 +84,15 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         cooldown: 2,
                         mana_cost: 3
                     }),
-                    active_ability<Ability_Pudge_Rot>({
+                    passive_ability<Ability_Pudge_Flesh_Heap>({
                         available_since_level: 2,
+                        health_per_kill: 5
+                    }),
+                    active_ability<Ability_Pudge_Rot>({
+                        available_since_level: 3,
                         targeting: target_rect_area_around_caster(1),
                         cooldown: 1,
                         mana_cost: 1
-                    }),
-                    passive_ability<Ability_Pudge_Flesh_Heap>({
-                        available_since_level: 3,
                     }),
                     active_ability<Ability_Pudge_Dismember>({
                         available_since_level: 4,

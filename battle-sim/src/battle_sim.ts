@@ -249,6 +249,7 @@ function flatten_deltas(deltas: Battle_Delta[]): Battle_Delta[] {
         flattened.push(delta);
 
         switch (delta.type) {
+            case Battle_Delta_Type.modifier_appled:
             case Battle_Delta_Type.unit_ground_target_ability:
             case Battle_Delta_Type.unit_unit_target_ability:
             case Battle_Delta_Type.unit_use_no_target_ability: {
@@ -325,6 +326,7 @@ function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | unde
         case Ability_Id.pudge_hook: if (effect.result.hit) return effect.result.deltas; else return;
         case Ability_Id.pudge_rot: return effect.deltas;
         case Ability_Id.pudge_dismember: return [ effect.damage_delta, effect.heal_delta ];
+        case Ability_Id.pudge_flesh_heap: return effect.deltas;
 
         default: unreachable(effect);
     }
@@ -374,9 +376,9 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             const target = find_unit_by_id(battle, delta.target_unit_id);
 
             if (target) {
-                target.health = delta.new_health;
+                target.health = delta.new_value;
 
-                if (delta.new_health == 0) {
+                if (delta.new_value == 0) {
                     grid_cell_at_unchecked(battle, target.position).occupied = false;
 
                     target.dead = true;
@@ -431,12 +433,27 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
         }
 
         case Battle_Delta_Type.unit_level_change: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
+            const unit = find_unit_by_id(battle, delta.target_unit_id);
 
             if (unit) {
-                unit.level = delta.new_level;
+                unit.level = delta.new_value;
             }
 
+            break;
+        }
+
+        case Battle_Delta_Type.unit_max_health_change: {
+            const unit = find_unit_by_id(battle, delta.target_unit_id);
+
+            if (unit) {
+                unit.max_health = delta.new_value;
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.modifier_removed:
+        case Battle_Delta_Type.modifier_appled: {
             break;
         }
 

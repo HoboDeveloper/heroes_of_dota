@@ -854,7 +854,6 @@ function setup_mouse_filter() {
                 const wants_to_cancel =
                     button == MouseButton.RIGHT;
 
-
                 if (!selected_unit) {
                     return true;
                 }

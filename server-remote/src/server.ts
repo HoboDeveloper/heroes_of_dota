@@ -1,6 +1,7 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
 import {
+    Battle_Record,
     find_battle_by_id,
     get_battle_deltas_after,
     start_battle,
@@ -529,16 +530,15 @@ handlers.set("/battle_cheat", body => {
 
         if (!battle) return;
 
-        function refresh_unit(battle: Battle, unit: Unit) {
+        function refresh_unit(battle: Battle_Record, unit: Unit) {
             submit_battle_deltas(battle, [
                 {
                     type: Battle_Delta_Type.health_change,
                     source_unit_id: unit.id,
                     target_unit_id: unit.id,
                     source_ability_id: Ability_Id.basic_attack,
-                    health_restored: unit.max_health - unit.health,
-                    new_health: unit.max_health,
-                    damage_dealt: 0
+                    new_value: unit.max_health,
+                    value_delta: 0
                 },
                 {
                     type: Battle_Delta_Type.mana_change,
@@ -553,8 +553,12 @@ handlers.set("/battle_cheat", body => {
             case "lvl": {
                 submit_battle_deltas(battle, [{
                     type: Battle_Delta_Type.unit_level_change,
-                    unit_id: request.selected_unit_id,
-                    new_level: parseInt(parts[1])
+                    source_ability_id: Ability_Id.basic_attack,
+                    source_unit_id: request.selected_unit_id,
+                    target_unit_id: request.selected_unit_id,
+                    new_value: parseInt(parts[1]),
+                    value_delta: 0,
+                    received_from_enemy_kill: false
                 }]);
 
                 break;
