@@ -9,7 +9,8 @@ export type Battle_Record = Battle & {
     id: number,
     unit_id_auto_increment: number,
     modifier_id_auto_increment: number,
-    finished: boolean
+    finished: boolean,
+    modifier_id_to_data: { [modifier_id: number]: Modifier_Data }
 }
 
 const battles: Battle_Record[] = [];
@@ -21,6 +22,24 @@ function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {
     return xy(Math.sign(delta.x), Math.sign(delta.y));
 }
 
+declare const enum Modifier_Data_Type {
+    field_change = 0
+}
+
+type Modifier_Data_Base = {
+    ability_id: Ability_Id
+    target: Unit
+    source: Unit
+}
+
+type Modifier_Data_Field_Change = Modifier_Data_Base & {
+    type: Modifier_Data_Type.field_change
+    field: Unit_Field,
+    change: number
+}
+
+type Modifier_Data = Modifier_Data_Field_Change;
+
 type Scan_Result_Hit = {
     hit: true,
     unit: Unit
@@ -29,6 +48,17 @@ type Scan_Result_Hit = {
 type Scan_Result_Missed = {
     hit: false,
     final_point: XY
+}
+
+function field_change<T extends Unit_Field>(source: Unit, target: Unit, ability_id: Ability_Id, field: T, change: number): Modifier_Data_Field_Change & { field: T }  {
+    return {
+        type: Modifier_Data_Type.field_change,
+        ability_id: ability_id,
+        source: source,
+        target: target,
+        field: field,
+        change: change
+    }
 }
 
 function scan_for_unit_in_direction(
@@ -72,7 +102,7 @@ function query_units_in_manhattan_area(battle: Battle, from_exclusive: XY, dista
     for (const unit of battle.units) {
         const distance = manhattan(unit.position, from_exclusive);
 
-        if (distance > 0 && distance < distance_inclusive) {
+        if (distance > 0 && distance <= distance_inclusive) {
             units.push(unit);
         }
     }
@@ -85,10 +115,9 @@ function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, dis
 
     for (const unit of battle.units) {
         const unit_position = unit.position;
-        const delta_x = unit_position.x - from_exclusive.x;
-        const delta_y = unit_position.y - from_exclusive.y;
+        const distance = rectangular(unit_position, from_exclusive);
 
-        if ((delta_x != 0 || delta_y != 0) && Math.abs(delta_x) <= distance_inclusive && Math.abs(delta_y) <= distance_inclusive) {
+        if (distance > 0 && distance <= distance_inclusive) {
             units.push(unit);
         }
     }
@@ -96,7 +125,7 @@ function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, dis
     return units;
 }
 
-function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number, max_health_override: number = target.max_health): Battle_Delta_Health_Change {
+function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number, max_health_override: number = target[Unit_Field.max_health]): Battle_Delta_Health_Change {
     return {
         source_unit_id: source.id,
         source_ability_id: source_ability,
@@ -107,15 +136,16 @@ function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal
     };
 }
 
-function increase_max_health_delta(source: Unit, source_ability: Ability_Id, target: Unit, value_delta: number): Battle_Delta_Unit_Max_Health_Change {
+function field_change_delta<T extends Unit_Field>(field: T, source: Unit, source_ability: Ability_Id, target: Unit, value_delta: number): Battle_Delta_Unit_Field_Change & { field: T } {
     return {
+        type: Battle_Delta_Type.unit_field_change,
+        field: field,
         source_unit_id: source.id,
         source_ability_id: source_ability,
         target_unit_id: target.id,
-        type: Battle_Delta_Type.unit_max_health_change,
-        new_value: target.max_health + value_delta,
+        new_value: target[field] + value_delta,
         value_delta: value_delta
-    };
+    }
 }
 
 function apply_modifier_delta(battle: Battle_Record, source: Unit, target: Unit, effect: Ability_Effect): Battle_Delta_Modifier_Applied {
@@ -139,17 +169,38 @@ function damage_delta(source: Unit, source_ability: Ability_Id, target: Unit, da
     };
 }
 
+function field_change_to_modifier<T extends Unit_Field>(
+    battle: Battle_Record,
+    modifier_data: Modifier_Data & { field: T },
+    effect_supplier: (delta: Battle_Delta_Unit_Field_Change & { field: T }) => Ability_Effect
+): Battle_Delta_Modifier_Applied {
+    const modifier_id = get_next_modifier_id(battle);
+
+    push_modifier_data(battle, modifier_id, modifier_data);
+
+    const delta = field_change_delta(modifier_data.field, modifier_data.source, modifier_data.ability_id, modifier_data.target, modifier_data.change);
+
+    return {
+        type: Battle_Delta_Type.modifier_appled,
+        modifier_id: modifier_id,
+        target_unit_id: modifier_data.target.id,
+        source_unit_id: modifier_data.source.id,
+        effect: effect_supplier(delta)
+    };
+}
+
 function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Ability_Effect | undefined {
     switch (ability.id) {
         case Ability_Id.basic_attack: {
             const scan = scan_for_unit_in_direction(battle, unit.position, target);
 
             if (scan.hit) {
-                const damage = damage_delta(unit, ability.id, scan.unit, ability.damage);
+                const damage = Math.max(0, ability.damage + unit[Unit_Field.attack_bonus]);
+                const delta = damage_delta(unit, ability.id, scan.unit, damage);
 
                 return {
                     ability_id: Ability_Id.basic_attack,
-                    delta: damage
+                    delta: delta
                 };
             }
 
@@ -164,7 +215,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
             const scan = scan_for_unit_in_direction(battle, unit.position, actual_target, direction);
 
             if (scan.hit) {
-                const damage = damage_delta(unit, ability.id, scan.unit, 6);
+                const damage = damage_delta(unit, ability.id, scan.unit, ability.damage);
                 const move: Battle_Delta_Unit_Force_Move = {
                     type: Battle_Delta_Type.unit_force_move,
                     unit_id: scan.unit.id,
@@ -187,13 +238,13 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
     }
 }
 
-function perform_ability_cast_no_target(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Ability_Effect | undefined {
+function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Ability_Effect | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_rot: {
             const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
-            const deltas = targets.map(target => damage_delta(unit, ability.id, target, 4));
+            const deltas = targets.map(target => damage_delta(unit, ability.id, target, ability.damage));
 
-            deltas.push(damage_delta(unit, ability.id, unit, 4));
+            deltas.push(damage_delta(unit, ability.id, unit, ability.damage));
 
             return {
                 ability_id: ability.id,
@@ -201,11 +252,52 @@ function perform_ability_cast_no_target(battle: Battle, unit: Unit, ability: Abi
             }
         }
 
+        case Ability_Id.tide_anchor_smash: {
+            const reduce_by = -ability.attack_reduction;
+            const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
+            const deltas = targets
+                .map(target => field_change(unit, target, ability.id, Unit_Field.attack_bonus, reduce_by))
+                .map(data => field_change_to_modifier(battle, data, field_change => ({
+                    ability_id: ability.id,
+                    type: Ability_Effect_Type.modifier,
+                    deltas: [
+                        damage_delta(unit, data.ability_id, data.target, ability.damage),
+                        field_change
+                    ]
+                })));
+
+            return {
+                ability_id: ability.id,
+                type: Ability_Effect_Type.ability,
+                deltas: deltas
+            };
+        }
+
+        case Ability_Id.tide_ravage: {
+            const targets = query_units_in_manhattan_area(battle, unit.position, ability.targeting.distance);
+            const deltas = targets
+                .map(target => field_change(unit, target, ability.id, Unit_Field.state_stunned_counter, 1))
+                .map(data => field_change_to_modifier(battle, data, field_change => ({
+                    ability_id: ability.id,
+                    type: Ability_Effect_Type.modifier,
+                    deltas: [
+                        damage_delta(unit, data.ability_id, data.target, ability.damage),
+                        field_change
+                    ]
+                })));
+
+            return {
+                ability_id: ability.id,
+                type: Ability_Effect_Type.ability,
+                deltas: deltas
+            };
+        }
+
         default: unreachable(ability.type);
     }
 }
 
-function perform_ability_cast_unit_target(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Ability_Effect | undefined {
+function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Ability_Effect | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_dismember: {
             return {
@@ -215,11 +307,29 @@ function perform_ability_cast_unit_target(battle: Battle, unit: Unit, ability: A
             };
         }
 
+        case Ability_Id.tide_gush: {
+            const change = field_change(unit, target, ability.id, Unit_Field.max_move_points, -ability.move_points_reduction);
+            const modifier_applied = field_change_to_modifier(battle, change, field_change => ({
+                ability_id: ability.id,
+                type: Ability_Effect_Type.modifier,
+                deltas: [
+                    damage_delta(unit, ability.id, target, ability.damage),
+                    field_change
+                ]
+            }));
+
+            return  {
+                ability_id: ability.id,
+                type: Ability_Effect_Type.ability,
+                delta: modifier_applied
+            };
+        }
+
         default: unreachable(ability.type);
     }
 }
 
-function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
+function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
     function find_valid_unit(id: number): Unit | undefined {
         const unit = find_unit_by_id(battle, id);
 
@@ -258,7 +368,7 @@ function turn_action_to_new_deltas(battle: Battle, player: Player, action: Turn_
             type: Battle_Delta_Type.mana_change,
             unit_id: unit.id,
             mana_change: mana_change,
-            new_mana: Math.max(0, Math.min(unit.max_mana, unit.mana + mana_change))
+            new_mana: Math.max(0, Math.min(unit[Unit_Field.max_mana], unit.mana + mana_change))
         }
     }
 
@@ -400,12 +510,69 @@ function try_compute_battle_winner(battle: Battle): number | undefined {
     return last_alive_unit_player_id;
 }
 
+function push_modifier_data(battle: Battle_Record, modifier_id: number, data: Modifier_Data) {
+    battle.modifier_id_to_data[modifier_id] = data;
+}
+
+function try_pop_modifier_data(battle: Battle_Record, modifier_id: number, target_deltas: Battle_Delta[]) {
+    const data = battle.modifier_id_to_data[modifier_id];
+
+    if (!data) return;
+
+    delete battle.modifier_id_to_data[modifier_id];
+
+    switch (data.type) {
+        case Modifier_Data_Type.field_change: {
+            const field = data.field;
+            const change = data.change;
+
+            switch (field) {
+                // IDK why those can't go under the same case, literally the same code!
+                case Unit_Field.max_health: {
+                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    break;
+                }
+
+                case Unit_Field.max_mana: {
+                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    break;
+                }
+
+                case Unit_Field.max_move_points: {
+                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    break;
+                }
+
+                case Unit_Field.attack_bonus: {
+                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    break;
+                }
+
+                case Unit_Field.state_stunned_counter: {
+                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    break;
+                }
+
+                case Unit_Field.level: {
+                    break;
+                }
+
+                default: unreachable(field);
+            }
+
+            break;
+        }
+
+        default: unreachable(data.type);
+    }
+}
+
 function push_pudge_flesh_heap_deltas(battle: Battle_Record, pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Battle_Delta[]) {
     const delta = apply_modifier_delta(battle, pudge, pudge, {
         ability_id: ability.id,
         deltas: [
-            increase_max_health_delta(pudge, ability.id, pudge, ability.health_per_kill),
-            heal_delta(pudge, ability.id, pudge, ability.health_per_kill, pudge.max_health + ability.health_per_kill)
+            field_change_delta(Unit_Field.max_health, pudge, ability.id, pudge, ability.health_per_kill),
+            heal_delta(pudge, ability.id, pudge, ability.health_per_kill, pudge[Unit_Field.max_health] + ability.health_per_kill)
         ]
     });
 
@@ -419,12 +586,15 @@ function process_on_death_delta(battle: Battle_Record, delta: Battle_Delta_Healt
     if (!source || !target) return;
     if (source.owner_player_id == target.owner_player_id) return;
 
-    if (source.level < max_unit_level) {
+    const source_level = source[Unit_Field.level];
+
+    if (source_level < max_unit_level) {
         target_deltas.push({
-            type: Battle_Delta_Type.unit_level_change,
+            type: Battle_Delta_Type.unit_field_change,
+            field: Unit_Field.level,
             received_from_enemy_kill: true,
             target_unit_id: source.id,
-            new_value: source.level + 1,
+            new_value: source_level + 1,
             value_delta: 1,
             source_unit_id: source.id,
             source_ability_id: delta.source_ability_id
@@ -432,7 +602,7 @@ function process_on_death_delta(battle: Battle_Record, delta: Battle_Delta_Healt
     }
 
     for (const ability of source.abilities) {
-        if (source.level < ability.available_since_level) continue;
+        if (source_level < ability.available_since_level) continue;
 
         if (ability.id == Ability_Id.pudge_flesh_heap) {
             push_pudge_flesh_heap_deltas(battle, source, ability, target_deltas);
@@ -446,9 +616,9 @@ function process_on_level_up_from_kill_delta(battle: Battle_Record, delta: Battl
     if (!unit) return;
 
     for (const ability of unit.abilities) {
-        if (unit.level < ability.available_since_level) continue;
+        if (unit[Unit_Field.level] < ability.available_since_level) continue;
 
-        const just_received_this_ability = unit.level == ability.available_since_level;
+        const just_received_this_ability = unit[Unit_Field.level] == ability.available_since_level;
 
         if (ability.id == Ability_Id.pudge_flesh_heap && just_received_this_ability) {
             push_pudge_flesh_heap_deltas(battle, unit, ability, target_deltas);
@@ -469,10 +639,31 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Battle_Delta[])
                 break;
             }
 
-            case Battle_Delta_Type.unit_level_change: {
-                if (delta.received_from_enemy_kill) {
+            case Battle_Delta_Type.unit_field_change: {
+                if (delta.field == Unit_Field.level && delta.received_from_enemy_kill) {
                     process_on_level_up_from_kill_delta(battle, delta, new_deltas);
                 }
+
+                break;
+            }
+
+            case Battle_Delta_Type.end_turn: {
+                for (const unit of battle.units) {
+                    for (const modifier of unit.modifiers) {
+                        if (modifier.duration_remaining == 0) {
+                            new_deltas.push({
+                                type: Battle_Delta_Type.modifier_removed,
+                                modifier_id: modifier.id
+                            });
+
+                            try_pop_modifier_data(battle, modifier.id, new_deltas);
+                        }
+                    }
+                }
+
+                new_deltas.push({
+                    type: Battle_Delta_Type.start_turn
+                });
 
                 break;
             }
@@ -540,6 +731,7 @@ export function start_battle(players: Player[]): number {
         delta_head: 0,
         unit_id_auto_increment: 0,
         modifier_id_auto_increment: 0,
+        modifier_id_to_data: {},
         units: [],
         players: players.map(player => ({
             id: player.id,
@@ -558,10 +750,14 @@ export function start_battle(players: Player[]): number {
         spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa),
         spawn_unit(battle, players[0], xy(3, 1), Unit_Type.sniper),
         spawn_unit(battle, players[0], xy(5, 1), Unit_Type.pudge),
+        spawn_unit(battle, players[0], xy(7, 1), Unit_Type.tidehunter),
+        spawn_unit(battle, players[0], xy(9, 1), Unit_Type.luna),
 
         spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
         spawn_unit(battle, players[1], xy(4, 7), Unit_Type.sniper),
         spawn_unit(battle, players[1], xy(6, 7), Unit_Type.pudge),
+        spawn_unit(battle, players[1], xy(8, 7), Unit_Type.tidehunter),
+        spawn_unit(battle, players[1], xy(10, 7), Unit_Type.luna),
     ];
 
     collapse_deltas(battle, battle.delta_head, spawn_deltas);

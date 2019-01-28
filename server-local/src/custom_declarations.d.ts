@@ -16,7 +16,7 @@ declare const enum Coroutine_Status {
 declare namespace coroutine {
     function create<T>(code: () => T): Coroutine<T>;
     function yield<T>(coroutine: Coroutine<T>, result?: T): T;
-    /** !TupleReturn */
+    /** @TupleReturn */
     function resume<T>(coroutine: Coroutine<T>, result?: T): [T | boolean, string | undefined];
     function running<T>(): Coroutine<T> | undefined;
     function status<T>(coroutine: Coroutine<T>): Coroutine_Status

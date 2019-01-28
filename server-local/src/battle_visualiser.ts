@@ -104,6 +104,8 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
         case Unit_Type.ursa: return "npc_dota_hero_ursa";
         case Unit_Type.pudge: return "npc_dota_hero_pudge";
         case Unit_Type.sniper: return "npc_dota_hero_sniper";
+        case Unit_Type.tidehunter: return "npc_dota_hero_tidehunter";
+        case Unit_Type.luna: return "npc_dota_hero_luna";
 
         default: return unreachable(unit_type);
     }
@@ -131,6 +133,41 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): B
     battle.units.push(unit);
 
     return unit;
+}
+
+function tracking_projectile_to_unit(source: Battle_Unit, target: Battle_Unit, particle_path: string, speed: number, out_attach: string = "attach_attack1") {
+    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, source.handle);
+    const in_attach = "attach_hitloc";
+
+    ParticleManager.SetParticleControlEnt(fx, 0, source.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, out_attach, Vector(), true);
+    ParticleManager.SetParticleControlEnt(fx, 1, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, in_attach, Vector(), true);
+    ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
+    ParticleManager.SetParticleControlEnt(fx, 3, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, in_attach, Vector(), true);
+
+    const world_distance = (attachment_world_origin(source.handle, out_attach) - attachment_world_origin(target.handle, in_attach) as Vector).Length();
+
+    wait(world_distance / speed);
+
+    ParticleManager.DestroyParticle(fx, false);
+    ParticleManager.ReleaseParticleIndex(fx);
+}
+
+function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_path: string, speed: number) {
+    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, source.handle);
+    const out_attach = "attach_attack1";
+    const world_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
+
+    ParticleManager.SetParticleControlEnt(fx, 0, source.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, out_attach, Vector(), true);
+    ParticleManager.SetParticleControl(fx, 1, world_location);
+    ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
+    ParticleManager.SetParticleControl(fx, 3, world_location);
+
+    const world_distance = (attachment_world_origin(source.handle, out_attach) - world_location as Vector).Length();
+
+    wait(world_distance / speed);
+
+    ParticleManager.DestroyParticle(fx, false);
+    ParticleManager.ReleaseParticleIndex(fx);
 }
 
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, effect: Ability_Effect_Pudge_Hook) {
@@ -169,7 +206,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
     turn_unit_towards_target(pudge, target);
 
-    const chain_sound = "pudge_ability_hook_throw";
+    const chain_sound = "Hero_Pudge.AttackHookExtend";
     const hook_wearable = pudge.handle.GetTogglableWearable(DOTASlotType_t.DOTA_LOADOUT_TYPE_WEAPON);
 
     pudge.handle.StartGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
@@ -204,8 +241,9 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         play_delta(main_player, damage);
 
         pudge.handle.StopSound(chain_sound);
-        target.handle.EmitSound("pudge_ability_hook_impact");
+        target.handle.EmitSound("Hero_Pudge.AttackHookImpact");
         target.handle.EmitSound(chain_sound);
+        target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
 
         const move_target = find_unit_by_id(move.unit_id);
 
@@ -241,6 +279,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
         }
 
         target.handle.StopSound(chain_sound);
+        target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
 
         move_target.position = move.to_position;
     } else {
@@ -248,8 +287,8 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
         ParticleManager.SetParticleControl(chain, 1, pudge_origin);
 
-        pudge.handle.StopSound("pudge_ability_hook_throw");
-        EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(travel_target), "pudge_ability_hook_miss", pudge.handle);
+        pudge.handle.StopSound(chain_sound);
+        EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(travel_target), "Hero_Pudge.AttackHookRetractStop", pudge.handle);
 
         wait(time_to_travel);
     }
@@ -262,28 +301,42 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Basic_Attack, target: XY) {
     function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
         switch (type) {
-            case Unit_Type.pudge: return "pudge_pre_attack";
-            case Unit_Type.ursa: return "ursa_pre_attack";
+            case Unit_Type.pudge: return "Hero_Pudge.PreAttack";
+            case Unit_Type.ursa: return "Hero_Ursa.PreAttack";
+            case Unit_Type.tidehunter: return "hero_tidehunter.PreAttack";
         }
     }
 
     function get_unit_attack_sound(type: Unit_Type): string | undefined {
         switch (type) {
-            case Unit_Type.pudge: return "pudge_attack";
-            case Unit_Type.ursa: return "ursa_attack";
-            case Unit_Type.sniper: return "sniper_attack";
+            case Unit_Type.pudge: return "Hero_Pudge.Attack";
+            case Unit_Type.ursa: return "Hero_Ursa.Attack";
+            case Unit_Type.sniper: return "Hero_Sniper.attack";
+            case Unit_Type.luna: return "Hero_Luna.Attack";
+            case Unit_Type.tidehunter: return "hero_tidehunter.Attack";
         }
     }
 
     function get_unit_ranged_impact_sound(type: Unit_Type): string | undefined {
         switch (type) {
-            case Unit_Type.sniper: return "sniper_impact";
+            case Unit_Type.sniper: return "Hero_Sniper.ProjectileImpact";
+            case Unit_Type.luna: return "Hero_Luna.ProjectileImpact";
         }
     }
 
-    function get_ranged_attack_particle(type: Unit_Type): string | undefined {
+    function get_ranged_attack_spec(type: Unit_Type): [ string, number, number ] | undefined {
         switch (type) {
-            case Unit_Type.sniper: return "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf";
+            case Unit_Type.sniper: return [ "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf", 1600, 0.1 ];
+            case Unit_Type.luna: return [ "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf", 900, 0.4 ];
+        }
+    }
+
+    function get_unit_attack_vo(type: Unit_Type): string | undefined {
+        switch (type) {
+            case Unit_Type.sniper: return "vo_sniper_attack";
+            case Unit_Type.luna: return "vo_luna_attack";
+            case Unit_Type.pudge: return "vo_pudge_attack";
+            case Unit_Type.tidehunter: return "vo_tide_attack";
         }
     }
 
@@ -295,54 +348,37 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
         }
     }
 
-    const ranged_attack_particle = get_ranged_attack_particle(unit.type);
+    const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
-    if (ranged_attack_particle) {
+    if (ranged_attack_spec) {
+        const [particle, speed, attack_point] = ranged_attack_spec;
+
+        try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
+        wait(0.2);
         try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
-        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, 0.1);
-
-        const fx = ParticleManager.CreateParticle(ranged_attack_particle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, unit.handle);
-        const speed = 1600;
-
+        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, attack_point);
         try_play_sound_for_unit(unit, get_unit_attack_sound);
 
-        const out_attach = "attach_attack1";
-        const in_attach = "attach_hitloc";
-
-        ParticleManager.SetParticleControlEnt(fx, 0, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_attack1", Vector(), true);
-        ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
-
         if (effect.delta) {
-            const target = find_unit_by_id(effect.delta.target_unit_id);
+            const target_unit = find_unit_by_id(effect.delta.target_unit_id);
 
-            if (!target) {
+            if (!target_unit) {
                 log_chat_debug_message(`Error: unit ${effect.delta.target_unit_id} not found`);
                 return;
             }
 
-            ParticleManager.SetParticleControlEnt(fx, 1, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
-
-            const world_distance = (attachment_world_origin(unit.handle, out_attach) - attachment_world_origin(target.handle, in_attach) as Vector).Length();
-
-            wait(world_distance / speed);
+            tracking_projectile_to_unit(unit, target_unit, particle, speed);
             play_delta(main_player, effect.delta);
-
-            try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target);
+            try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target_unit);
         } else {
             // TODO actual miss location, not just target location
-            const world_miss_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
-            const world_distance = (attachment_world_origin(unit.handle, out_attach) - world_miss_location as Vector).Length();
-
-            ParticleManager.SetParticleControl(fx, 1, world_miss_location);
-
-            wait(world_distance / speed);
+            tracking_projectile_to_point(unit, target, particle, speed);
         }
-
-        ParticleManager.DestroyParticle(fx, false);
-        ParticleManager.ReleaseParticleIndex(fx);
     } else {
+        try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
+        wait(0.2);
         try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
 
         const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
@@ -391,8 +427,23 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             break;
         }
 
+        case Ability_Id.tide_gush: {
+            const fx = "particles/units/heroes/hero_tidehunter/tidehunter_gush.vpcf";
+
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.2);
+            unit.handle.EmitSound("Ability.GushCast");
+            tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
+            unit.handle.EmitSound("Ability.GushImpact");
+
+            if (effect.type == Ability_Effect_Type.ability) {
+                play_delta(main_player, effect.delta)
+            }
+
+            break;
+        }
+
         default: {
-            log_chat_debug_message(`Error: unit target ability ${effect.ability_id} not found`);
+            log_chat_debug_message(`Error: unit target ability with id ${effect.ability_id} not found`);
         }
     }
 }
@@ -426,6 +477,92 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             break;
         }
 
+        case Ability_Id.tide_anchor_smash: {
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_3);
+
+            wait(0.2);
+
+            const path = "particles/units/heroes/hero_tidehunter/tidehunter_anchor_hero.vpcf";
+            const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+            ParticleManager.ReleaseParticleIndex(fx);
+
+            unit.handle.EmitSound("Hero_Tidehunter.AnchorSmash");
+
+            wait(0.2);
+
+            if (effect.type == Ability_Effect_Type.ability) {
+                for (const delta of from_client_array(effect.deltas)) {
+                    play_delta(main_player, delta);
+                }
+            }
+
+            wait(1);
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_3);
+
+            break;
+        }
+
+        case Ability_Id.tide_ravage: {
+            if (effect.type != Ability_Effect_Type.ability) return;
+
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            wait(0.1);
+
+            unit.handle.EmitSound("Ability.Ravage");
+
+            const path = "particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage.vpcf";
+            const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+            const particle_delay = 0.35;
+            const deltas_by_distance: Battle_Delta_Modifier_Applied[][] = [];
+            const deltas = from_client_array(effect.deltas);
+
+            for (let distance = 1; distance <= 5; distance++) {
+                ParticleManager.SetParticleControl(fx, distance, Vector(distance * battle_cell_size * 0.85, 0, 0));
+            }
+
+            for (const delta of deltas) {
+                const target = find_unit_by_id(delta.target_unit_id);
+
+                if (!target) {
+                    log_chat_debug_message(`Target with id ${delta.target_unit_id} not found`);
+                    continue;
+                }
+
+                const from = target.position;
+                const to = unit.position;
+                const manhattan_distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+
+                let by_distance = deltas_by_distance[manhattan_distance];
+
+                if (!by_distance) {
+                    by_distance = [];
+                    deltas_by_distance[manhattan_distance] = by_distance;
+                }
+
+                by_distance.push(delta);
+            }
+
+            for (let distance = 1; distance <= 5; distance++) {
+                const by_distance = deltas_by_distance[distance];
+
+                if (by_distance) {
+                    for (const delta of by_distance) {
+                        play_delta(main_player, delta);
+                    }
+                }
+
+                wait(particle_delay);
+            }
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            ParticleManager.ReleaseParticleIndex(fx);
+
+            break;
+        }
+
         default: {
             log_chat_debug_message(`Error: no target ability ${effect.ability_id} not found`);
         }
@@ -440,11 +577,80 @@ function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Un
             ParticleManager.SetParticleControl(fx, 1, target.handle.GetAbsOrigin());
             ParticleManager.ReleaseParticleIndex(fx);
 
-            target.handle.EmitSound("pudge_ability_fresh_meat");
+            target.handle.EmitSound("pudge_ability_flesh_heap");
 
             for (const delta of from_client_tuple(effect.deltas)) {
                 play_delta(main_player, delta);
             }
+
+            break;
+        }
+
+        case Ability_Id.tide_anchor_smash: {
+            if (effect.type == Ability_Effect_Type.modifier) {
+                const [damage] = from_client_tuple(effect.deltas);
+
+                play_delta(main_player, damage);
+            }
+
+            break;
+        }
+
+        case Ability_Id.tide_gush: {
+            if (effect.type == Ability_Effect_Type.modifier) {
+                const [damage] = from_client_tuple(effect.deltas);
+
+                play_delta(main_player, damage);
+            }
+
+            break;
+        }
+
+        case Ability_Id.tide_ravage: {
+            if (effect.type == Ability_Effect_Type.modifier) {
+                const [damage] = from_client_tuple(effect.deltas);
+                const target = find_unit_by_id(damage.target_unit_id);
+
+                if (!target) {
+                    log_chat_debug_message(`Unit with id ${damage.target_unit_id} not found`);
+                    return;
+                }
+
+                const path = "particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage_hit.vpcf";
+                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, target.handle);
+
+                ParticleManager.ReleaseParticleIndex(fx);
+
+                target.handle.EmitSound("Hero_Tidehunter.RavageDamage");
+
+                fork(() => {
+                    const start_time = GameRules.GetGameTime();
+                    const flight_time = 0.4;
+                    const start_origin = target.handle.GetAbsOrigin();
+
+                    target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
+
+                    while (true) {
+                        const now = GameRules.GetGameTime();
+                        const progress = Math.min(1, (now - start_time) / flight_time);
+                        const flight_height = Math.sin(progress * Math.PI) * 260;
+
+                        target.handle.SetAbsOrigin(start_origin + Vector(0, 0, flight_height) as Vector);
+
+                        if (now >= start_time + flight_time) {
+                            break;
+                        }
+
+                        wait_one_frame();
+                    }
+
+                    target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
+                });
+
+                play_delta(main_player, damage);
+            }
+
+            break;
         }
     }
 }
@@ -605,14 +811,18 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
+        case Battle_Delta_Type.start_turn: {
+            break;
+        }
+
         case Battle_Delta_Type.end_turn: {
             break;
         }
 
-        case Battle_Delta_Type.unit_level_change: {
+        case Battle_Delta_Type.unit_field_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
-            if (unit) {
+            if (unit && delta.field == Unit_Field.level) {
                 unit.level = delta.new_value;
                 unit.handle.EmitSound("hero_level_up");
 
@@ -683,10 +893,8 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.modifier_removed:
-        case Battle_Delta_Type.unit_max_health_change: {
-            break;
-        }
+        case Battle_Delta_Type.modifier_removed: break;
+        case Battle_Delta_Type.set_ability_cooldown_remaining: break;
 
         default: unreachable(delta);
     }

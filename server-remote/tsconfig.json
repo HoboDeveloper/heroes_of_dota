@@ -14,6 +14,7 @@
   "include": [
     "src/**/*.ts",
     "../api_definitions/api.d.ts",
+    "../api_definitions/abilities.d.ts",
     "../battle-sim/dist/battle_sim.d.ts"
   ],
   "exclude": [

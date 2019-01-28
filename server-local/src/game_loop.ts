@@ -1,4 +1,4 @@
-/** !TupleReturn */
+/** @TupleReturn */
 declare function next(a: any, prev: any): [any, any];
 declare function type(a: any): "table" | "string" | "number";
 declare function tonumber(a: string): number;

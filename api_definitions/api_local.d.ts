@@ -1,14 +1,14 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
 type Visualizer_Unit_Data = {
-    id: number,
-    level: number,
-    health: number,
+    id: number
+    level: number
+    health: number
     mana: number
 }
 
 type Player_Net_Table_Base = {
-    id: number,
+    id: number
     token: string
 }
 
@@ -21,49 +21,49 @@ type Player_Net_Table_On_Global_Map = Player_Net_Table_Base & {
 }
 
 type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
-    state: Player_State.in_battle,
+    state: Player_State.in_battle
     battle: {
-        participants: Battle_Player[],
+        participants: Battle_Player[]
         world_origin: {
-            x: number,
+            x: number
             y: number
-        },
+        }
         grid_size: {
-            width: number,
+            width: number
             height: number
         }
-        entity_id_to_unit_data: { [entity_id: number]: Visualizer_Unit_Data },
+        entity_id_to_unit_data: { [entity_id: number]: Visualizer_Unit_Data }
         current_visual_head: number
     }
 }
 
-type Player_Net_Table = Player_Net_Table_On_Global_Map | Player_Net_Table_In_Battle | Player_Net_Table_Not_Logged_In;
+type Player_Net_Table = Player_Net_Table_On_Global_Map | Player_Net_Table_In_Battle | Player_Net_Table_Not_Logged_In
 
 type Put_Battle_Deltas_Event = {
-    deltas: Battle_Delta[],
-    delta_paths: Move_Delta_Paths,
+    deltas: Battle_Delta[]
+    delta_paths: Move_Delta_Paths
     from_head: number
 }
 
 type Debug_Chat_Message_Event = {
-    message: string;
+    message: string
 }
 
-type Fast_Forward_Event = Battle_Snapshot;
+type Fast_Forward_Event = Battle_Snapshot
 
 type Unit_Snapshot = Visualizer_Unit_Data & {
-    type: Unit_Type,
+    type: Unit_Type
     position: {
-        x: number,
+        x: number
         y: number
-    },
+    }
     facing: {
-        x: number,
+        x: number
         y: number
     }
 }
 
 type Battle_Snapshot = {
-    units: Unit_Snapshot[],
+    units: Unit_Snapshot[]
     delta_head: number
 }

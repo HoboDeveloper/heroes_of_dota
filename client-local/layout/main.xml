@@ -30,7 +30,7 @@
                 <Label text="End turn"/>
             </Button>
 
-            <Panel id="health_bar_container"/>
+            <Panel id="health_bar_container" hittest="false"/>
         </Panel>
 
         <Panel id="global_map_ui">

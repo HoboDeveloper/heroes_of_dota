@@ -82,7 +82,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 1,
                         targeting: target_line(5),
                         cooldown: 2,
-                        mana_cost: 3
+                        mana_cost: 3,
+                        damage: 6
                     }),
                     passive_ability<Ability_Pudge_Flesh_Heap>({
                         available_since_level: 2,
@@ -92,7 +93,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 3,
                         targeting: target_rect_area_around_caster(1),
                         cooldown: 1,
-                        mana_cost: 1
+                        mana_cost: 1,
+                        damage: 5
                     }),
                     active_ability<Ability_Pudge_Dismember>({
                         available_since_level: 4,
@@ -101,6 +103,54 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         mana_cost: 4
                     })
                 ]
+            }
+        }
+
+        case Unit_Type.tidehunter: {
+            return {
+                health: 35,
+                mana: 10,
+                move_points: 3,
+                attack: basic_attack(6, 1),
+                abilities: [
+                    active_ability<Ability_Tide_Gush>({
+                        available_since_level: 1,
+                        targeting: target_unit_in_manhattan_distance(6),
+                        cooldown: 2,
+                        mana_cost: 4,
+                        damage: 4,
+                        move_points_reduction: 2
+                    }),
+                    active_ability<Ability_Tide_Anchor_Smash>({
+                        available_since_level: 2,
+                        targeting: target_rect_area_around_caster(1),
+                        cooldown: 1,
+                        mana_cost: 2,
+                        damage: 4,
+                        attack_reduction: 2
+                    }),
+                    passive_ability<Ability_Tide_Kraken_Shell>({
+                        available_since_level: 3,
+                        attack_reduction: 3
+                    }),
+                    active_ability<Ability_Tide_Ravage>({
+                        available_since_level: 4,
+                        targeting: target_unit_in_manhattan_distance(5),
+                        damage: 5,
+                        cooldown: 3,
+                        mana_cost: 5
+                    })
+                ]
+            }
+        }
+
+        case Unit_Type.luna: {
+            return {
+                health: 25,
+                mana: 12,
+                move_points: 4,
+                attack: basic_attack(5, 2),
+                abilities: []
             }
         }
 

@@ -147,6 +147,8 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
 
         const flat_deltas = flatten_deltas([ delta ]);
 
+        $.Msg(flat_deltas);
+
         for (let flat_delta of flat_deltas) {
             update_related_visual_data_from_delta(flat_delta, delta_paths);
             collapse_delta(battle, flat_delta);
@@ -448,11 +450,37 @@ function update_grid_visuals() {
                 switch (ability.type) {
                     case Ability_Type.target_ground: {
                         if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
-                            alpha = 80;
+                            alpha = 140;
                             cell_color = color_red;
                         }
 
                         break;
+                    }
+
+                    case Ability_Type.no_target: {
+                        const targeting = ability.targeting;
+
+                        switch (targeting.type) {
+                            case Ability_Targeting_Type.rectangular_area_around_caster: {
+                                if (rectangular(selected_unit.position, cell.position) <= targeting.area_radius) {
+                                    alpha = 140;
+                                    cell_color = color_red;
+                                }
+
+                                break;
+                            }
+
+                            case Ability_Targeting_Type.unit_in_manhattan_distance: {
+                                if (manhattan(selected_unit.position, cell.position) <= targeting.distance) {
+                                    alpha = 140;
+                                    cell_color = color_red;
+                                }
+
+                                break;
+                            }
+
+                            default: unreachable(targeting);
+                        }
                     }
                 }
             }
@@ -606,7 +634,7 @@ function make_battle_snapshot(): Battle_Snapshot {
             .filter(unit => !unit.dead)
             .map(unit => ({
                 id: unit.id,
-                level: unit.level,
+                level: unit[Unit_Field.level],
                 health: unit.health,
                 mana: unit.mana,
                 position: unit.position,
@@ -631,6 +659,10 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.pudge_flesh_heap: return "pudge_flesh_heap";
         case Ability_Id.pudge_dismember: return "pudge_dismember";
         case Ability_Id.sniper_shrapnel: return "sniper_shrapnel";
+        case Ability_Id.tide_gush: return "tidehunter_gush";
+        case Ability_Id.tide_anchor_smash: return "tidehunter_anchor_smash";
+        case Ability_Id.tide_kraken_shell: return "tidehunter_kraken_shell";
+        case Ability_Id.tide_ravage: return "tidehunter_ravage";
     }
 
     return unreachable(ability_id);
@@ -641,6 +673,8 @@ function get_hero_name(type: Unit_Type): string {
         case Unit_Type.sniper: return "sniper";
         case Unit_Type.pudge: return "pudge";
         case Unit_Type.ursa: return "ursa";
+        case Unit_Type.tidehunter: return "tidehunter";
+        case Unit_Type.luna: return "luna";
 
         default: return unreachable(type);
     }
@@ -675,15 +709,30 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
     const indicators = $.CreatePanel("Panel", portrait, "indicators");
 
-    const level = create_indicator(indicators, "level_indicator", unit.level);
+    const level = create_indicator(indicators, "level_indicator", unit[Unit_Field.level]);
     const health = create_indicator(indicators, "health_indicator", unit.health);
     const mana = create_indicator(indicators, "mana_indicator", unit.mana);
 
     const ability_buttons: Hero_Ability_Button[] = [];
 
     for (const ability of unit.abilities) {
-        const ability_panel = $.CreatePanel("Panel", abilities, "");
+        const ability_panel = $.CreatePanel("Button", abilities, "");
         ability_panel.AddClass("ability_button");
+
+        ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+            $.Msg("over");
+            const selected = find_unit_by_entity_id(battle, current_selected_entity);
+
+            if (selected && selected.id == unit.id) {
+                set_current_targeted_ability(ability.id);
+            }
+        });
+
+        ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
+            if (current_targeted_ability == ability.id) {
+                set_current_targeted_ability(undefined);
+            }
+        });
 
         const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
         safely_set_panel_background_image(ability_image, `file://{images}/spellicons/${get_ability_icon(ability.id)}.png`);
@@ -716,7 +765,7 @@ function update_hero_control_panel_state(unit: Unit) {
     // TODO Might be worth it to try and granularly update labels. But probably not
     row.health.label.text = unit.health.toString();
     row.mana.label.text = unit.mana.toString();
-    row.level.label.text = unit.level.toString();
+    row.level.label.text = unit[Unit_Field.level].toString();
 
     for (const ability_button of row.ability_buttons) {
         const ability = find_unit_ability(unit, ability_button.ability);
@@ -724,7 +773,7 @@ function update_hero_control_panel_state(unit: Unit) {
         if (!ability) continue;
         if (ability.id == Ability_Id.basic_attack) continue;
 
-        const is_available = unit.level >= ability.available_since_level;
+        const is_available = unit[Unit_Field.level] >= ability.available_since_level;
 
         ability_button.ability_panel.SetHasClass("not_learned", !is_available);
 

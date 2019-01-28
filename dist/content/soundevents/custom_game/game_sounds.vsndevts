@@ -9,122 +9,6 @@
         vsnd_files = "sounds/ui/bonus_level.vsnd"
     }
 
-    pudge_pre_attack = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/shared/small_blade/whoosh01.vsnd",
-            "sounds/weapons/hero/shared/small_blade/whoosh02.vsnd",
-            "sounds/weapons/hero/shared/small_blade/whoosh03.vsnd",
-            "sounds/weapons/hero/shared/small_blade/whoosh04.vsnd",
-        ]
-        volume_rand_min = -0.149902
-        volume_rand_max = 0.149902
-        volume = 0.849609
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 78
-        distance_max = 1500
-        event_type = 1
-    }
-
-    pudge_attack = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/pudge/attack01.vsnd",
-            "sounds/weapons/hero/pudge/attack02.vsnd",
-            "sounds/weapons/hero/pudge/attack03.vsnd",
-        ]
-        volume_rand_min = -0.25
-        volume_rand_max = 0.25
-        volume = 0.75
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        pitch = 1
-        soundlevel = 78
-        mixgroup = "BaseAttacks"
-        spread_radius = 150
-        distance_max = 2500
-        soundevent_layer2 = "pudge_attack_rip"
-        soundevent_layer2_on = 1
-        soundevent_layer3 = "pudge_attack_ring"
-        soundevent_layer3_on = 1
-    }
-
-    pudge_attack_rip = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/shared/large_blade/follow_thru01.vsnd",
-            "sounds/weapons/hero/shared/large_blade/follow_thru02.vsnd",
-            "sounds/weapons/hero/shared/large_blade/follow_thru03.vsnd",
-        ]
-        volume_rand_min = -0.25
-        volume_rand_max = 0.25
-        volume = 0.75
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        pitch = 1
-        soundlevel = 75
-        distance_max = 2500
-        rand_delay_min = 0.05
-        rand_delay_max = 0.12
-        soundevent_layer2 = "Damage_Melee.Gore"
-        soundevent_layer2_on = 1
-        limiter_on = 0
-    }
-
-    pudge_attack_ring = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/physics/movement/hero/pudge/chain_movement1.vsnd",
-            "sounds/physics/movement/hero/pudge/chain_movement2.vsnd",
-            "sounds/physics/movement/hero/pudge/chain_movement3.vsnd",
-            "sounds/physics/movement/hero/pudge/chain_movement4.vsnd",
-        ]
-        volume_rand_min = -0.449951
-        volume_rand_max = 0.449951
-        volume = 0.449951
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        pitch = 1
-        soundlevel = 78
-        mixgroup = "BaseAttacks"
-        spread_radius = 150
-        distance_max = 2500
-        rand_delay_min = 0.12
-        rand_delay_max = 0.17
-    }
-
-    pudge_ability_hook_throw = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/pudge/hook_throw.vsnd",
-        ]
-        soundlevel = 81
-    }
-
-    pudge_ability_hook_impact = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/pudge/hook_impact.vsnd",
-        ]
-        soundlevel = 81
-    }
-
-    pudge_ability_hook_miss = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/pudge/hook_retract_stop.vsnd",
-        ]
-        soundlevel = 81
-    }
-
     pudge_ability_rot = {
         type = "dota_update_default"
         vsnd_files =
@@ -142,7 +26,7 @@
         spread_radius = 300
     }
 
-    pudge_ability_fresh_meat = {
+    pudge_ability_flesh_heap = {
         type = "dota_update_default"
         vsnd_files =
         [
@@ -155,80 +39,74 @@
         event_type = 1
     }
 
-    ursa_pre_attack = {
-        type = "dota_update_default"
+    vo_luna_attack = {
+        type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/weapons/hero/earthshaker/fist_swing1.vsnd",
-            "sounds/weapons/hero/earthshaker/fist_swing2.vsnd",
-            "sounds/weapons/hero/earthshaker/fist_swing3.vsnd"
+            "sounds/vo/luna/luna_attack_01.vsnd",
+            "sounds/vo/luna/luna_attack_02.vsnd",
+            "sounds/vo/luna/luna_attack_03.vsnd",
+            "sounds/vo/luna/luna_attack_04.vsnd",
+            "sounds/vo/luna/luna_attack_05.vsnd",
+            "sounds/vo/luna/luna_attack_06.vsnd",
+            "sounds/vo/luna/luna_attack_07.vsnd",
+            "sounds/vo/luna/luna_attack_08.vsnd",
+            "sounds/vo/luna/luna_attack_09.vsnd",
+            "sounds/vo/luna/luna_attack_12.vsnd",
+            "sounds/vo/luna/luna_attack_13.vsnd",
+            "sounds/vo/luna/luna_attack_14.vsnd",
+            "sounds/vo/luna/luna_attack_16.vsnd",
+            "sounds/vo/luna/luna_attack_17.vsnd",
+            "sounds/vo/luna/luna_attack_18.vsnd",
+            "sounds/vo/luna/luna_attack_19.vsnd",
+            "sounds/vo/luna/luna_attack_20.vsnd",
+            "sounds/vo/luna/luna_attack_21.vsnd",
+            "sounds/vo/luna/luna_attack_22.vsnd",
+            "sounds/vo/luna/luna_attack_24.vsnd",
+            "sounds/vo/luna/luna_attack_25.vsnd",
+            "sounds/vo/luna/luna_attack_26.vsnd",
+            "sounds/vo/luna/luna_attack_27.vsnd",
+            "sounds/vo/luna/luna_attack_28.vsnd",
         ]
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 75
-        event_type = 1
     }
 
-    ursa_attack = {
-        type = "dota_update_default"
+    vo_sniper_attack = {
+        type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/weapons/hero/ursa/ursa_attack_01.vsnd",
-            "sounds/weapons/hero/ursa/ursa_attack_02.vsnd",
-            "sounds/weapons/hero/ursa/ursa_attack_03.vsnd"
+            "sounds/vo/sniper/snip_attack_01.vsnd",
+            "sounds/vo/sniper/snip_attack_02.vsnd",
+            "sounds/vo/sniper/snip_attack_03.vsnd",
+            "sounds/vo/sniper/snip_attack_04.vsnd",
+            "sounds/vo/sniper/snip_attack_07.vsnd",
+            "sounds/vo/sniper/snip_attack_08.vsnd",
+            "sounds/vo/sniper/snip_attack_09.vsnd",
+            "sounds/vo/sniper/snip_attack_12.vsnd",
         ]
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 78
-        event_type = 1
-        soundevent_layer2 = "ursa_attack_post"
     }
 
-    ursa_attack_post = {
-        type = "dota_update_default"
+    vo_pudge_attack = {
+        type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/physics/damage/npc/rip01.vsnd",
-            "sounds/physics/damage/npc/rip02.vsnd",
-            "sounds/physics/damage/npc/rip03.vsnd",
-            "sounds/physics/damage/npc/rip04.vsnd",
+            "sounds/vo/pudge/pud_attack_01.vsnd",
+            "sounds/vo/pudge/pud_attack_05.vsnd",
+            "sounds/vo/pudge/pud_attack_07.vsnd",
+            "sounds/vo/pudge/pud_attack_09.vsnd",
+            "sounds/vo/pudge/pud_attack_10.vsnd",
+            "sounds/vo/pudge/pud_attack_11.vsnd",
+            "sounds/vo/pudge/pud_attack_12.vsnd",
         ]
-        volume_rand_min = -0.25
-        volume_rand_max = 0.25
-        volume = 0.75
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 75
-        rand_delay_min = 0.05
-        rand_delay_max = 0.12
-        soundevent_layer2 = "Damage_Melee.Gore"
-        soundevent_layer2_on = 1
-        limiter_on = 0
     }
 
-    sniper_attack = {
-        type = "dota_update_default"
+    vo_tide_attack = {
+        type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/weapons/hero/sniper/sniper_attack.vsnd"
+            "sounds/vo/tidehunter/tide_attack_03.vsnd",
+            "sounds/vo/tidehunter/tide_attack_04.vsnd",
+            "sounds/vo/tidehunter/tide_attack_05.vsnd",
+            "sounds/vo/tidehunter/tide_attack_08.vsnd",
         ]
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 78
-        event_type = 1
     }
-
-    sniper_impact = {
-        type = "dota_update_default"
-        vsnd_files =
-        [
-            "sounds/weapons/hero/sniper/projectile_impact01.vsnd",
-            "sounds/weapons/hero/sniper/projectile_impact02.vsnd"
-        ]
-        pitch_rand_min = -0.05
-        pitch_rand_max = 0.05
-        soundlevel = 72
-        event_type = 1
-    }
-
 }

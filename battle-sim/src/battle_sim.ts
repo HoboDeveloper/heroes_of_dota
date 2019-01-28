@@ -46,14 +46,24 @@ type Unit = {
     position: XY;
     health: number;
     mana: number;
-    max_health: number;
-    max_mana: number,
     move_points: number;
-    max_move_points: number;
     has_taken_an_action_this_turn: boolean;
-    level: number;
     attack: Ability;
+    [Unit_Field.level]: number;
+    [Unit_Field.max_mana]: number;
+    [Unit_Field.max_health]: number;
+    [Unit_Field.max_move_points]: number;
+    [Unit_Field.attack_bonus]: number;
+    [Unit_Field.state_stunned_counter]: number
     abilities: Ability[];
+    modifiers: Modifier[]
+}
+
+type Modifier = {
+    id: number
+    source: Unit
+    source_ability: Ability_Id
+    duration_remaining: number
 }
 
 type Ability_Passive = Ability_Definition_Passive;
@@ -107,12 +117,29 @@ function manhattan(from: XY, to: XY) {
     return Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 }
 
+function rectangular(from: XY, to: XY) {
+    const delta_x = from.x - to.x;
+    const delta_y = from.y - to.y;
+
+    return Math.max(Math.abs(delta_x), Math.abs(delta_y));
+}
+
 function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
     return battle.units.find(unit => unit.id == id);
+}
+
+function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | undefined {
+    for (const unit of battle.units) {
+        for (const modifier of unit.modifiers) {
+            if (modifier.id == id) {
+                return [unit, modifier];
+            }
+        }
+    }
 }
 
 // TODO replace with a more efficient A* implementation
@@ -218,10 +245,7 @@ function are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(a:
 }
 
 function pass_turn_to_next_player(battle: Battle) {
-    for (const unit of battle.units) {
-        unit.move_points = unit.max_move_points;
-        unit.has_taken_an_action_this_turn = false;
-    }
+    const turn_passed_from_player_id = battle.players[battle.turning_player_index].id;
 
     battle.turning_player_index++;
 
@@ -229,13 +253,17 @@ function pass_turn_to_next_player(battle: Battle) {
         battle.turning_player_index -= battle.players.length;
     }
 
-    const turning_player_id = battle.players[battle.turning_player_index].id;
-
     for (const unit of battle.units) {
-        if (unit.owner_player_id == turning_player_id) {
+        if (unit.owner_player_id == turn_passed_from_player_id) {
             for (const ability of unit.abilities) {
                 if (ability.type != Ability_Type.passive && ability.cooldown_remaining > 0) {
                     ability.cooldown_remaining--;
+                }
+            }
+
+            for (const modifier of unit.modifiers) {
+                if (modifier.duration_remaining > 0) {
+                    modifier.duration_remaining--;
                 }
             }
         }
@@ -308,7 +336,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
 
     if (!ability) return error(Ability_Error.other);
 
-    if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
+    if (unit[Unit_Field.level] < ability.available_since_level) return error(Ability_Error.not_learned_yet);
 
     if (ability.type == Ability_Type.passive) return error(Ability_Error.other);
     if (ability.cooldown_remaining > 0) return error(Ability_Error.on_cooldown);
@@ -327,6 +355,9 @@ function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | unde
         case Ability_Id.pudge_rot: return effect.deltas;
         case Ability_Id.pudge_dismember: return [ effect.damage_delta, effect.heal_delta ];
         case Ability_Id.pudge_flesh_heap: return effect.deltas;
+        case Ability_Id.tide_gush: if (effect.type == Ability_Effect_Type.ability) return flatten_deltas([ effect.delta ]); return flatten_deltas(effect.deltas);
+        case Ability_Id.tide_anchor_smash: return flatten_deltas(effect.deltas); // TODO we need a recursive flattener
+        case Ability_Id.tide_ravage: return flatten_deltas(effect.deltas);
 
         default: unreachable(effect);
     }
@@ -356,15 +387,18 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 position: delta.at_position,
                 attack: ability_definition_to_ability(definition.attack),
                 move_points: definition.move_points,
-                max_move_points: definition.move_points,
                 health: definition.health,
-                max_health: definition.health,
                 mana: definition.mana,
-                max_mana: definition.mana,
                 dead: false,
                 has_taken_an_action_this_turn: false,
-                level: 1,
-                abilities: definition.abilities.map(ability_definition_to_ability)
+                abilities: definition.abilities.map(ability_definition_to_ability),
+                modifiers: [],
+                [Unit_Field.attack_bonus]: 0,
+                [Unit_Field.level]: 1,
+                [Unit_Field.max_mana]: definition.mana,
+                [Unit_Field.max_health]: definition.health,
+                [Unit_Field.max_move_points]: definition.move_points,
+                [Unit_Field.state_stunned_counter]: 0
             });
 
             grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
@@ -426,34 +460,77 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             break;
         }
 
+        case Battle_Delta_Type.start_turn: {
+            for (const unit of battle.units) {
+                unit.move_points = unit[Unit_Field.max_move_points];
+                unit.has_taken_an_action_this_turn = false;
+            }
+
+            break;
+        }
+
         case Battle_Delta_Type.end_turn: {
             pass_turn_to_next_player(battle);
 
             break;
         }
 
-        case Battle_Delta_Type.unit_level_change: {
+        case Battle_Delta_Type.unit_field_change: {
             const unit = find_unit_by_id(battle, delta.target_unit_id);
 
             if (unit) {
-                unit.level = delta.new_value;
+                unit[delta.field] = delta.new_value;
+
+                switch (delta.field) {
+                    case Unit_Field.max_move_points: unit.move_points = Math.min(unit.move_points, delta.new_value); break;
+                    case Unit_Field.max_health: unit.health = Math.min(unit.health, delta.new_value); break;
+                    case Unit_Field.max_mana: unit.mana = Math.min(unit.mana, delta.new_value); break;
+                }
             }
 
             break;
         }
 
-        case Battle_Delta_Type.unit_max_health_change: {
-            const unit = find_unit_by_id(battle, delta.target_unit_id);
-
-            if (unit) {
-                unit.max_health = delta.new_value;
-            }
-
-            break;
-        }
-
-        case Battle_Delta_Type.modifier_removed:
         case Battle_Delta_Type.modifier_appled: {
+            const unit = find_unit_by_id(battle, delta.target_unit_id);
+            const source = find_unit_by_id(battle, delta.source_unit_id);
+
+            if (unit && source) {
+                unit.modifiers.push({
+                    id: delta.modifier_id,
+                    source: source,
+                    source_ability: delta.effect.ability_id,
+                    duration_remaining: 1 // TODO
+                });
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.modifier_removed: {
+            const result = find_modifier_by_id(battle, delta.modifier_id);
+
+            if (result) {
+                const [unit, modifier] = result;
+                const index = unit.modifiers.indexOf(modifier);
+
+                unit.modifiers.splice(index, 1);
+            }
+
+            break;
+        }
+
+        case Battle_Delta_Type.set_ability_cooldown_remaining: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (unit) {
+                const ability = find_unit_ability(unit, delta.ability_id);
+
+                if (ability && ability.type != Ability_Type.passive) {
+                    ability.cooldown_remaining = delta.cooldown_remaining;
+                }
+            }
+
             break;
         }
 

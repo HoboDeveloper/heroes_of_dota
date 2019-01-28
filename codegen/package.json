@@ -8,7 +8,7 @@
     "path": "^0.12.7",
     "ttypescript": "^1.5.5",
     "typescript": "^2.9.2",
-    "typescript-to-lua": "^0.13.1"
+    "typescript-to-lua": "^0.14.0"
   },
   "author": "",
   "license": "ISC"

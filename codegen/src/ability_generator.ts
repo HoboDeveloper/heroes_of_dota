@@ -116,6 +116,8 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     // Specials
                     ts.createPropertyAssignment("damage", ts.createPropertyAccess(identifier, "damage")),
                     ts.createPropertyAssignment("health_per_kill", ts.createPropertyAccess(identifier, "health_per_kill")),
+                    ts.createPropertyAssignment("attack_reduction", ts.createPropertyAccess(identifier, "attack_reduction")),
+                    ts.createPropertyAssignment("move_points_reduction", ts.createPropertyAccess(identifier, "move_points_reduction")),
 
                     // Defaults
                     ts.createPropertyAssignment("cooldown_remaining",   ts.createLiteral(0)),
