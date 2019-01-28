@@ -261,10 +261,10 @@ type Battle_Delta_Unit_State_Stunned_Counter_Change = Battle_Delta_Unit_Field_Ch
     field: Unit_Field.state_stunned_counter
 }
 
-type Battle_Delta_Modifier_Applied = {
+type Battle_Delta_Modifier_Applied<T extends Ability_Effect> = {
     type: Battle_Delta_Type.modifier_appled
     modifier_id: number
-    effect: Ability_Effect
+    effect: T
     target_unit_id: number
     source_unit_id: number
 }
@@ -296,7 +296,7 @@ type Battle_Delta =
     Battle_Delta_Unit_Max_Move_Points_Change |
     Battle_Delta_Unit_Attack_Bonus_Change |
     Battle_Delta_Unit_State_Stunned_Counter_Change |
-    Battle_Delta_Modifier_Applied |
+    Battle_Delta_Modifier_Applied<any> |
     Battle_Delta_Modifier_Removed |
     Battle_Delta_Set_Ability_Cooldown_Remaining |
     Battle_Delta_Start_Turn |

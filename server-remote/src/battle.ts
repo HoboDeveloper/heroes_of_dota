@@ -148,7 +148,7 @@ function field_change_delta<T extends Unit_Field>(field: T, source: Unit, source
     }
 }
 
-function apply_modifier_delta(battle: Battle_Record, source: Unit, target: Unit, effect: Ability_Effect): Battle_Delta_Modifier_Applied {
+function apply_modifier_delta<T extends Ability_Effect>(battle: Battle_Record, source: Unit, target: Unit, effect: T): Battle_Delta_Modifier_Applied<T> {
     return {
         type: Battle_Delta_Type.modifier_appled,
         modifier_id: get_next_modifier_id(battle),
@@ -169,11 +169,11 @@ function damage_delta(source: Unit, source_ability: Ability_Id, target: Unit, da
     };
 }
 
-function field_change_to_modifier<T extends Unit_Field>(
+function field_change_to_modifier<T extends Unit_Field, U extends Ability_Effect>(
     battle: Battle_Record,
     modifier_data: Modifier_Data & { field: T },
-    effect_supplier: (delta: Battle_Delta_Unit_Field_Change & { field: T }) => Ability_Effect
-): Battle_Delta_Modifier_Applied {
+    effect_supplier: (delta: Battle_Delta_Unit_Field_Change & { field: T }) => U
+): Battle_Delta_Modifier_Applied<U> {
     const modifier_id = get_next_modifier_id(battle);
 
     push_modifier_data(battle, modifier_id, modifier_data);

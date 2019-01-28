@@ -155,7 +155,7 @@ type Ability_Effect_Pudge_Dismember = {
 type Ability_Effect_Tide_Gush = {
     ability_id: Ability_Id.tide_gush
     type: Ability_Effect_Type.ability
-    delta: Battle_Delta_Modifier_Applied
+    delta: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Gush_Modifier>
 }
 
 type Ability_Effect_Tide_Gush_Modifier = {
@@ -167,7 +167,7 @@ type Ability_Effect_Tide_Gush_Modifier = {
 type Ability_Effect_Tide_Anchor_Smash = {
     ability_id: Ability_Id.tide_anchor_smash
     type: Ability_Effect_Type.ability
-    deltas: Battle_Delta_Modifier_Applied[]
+    deltas: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash_Modifier>[]
 }
 
 type Ability_Effect_Tide_Anchor_Smash_Modifier = {
@@ -179,7 +179,7 @@ type Ability_Effect_Tide_Anchor_Smash_Modifier = {
 type Ability_Effect_Tide_Ravage = {
     ability_id: Ability_Id.tide_ravage
     type: Ability_Effect_Type.ability
-    deltas: Battle_Delta_Modifier_Applied[]
+    deltas: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[]
 }
 
 type Ability_Effect_Tide_Ravage_Modifier = {
