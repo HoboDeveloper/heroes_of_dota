@@ -568,6 +568,10 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
     try_find_associated_unit();
 }
 
+function dispose_of_unit_stat_bar_data(data: UI_Unit_Data) {
+    data.stat_bar_panel.DeleteAsync(0);
+}
+
 function process_state_update(state: Player_Net_Table) {
     if (state.state == Player_State.not_logged_in) {
         return;
@@ -576,9 +580,16 @@ function process_state_update(state: Player_Net_Table) {
     this_player_id = state.id;
 
     if (battle && state.state == Player_State.in_battle) {
+        const leftover_entity_ids = Object.keys(battle.entity_id_to_unit_data);
+
         for (const entity_id in state.battle.entity_id_to_unit_data) {
             const new_data = state.battle.entity_id_to_unit_data[entity_id];
             const existing_data = battle.entity_id_to_unit_data[entity_id];
+            const present_id_index = leftover_entity_ids.indexOf(entity_id);
+
+            if (present_id_index != -1) {
+                leftover_entity_ids.splice(present_id_index, 1);
+            }
 
             if (existing_data) {
                 existing_data.health = new_data.health;
@@ -592,6 +603,32 @@ function process_state_update(state: Player_Net_Table) {
 
                 battle.entity_id_to_unit_data[entity_id] = created_data;
             }
+        }
+
+        if (leftover_entity_ids.length > 0) {
+            $.Msg(`Cleaning up ${leftover_entity_ids.length} unit data entries`);
+        }
+
+        for (const leftover_id_string of leftover_entity_ids) {
+            const leftover_id = Number(leftover_id_string);
+
+            if (current_selected_entity == leftover_id) {
+                const old_selected_unit_data = battle.entity_id_to_unit_data[leftover_id];
+
+                for (const new_entity_id in state.battle.entity_id_to_unit_data) {
+                    const new_data = state.battle.entity_id_to_unit_data[new_entity_id];
+
+                    if (new_data.id == old_selected_unit_data.id) {
+                        current_selected_entity = Number(new_entity_id);
+
+                        break;
+                    }
+                }
+            }
+
+            dispose_of_unit_stat_bar_data(battle.entity_id_to_unit_data[leftover_id]);
+
+            delete battle.entity_id_to_unit_data[Number(leftover_id)];
         }
     }
 }
