@@ -28,6 +28,20 @@ type Battle_Unit = {
     mana: number;
 }
 
+declare const enum Shake {
+    weak = 0,
+    medium = 1,
+    strong = 2
+}
+
+type Ranged_Attack_Spec = {
+    particle_path: string;
+    projectile_speed: number;
+    attack_point: number;
+    shake_on_attack?: Shake;
+    shake_on_impact?: Shake;
+}
+
 declare let battle: Battle;
 
 const battle_cell_size = 128;
@@ -97,6 +111,29 @@ function battle_position_to_world_position_center(position: { x: number, y: numb
         battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
         battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
     )
+}
+
+function shake_screen(at: XY, strength: Shake) {
+    const at_world = battle_position_to_world_position_center(at);
+
+    switch (strength) {
+        case Shake.weak: {
+            ScreenShake(at_world, 5, 50, 0.15, 2000, 0, true);
+            break;
+        }
+
+        case Shake.medium: {
+            ScreenShake(at_world, 5, 100, 0.35, 3000, 0, true);
+            break;
+        }
+        
+        case Shake.strong: {
+            ScreenShake(at_world, 5, 150, 0.75, 4000, 0, true);
+            break;
+        }
+
+        default: unreachable(strength);
+    }
 }
 
 function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
@@ -305,9 +342,11 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Abilit
 
     unit.handle.EmitSound("Ability.Ravage");
 
-    const path = "particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage.vpcf";
+    shake_screen(unit.position, Shake.strong);
+
+    const path = "particles/tide_ravage/tide_ravage.vpcf";
     const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
-    const particle_delay = 0.35;
+    const particle_delay = 0.1;
     const deltas_by_distance: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[][] = [];
     const deltas = from_client_array(effect.deltas);
 
@@ -436,10 +475,20 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
         }
     }
 
-    function get_ranged_attack_spec(type: Unit_Type): [ string, number, number ] | undefined {
+    function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined {
         switch (type) {
-            case Unit_Type.sniper: return [ "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf", 1600, 0.1 ];
-            case Unit_Type.luna: return [ "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf", 900, 0.4 ];
+            case Unit_Type.sniper: return {
+                particle_path: "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf",
+                projectile_speed: 1600,
+                attack_point: 0.1,
+                shake_on_attack: Shake.weak
+            };
+
+            case Unit_Type.luna: return {
+                particle_path: "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf",
+                projectile_speed: 900,
+                attack_point: 0.4
+            };
         }
     }
 
@@ -463,14 +512,16 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
     const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
     if (ranged_attack_spec) {
-        const [particle, speed, attack_point] = ranged_attack_spec;
-
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
         try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
-        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, attack_point);
+        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, ranged_attack_spec.attack_point);
         try_play_sound_for_unit(unit, get_unit_attack_sound);
+
+        if (ranged_attack_spec.shake_on_attack) {
+            shake_screen(unit.position, ranged_attack_spec.shake_on_attack);
+        }
 
         if (effect.delta) {
             const target_unit = find_unit_by_id(effect.delta.target_unit_id);
@@ -480,12 +531,16 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
                 return;
             }
 
-            tracking_projectile_to_unit(unit, target_unit, particle, speed);
+            tracking_projectile_to_unit(unit, target_unit, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
             play_delta(main_player, effect.delta);
             try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target_unit);
+
+            if (ranged_attack_spec.shake_on_impact) {
+                shake_screen(target_unit.position, ranged_attack_spec.shake_on_impact);
+            }
         } else {
             // TODO actual miss location, not just target location
-            tracking_projectile_to_point(unit, target, particle, speed);
+            tracking_projectile_to_point(unit, target, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
         try_play_sound_for_unit(unit, get_unit_attack_vo);
@@ -499,6 +554,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
             play_delta(main_player, effect.delta);
         }
 
+        shake_screen(target, Shake.weak);
         try_play_sound_for_unit(unit, get_unit_attack_sound);
         wait(time_remaining * 0.95);
     }
@@ -546,6 +602,7 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             unit.handle.EmitSound("Ability.GushCast");
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
             unit.handle.EmitSound("Ability.GushImpact");
+            shake_screen(target.position, Shake.medium);
 
             if (effect.type == Ability_Effect_Type.ability) {
                 const [damage] = from_client_tuple(effect.delta.effect.deltas);
@@ -601,6 +658,8 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             ParticleManager.ReleaseParticleIndex(fx);
 
             unit.handle.EmitSound("Hero_Tidehunter.AnchorSmash");
+
+            shake_screen(unit.position, Shake.weak);
 
             wait(0.2);
 
