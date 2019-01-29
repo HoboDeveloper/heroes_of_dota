@@ -12,6 +12,55 @@
 @font-mono: RadianceM,Radiance,FZLanTingHei-R-GBK,TH Sarabun New,Gulim,MingLiU;
 @font-regular: Radiance,FZLanTingHei-R-GBK,TH Sarabun New,Gulim,MingLiU;
 
+#current_targeted_ability {
+  &.visible {
+    visibility: visible;
+  }
+
+  &.under_cursor {
+    opacity: 0.2;
+  }
+
+  visibility: collapse;
+  align: center bottom;
+  flow-children: right;
+  margin-bottom: 200px;
+  background-color: #000000dd;
+  border-radius: 8px;
+  transition-property: opacity;
+  transition-duration: 0.3s;
+
+  #text {
+    font-family: @font-regular;
+    font-size: 22px;
+    color: #cccccc;
+    align: left center;
+    text-align: center;
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-bottom: -4px;
+  }
+
+  #hero {
+    width: 48px;
+    height: 36px;
+    background-size: auto 100%;
+    background-position: center;
+    background-color: black; // Else the rendering bugs out
+    transform: scaleX(-1);
+    opacity-mask: url("s2r://panorama/images/masks/softedge_horizontal_softer_png.vtex");
+  }
+
+  #image {
+    width: 48px;
+    height: 36px;
+    background-size: 100% auto;
+    background-position: center;
+    background-color: black; // Else the rendering bugs out
+    opacity-mask: url("s2r://panorama/images/masks/softedge_horizontal_softer_png.vtex");
+  }
+}
+
 #control_panel {
   flow-children: right;
   align: left bottom;

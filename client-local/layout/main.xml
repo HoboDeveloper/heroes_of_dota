@@ -26,6 +26,12 @@
                 <Panel id="right_flare"/>
             </Panel>
 
+            <Panel id="current_targeted_ability" hittest="false" hittestchildren="false">
+                <Panel id="hero"/>
+                <Label id="text" text="Select ability target"/>
+                <Panel id="image"/>
+            </Panel>
+
             <Button id="end_turn_button" onactivate="end_turn();">
                 <Label text="End turn"/>
             </Button>

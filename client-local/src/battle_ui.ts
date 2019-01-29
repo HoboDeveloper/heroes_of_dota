@@ -3,6 +3,9 @@ let current_state = Player_State.not_logged_in;
 let this_player_id: number;
 let battle: UI_Battle;
 let current_targeted_ability: AbilityId | undefined;
+let current_hovered_ability: Ability_Id | undefined;
+
+const current_targeted_ability_ui = $("#current_targeted_ability");
 
 const control_panel: Control_Panel = {
     panel: $("#hero_rows"),
@@ -66,6 +69,16 @@ function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefin
     if (!unit_data) return;
 
     return find_unit_by_id(battle, unit_data.id);
+}
+
+function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [ EntityId, UI_Unit_Data ] | undefined {
+    for (const entity_id in battle.entity_id_to_unit_data) {
+        const data = battle.entity_id_to_unit_data[entity_id];
+
+        if (data.id == unit_id) {
+            return [ Number(entity_id), data ];
+        }
+    }
 }
 
 function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths: Move_Delta_Paths) {
@@ -147,7 +160,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
 
         const flat_deltas = flatten_deltas([ delta ]);
 
-        $.Msg(flat_deltas);
+        // $.Msg(flat_deltas);
 
         for (let flat_delta of flat_deltas) {
             update_related_visual_data_from_delta(flat_delta, delta_paths);
@@ -383,9 +396,15 @@ const color_green: XYZ = [ 128, 255, 128 ];
 const color_red: XYZ = [ 255, 128, 128 ];
 const color_yellow: XYZ = [ 255, 255, 0 ];
 
+function get_current_highlight_ability_id(): Ability_Id | undefined {
+    return current_targeted_ability != undefined ? current_targeted_ability : current_hovered_ability;
+}
+
 function update_grid_visuals() {
     let selected_unit: Unit | undefined;
     let selected_entity_path: Cost_Population_Result | undefined;
+
+    const highlighted_ability = get_current_highlight_ability_id();
 
     if (current_selected_entity != undefined) {
         selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
@@ -408,7 +427,7 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path && current_targeted_ability == undefined) {
+        if (selected_unit && selected_entity_path && highlighted_ability == undefined) {
             const cost = selected_entity_path.cell_index_to_cost[index];
 
             if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
@@ -443,8 +462,8 @@ function update_grid_visuals() {
             }
         }
 
-        if (selected_unit && current_targeted_ability != undefined) {
-            const ability = find_unit_ability(selected_unit, current_targeted_ability);
+        if (selected_unit && highlighted_ability != undefined) {
+            const ability = find_unit_ability(selected_unit, highlighted_ability);
 
             if (ability) {
                 switch (ability.type) {
@@ -690,7 +709,7 @@ function clear_control_panel() {
 
 function get_ability_icon(ability_id: Ability_Id): string {
     switch (ability_id) {
-        case Ability_Id.basic_attack: throw "Basic ability doesn't have an icon";
+        case Ability_Id.basic_attack: return "juggernaut_blade_dance";
         case Ability_Id.pudge_hook: return "pudge_meat_hook";
         case Ability_Id.pudge_rot: return "pudge_rot";
         case Ability_Id.pudge_flesh_heap: return "pudge_flesh_heap";
@@ -723,6 +742,14 @@ function safely_set_panel_background_image(panel: Panel, image: string) {
     panel.RemoveClass("fix_bg");
 }
 
+function get_full_ability_icon_path(id: Ability_Id): string {
+    return `file://{images}/spellicons/${get_ability_icon(id)}.png`;
+}
+
+function get_full_unit_icon_path(type: Unit_Type): string {
+    return `file://{images}/heroes/npc_dota_hero_${get_hero_name(type)}.png`;
+}
+
 function add_spawned_hero_to_control_panel(unit: Unit) {
     function create_indicator(parent: Panel, id: string, value: number): Stat_Indicator {
         const indicator = $.CreatePanel("Panel", parent, id);
@@ -742,7 +769,7 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
     const portrait = $.CreatePanel("Panel", hero_row, "hero_portrait");
     const abilities = $.CreatePanel("Panel", hero_row, "ability_row");
 
-    safely_set_panel_background_image(portrait, `file://{images}/heroes/npc_dota_hero_${get_hero_name(unit.type)}.png`);
+    safely_set_panel_background_image(portrait, get_full_unit_icon_path(unit.type));
 
     const indicators = $.CreatePanel("Panel", portrait, "indicators");
 
@@ -756,23 +783,34 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
         const ability_panel = $.CreatePanel("Button", abilities, "");
         ability_panel.AddClass("ability_button");
 
-        ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
-            $.Msg("over");
-            const selected = find_unit_by_entity_id(battle, current_selected_entity);
+        ability_panel.SetPanelEvent(PanelEvent.ON_LEFT_CLICK, () => {
+            const entity_data = find_unit_entity_data_by_unit_id(battle, unit.id);
 
-            if (selected && selected.id == unit.id) {
+            if (entity_data) {
+                const [ id ] = entity_data;
+
+                current_selected_entity = id;
+
                 set_current_targeted_ability(ability.id);
             }
         });
 
+        ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+            const selected = find_unit_by_entity_id(battle, current_selected_entity);
+
+            if (selected && selected.id == unit.id) {
+                set_current_hovered_ability(ability.id);
+            }
+        });
+
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
-            if (current_targeted_ability == ability.id) {
-                set_current_targeted_ability(undefined);
+            if (current_hovered_ability == ability.id) {
+                set_current_hovered_ability(undefined);
             }
         });
 
         const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
-        safely_set_panel_background_image(ability_image, `file://{images}/spellicons/${get_ability_icon(ability.id)}.png`);
+        safely_set_panel_background_image(ability_image, get_full_ability_icon_path(ability.id));
 
         const cooldown_layer = $.CreatePanel("Panel", ability_panel, "cooldown_layer");
 
@@ -826,6 +864,23 @@ function update_hero_control_panel_state(unit: Unit) {
 
 function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
     current_targeted_ability = new_ability_id;
+
+    update_grid_visuals();
+
+    const is_ui_visible = current_targeted_ability != undefined;
+
+    current_targeted_ability_ui.SetHasClass("visible", is_ui_visible);
+
+    if (is_ui_visible) {
+        const selected_unit = find_unit_by_entity_id(battle, current_selected_entity)!;
+
+        safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(selected_unit.type));
+        safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(current_targeted_ability!));
+    }
+}
+
+function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
+    current_hovered_ability = new_ability_id;
 
     update_grid_visuals();
 }
@@ -891,6 +946,17 @@ function periodically_update_ui() {
 
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
+
+    if (current_targeted_ability != undefined) {
+        const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
+        const { x, y } = current_targeted_ability_ui.GetPositionWithinWindow();
+        const width = current_targeted_ability_ui.actuallayoutwidth;
+        const height = current_targeted_ability_ui.actuallayoutheight;
+
+        const cursor_in_bounds = (cursor_x >= x && cursor_y >= y && cursor_x <= x + width && cursor_y <= y + height);
+
+        current_targeted_ability_ui.SetHasClass("under_cursor", cursor_in_bounds);
+    }
 }
 
 function periodically_update_stat_bar_display() {
