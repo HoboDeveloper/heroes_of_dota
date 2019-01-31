@@ -113,9 +113,15 @@ type Ability_Effect =
     Ability_Effect_Tide_Ravage |
     Ability_Effect_Tide_Ravage_Modifier;
 
+
+type Ability_Effect_Basic_Attack_Deltas_Hit = {
+    hit: true
+    delta: Battle_Delta_Health_Change
+}
+
 type Ability_Effect_Basic_Attack = {
     ability_id: Ability_Id.basic_attack
-    delta: Battle_Delta_Health_Change | undefined
+    result: Ability_Effect_Basic_Attack_Deltas_Hit | Ability_Effect_Line_Ability_Miss
 }
 
 type Ability_Effect_Pudge_Hook_Deltas_Hit = {
@@ -123,7 +129,7 @@ type Ability_Effect_Pudge_Hook_Deltas_Hit = {
     deltas: [ Battle_Delta_Health_Change, Battle_Delta_Unit_Force_Move ]
 }
 
-type Ability_Effect_Pudge_Hook_Deltas_Missed = {
+type Ability_Effect_Line_Ability_Miss = {
     hit: false
     final_point: {
         x: number
@@ -133,7 +139,7 @@ type Ability_Effect_Pudge_Hook_Deltas_Missed = {
 
 type Ability_Effect_Pudge_Hook = {
     ability_id: Ability_Id.pudge_hook
-    result: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Pudge_Hook_Deltas_Missed
+    result: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Line_Ability_Miss
 }
 
 type Ability_Effect_Pudge_Rot = {

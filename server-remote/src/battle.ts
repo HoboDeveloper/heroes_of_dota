@@ -64,12 +64,13 @@ function field_change<T extends Unit_Field>(source: Unit, target: Unit, ability_
 function scan_for_unit_in_direction(
     battle: Battle,
     from_exclusive: XY,
-    to_inclusive: XY,
-    direction_normal: XY = direction_normal_between_points(battle, from_exclusive, to_inclusive)
+    to: XY,
+    max_scan_distance: number,
+    direction_normal: XY = direction_normal_between_points(battle, from_exclusive, to)
 ): Scan_Result_Hit | Scan_Result_Missed {
     let current_cell = xy(from_exclusive.x, from_exclusive.y);
 
-    while (!xy_equal(to_inclusive, current_cell)) {
+    for (let scanned = 0; scanned < max_scan_distance; scanned++) {
         current_cell.x += direction_normal.x;
         current_cell.y += direction_normal.y;
 
@@ -93,13 +94,15 @@ function scan_for_unit_in_direction(
         }
     }
 
-    return { hit: false, final_point: to_inclusive };
+    return { hit: false, final_point: current_cell };
 }
 
 function query_units_in_manhattan_area(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
+        if (unit.dead) continue;
+
         const distance = manhattan(unit.position, from_exclusive);
 
         if (distance > 0 && distance <= distance_inclusive) {
@@ -114,6 +117,8 @@ function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, dis
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
+        if (unit.dead) continue;
+
         const unit_position = unit.position;
         const distance = rectangular(unit_position, from_exclusive);
 
@@ -192,7 +197,7 @@ function field_change_to_modifier<T extends Unit_Field, U extends Ability_Effect
 function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Ability_Effect | undefined {
     switch (ability.id) {
         case Ability_Id.basic_attack: {
-            const scan = scan_for_unit_in_direction(battle, unit.position, target);
+            const scan = scan_for_unit_in_direction(battle, unit.position, target, ability.targeting.line_length);
 
             if (scan.hit) {
                 const damage = Math.max(0, ability.damage + unit[Unit_Field.attack_bonus]);
@@ -200,19 +205,26 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
 
                 return {
                     ability_id: Ability_Id.basic_attack,
-                    delta: delta
+                    result: {
+                        hit: true,
+                        delta: delta
+                    }
+                };
+            } else {
+                return {
+                    ability_id: Ability_Id.basic_attack,
+                    result: {
+                        hit: false,
+                        final_point: scan.final_point
+                    }
                 };
             }
-
-            // TODO decide if we need to be able to attack nothing at all
-            return;
         }
 
         case Ability_Id.pudge_hook: {
             const distance = ability.targeting.line_length;
             const direction = direction_normal_between_points(battle, unit.position, target);
-            const actual_target = xy(unit.position.x + direction.x * distance, unit.position.y + direction.y * distance);
-            const scan = scan_for_unit_in_direction(battle, unit.position, actual_target, direction);
+            const scan = scan_for_unit_in_direction(battle, unit.position, target, distance, direction);
 
             if (scan.hit) {
                 const damage = damage_delta(unit, ability.id, scan.unit, ability.damage);
@@ -423,6 +435,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             const target = find_unit_by_id(battle, action.target_id);
 
             if (!target) return;
+            if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, target.position)) return;
 
             const effect = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
 
@@ -448,7 +461,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             const cell = grid_cell_at(battle, action.to);
 
             if (!cell) return;
-            if (!can_ground_target_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, action.to)) return;
+            if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, action.to)) return;
 
             const effect = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
 
@@ -649,6 +662,8 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Battle_Delta[])
 
             case Battle_Delta_Type.end_turn: {
                 for (const unit of battle.units) {
+                    if (unit.dead) continue;
+
                     for (const modifier of unit.modifiers) {
                         if (modifier.duration_remaining == 0) {
                             new_deltas.push({

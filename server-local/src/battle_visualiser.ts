@@ -209,7 +209,7 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
 
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, effect: Ability_Effect_Pudge_Hook) {
     function is_hook_hit(
-        effect: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Pudge_Hook_Deltas_Missed
+        effect: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Line_Ability_Miss
     ): effect is Ability_Effect_Pudge_Hook_Deltas_Hit {
         return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
@@ -511,6 +511,12 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
 
     const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
+    function is_attack_hit(
+        effect: Ability_Effect_Basic_Attack_Deltas_Hit | Ability_Effect_Line_Ability_Miss
+    ): effect is Ability_Effect_Basic_Attack_Deltas_Hit {
+        return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
+    }
+
     if (ranged_attack_spec) {
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
@@ -523,24 +529,24 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
             shake_screen(unit.position, ranged_attack_spec.shake_on_attack);
         }
 
-        if (effect.delta) {
-            const target_unit = find_unit_by_id(effect.delta.target_unit_id);
+        if (is_attack_hit(effect.result)) {
+            const delta = effect.result.delta;
+            const target_unit = find_unit_by_id(delta.target_unit_id);
 
             if (!target_unit) {
-                log_chat_debug_message(`Error: unit ${effect.delta.target_unit_id} not found`);
+                log_chat_debug_message(`Error: unit ${delta.target_unit_id} not found`);
                 return;
             }
 
             tracking_projectile_to_unit(unit, target_unit, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
-            play_delta(main_player, effect.delta);
+            play_delta(main_player, delta);
             try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target_unit);
 
             if (ranged_attack_spec.shake_on_impact) {
                 shake_screen(target_unit.position, ranged_attack_spec.shake_on_impact);
             }
         } else {
-            // TODO actual miss location, not just target location
-            tracking_projectile_to_point(unit, target, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
+            tracking_projectile_to_point(unit, effect.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
         try_play_sound_for_unit(unit, get_unit_attack_vo);
@@ -550,8 +556,8 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
 
         const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
-        if (effect.delta) {
-            play_delta(main_player, effect.delta);
+        if (effect.result.hit) {
+            play_delta(main_player, effect.result.delta);
         }
 
         shake_screen(target, Shake.weak);

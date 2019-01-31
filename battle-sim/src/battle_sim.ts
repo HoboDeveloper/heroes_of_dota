@@ -97,12 +97,24 @@ function unreachable(x: never): never {
     throw new Error("Didn't expect to get here");
 }
 
-function grid_cell_at(battle: Battle, at: XY): Cell | undefined {
-    if (at.x < 0 || at.x >= battle.grid_size.x || at.y < 0 || at.y >= battle.grid_size.y) {
+function grid_cell_at_raw(battle: Battle, x: number, y: number): Cell | undefined {
+    if (x < 0 || x >= battle.grid_size.x || y < 0 || y >= battle.grid_size.y) {
         return undefined;
     }
 
-    return battle.cells[at.x * battle.grid_size.y + at.y];
+    return battle.cells[x * battle.grid_size.y + y];
+}
+
+function grid_cell_at(battle: Battle, at: XY): Cell | undefined {
+    return grid_cell_at_raw(battle, at.x, at.y);
+}
+
+function grid_cell_index_raw(battle: Battle, x: number, y: number): number | undefined {
+    if (x < 0 || x >= battle.grid_size.x || y < 0 || y >= battle.grid_size.y) {
+        return undefined;
+    }
+
+    return x * battle.grid_size.y + y;
 }
 
 function grid_cell_index(battle: Battle, at: XY): number {
@@ -111,6 +123,15 @@ function grid_cell_index(battle: Battle, at: XY): number {
 
 function grid_cell_at_unchecked(battle: Battle, at: XY): Cell {
     return battle.cells[at.x * battle.grid_size.y + at.y];
+}
+
+function grid_cell_neighbors(battle: Battle, at: XY): Array<Cell | undefined> {
+    return [
+        grid_cell_at_raw(battle, at.x + 1, at.y),
+        grid_cell_at_raw(battle, at.x - 1, at.y),
+        grid_cell_at_raw(battle, at.x, at.y + 1),
+        grid_cell_at_raw(battle, at.x, at.y - 1)
+    ];
 }
 
 function manhattan(from: XY, to: XY) {
@@ -163,12 +184,7 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
                 return [true, current_cost];
             }
 
-            const neighbors = [
-                grid_cell_at(battle, xy(at.x + 1, at.y)),
-                grid_cell_at(battle, xy(at.x - 1, at.y)),
-                grid_cell_at(battle, xy(at.x, at.y + 1)),
-                grid_cell_at(battle, xy(at.x, at.y - 1))
-            ];
+            const neighbors = grid_cell_neighbors(battle, at);
 
             for (const neighbor of neighbors) {
                 if (!neighbor) continue;
@@ -193,12 +209,20 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
-function can_ground_target_ability_be_cast_at_target_from_source(targeting: Ability_Targeting, from: XY, at: XY): boolean {
+function can_ability_be_cast_at_target_from_source(targeting: Ability_Targeting, from: XY, at: XY): boolean {
     switch (targeting.type) {
         case Ability_Targeting_Type.line: {
             if (xy_equal(from, at)) return false;
 
             return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, at, targeting.line_length);
+        }
+
+        case Ability_Targeting_Type.rectangular_area_around_caster: {
+            return rectangular(from, at) <= targeting.area_radius;
+        }
+
+        case Ability_Targeting_Type.unit_in_manhattan_distance: {
+            return manhattan(from, at) <= targeting.distance;
         }
     }
 
@@ -350,7 +374,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
 
 function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | undefined {
     switch (effect.ability_id) {
-        case Ability_Id.basic_attack: return effect.delta ? [ effect.delta ] : undefined;
+        case Ability_Id.basic_attack: if (effect.result.hit) return [ effect.result.delta ]; else return;
         case Ability_Id.pudge_hook: if (effect.result.hit) return effect.result.deltas; else return;
         case Ability_Id.pudge_rot: return effect.deltas;
         case Ability_Id.pudge_dismember: return [ effect.damage_delta, effect.heal_delta ];

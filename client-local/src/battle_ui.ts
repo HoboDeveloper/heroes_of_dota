@@ -27,6 +27,7 @@ type UI_Battle = Battle & {
     unit_id_to_facing: { [unit_id: number]: XY };
     cells: UI_Cell[];
     cell_index_to_unit: Unit[];
+    outline_particles: ParticleId[];
 }
 
 type UI_Cell = Cell & {
@@ -260,7 +261,8 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             cells: [],
             cell_index_to_unit: [],
             entity_id_to_unit_data: {},
-            unit_id_to_facing: {}
+            unit_id_to_facing: {},
+            outline_particles: []
         };
 
         const particle_bottom_left_origin: XYZ = [
@@ -323,12 +325,7 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
                 };
             }
 
-            const neighbors = [
-                grid_cell_at(battle, xy(at.x + 1, at.y)),
-                grid_cell_at(battle, xy(at.x - 1, at.y)),
-                grid_cell_at(battle, xy(at.x, at.y + 1)),
-                grid_cell_at(battle, xy(at.x, at.y - 1))
-            ];
+            const neighbors = grid_cell_neighbors(battle, at);
 
             for (const neighbor of neighbors) {
                 if (!neighbor) continue;
@@ -400,6 +397,121 @@ function get_current_highlight_ability_id(): Ability_Id | undefined {
     return current_targeted_ability != undefined ? current_targeted_ability : current_hovered_ability;
 }
 
+function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
+    const cell_index_to_edges: Array<{ edge: Edge, from: XY, to: XY, deleted: boolean }[]> = [];
+    const unique_edges: { edge: Edge, from: XY, to: XY, deleted: boolean }[] = [];
+
+    function merge_edges(at: XY, going_towards: Edge, right_relative: number | undefined, left_relative: number | undefined, index: number) {
+        const right_neighbor = right_relative && cell_index_to_edges[right_relative];
+        const right_edge = right_neighbor && right_neighbor.find(old => old.edge == going_towards);
+        const left_neighbor = left_relative && cell_index_to_edges[left_relative];
+        const left_edge = left_neighbor && left_neighbor.find(old => old.edge == going_towards);
+
+        if (right_edge && left_edge) {
+            right_edge.to = left_edge.to;
+            left_edge.deleted = true;
+            cell_index_to_edges[index].push(right_edge);
+        } else {
+            if (right_edge) {
+                right_edge.to = at;
+                cell_index_to_edges[index].push(right_edge);
+            }
+
+            if (left_edge) {
+                left_edge.from = at;
+                cell_index_to_edges[index].push(left_edge);
+            }
+        }
+
+        if (!right_edge && !left_edge) {
+            const new_edge = { edge: going_towards, from: at, to: at, deleted: false };
+            cell_index_to_edges[index].push(new_edge);
+            unique_edges.push(new_edge);
+        }
+    }
+
+    for (let index = 0; index < cell_index_to_highlight.length; index++) {
+        const is_highlighted = cell_index_to_highlight[index];
+
+        if (!is_highlighted) continue;
+
+        const cell = battle.cells[index];
+        const at = cell.position;
+
+        const right = grid_cell_index_raw(battle, at.x + 1, at.y);
+        const left = grid_cell_index_raw(battle, at.x - 1, at.y);
+        const top = grid_cell_index_raw(battle, at.x, at.y + 1);
+        const bottom = grid_cell_index_raw(battle, at.x, at.y - 1);
+
+        const edge_side_right_left: [Edge, number | undefined, number | undefined, number | undefined][] = [
+            [ Edge.top, top, right, left ],
+            [ Edge.bottom, bottom, left, right ],
+            [ Edge.right, right, bottom, top ],
+            [ Edge.left, left, top, bottom ]
+        ];
+
+        for (const [ edge, side, right, left ] of edge_side_right_left) {
+            if (side == undefined || !cell_index_to_highlight[side]) {
+                if (!cell_index_to_edges[index]) {
+                    cell_index_to_edges[index] = [];
+                }
+
+                merge_edges(cell.position, edge, right, left, index);
+            }
+        }
+    }
+
+    const half = battle_cell_size / 2;
+    const height = 160;
+
+    const particles: ParticleId[] = [];
+
+    for (const { edge, from, to, deleted } of unique_edges) {
+        if (deleted) continue;
+
+        const fx = Particles.CreateParticle("particles/ui/highlight_rope.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0);
+
+        const [fr_x, fr_y, fr_z] = battle_position_to_world_position_center(from);
+        const [to_x, to_y, to_z] = battle_position_to_world_position_center(to);
+
+        switch (edge) {
+            case Edge.bottom: {
+                Particles.SetParticleControl(fx, 0, [fr_x - half, fr_y - half, fr_z + height]);
+                Particles.SetParticleControl(fx, 1, [to_x + half, to_y - half, to_z + height]);
+
+                break;
+            }
+
+            case Edge.top: {
+                Particles.SetParticleControl(fx, 0, [fr_x + half, fr_y + half, fr_z + height]);
+                Particles.SetParticleControl(fx, 1, [to_x - half, to_y + half, to_z + height]);
+
+                break;
+            }
+
+            case Edge.left: {
+                Particles.SetParticleControl(fx, 0, [fr_x - half, fr_y + half, fr_z + height]);
+                Particles.SetParticleControl(fx, 1, [to_x - half, to_y - half, to_z + height]);
+
+                break;
+            }
+
+            case Edge.right: {
+                Particles.SetParticleControl(fx, 0, [fr_x + half, fr_y - half, fr_z + height]);
+                Particles.SetParticleControl(fx, 1, [to_x + half, to_y + half, to_z + height]);
+
+                break;
+            }
+        }
+
+        Particles.SetParticleControl(fx, 2, color);
+
+        particles.push(fx);
+    }
+
+    return particles;
+}
+
 function update_grid_visuals() {
     let selected_unit: Unit | undefined;
     let selected_entity_path: Cost_Population_Result | undefined;
@@ -420,6 +532,8 @@ function update_grid_visuals() {
     }
 
     const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
+
+    const cell_index_to_highlight: boolean[] = [];
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
@@ -468,9 +582,27 @@ function update_grid_visuals() {
             if (ability) {
                 switch (ability.type) {
                     case Ability_Type.target_ground: {
-                        if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
-                            alpha = 140;
+                        if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+                            alpha = 20;
                             cell_color = color_red;
+
+                            cell_index_to_highlight[index] = true;
+                        }
+
+                        break;
+                    }
+
+                    case Ability_Type.target_unit: {
+                        if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+                            if (unit_in_cell) {
+                                alpha = 140;
+                                cell_color = color_green;
+                            } else {
+                                alpha = 20;
+                                cell_color = color_red;
+                            }
+
+                            cell_index_to_highlight[index] = true;
                         }
 
                         break;
@@ -506,6 +638,21 @@ function update_grid_visuals() {
         }
 
         color_cell(cell, cell_color, alpha);
+    }
+
+    for (const old_particle of battle.outline_particles) {
+        Particles.DestroyParticleEffect(old_particle, true);
+        Particles.ReleaseParticleIndex(old_particle);
+    }
+
+    if (cell_index_to_highlight.length > 0) {
+        battle.outline_particles = highlight_outline(cell_index_to_highlight, color_red);
+
+        for (const particle of battle.outline_particles) {
+            register_particle_for_reload(particle);
+        }
+    } else {
+        battle.outline_particles = [];
     }
 }
 
@@ -791,7 +938,7 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
                 current_selected_entity = id;
 
-                set_current_targeted_ability(ability.id);
+                try_select_unit_ability(unit, ability);
             }
         });
 
@@ -863,7 +1010,13 @@ function update_hero_control_panel_state(unit: Unit) {
 }
 
 function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
+    const should_update = current_targeted_ability != new_ability_id;
+
     current_targeted_ability = new_ability_id;
+
+    if (!should_update) {
+        return;
+    }
 
     update_grid_visuals();
 
@@ -969,6 +1122,13 @@ function periodically_update_stat_bar_display() {
     }
 }
 
+declare const enum Edge {
+    top = 0,
+    bottom = 1,
+    left = 2,
+    right = 3
+}
+
 function setup_mouse_filter() {
     function get_entity_under_cursor(): EntityId | undefined {
         const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
@@ -1025,7 +1185,7 @@ function setup_mouse_filter() {
 
                     switch (ability.type) {
                         case Ability_Type.target_ground: {
-                            if (can_ground_target_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
+                            if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
                                 take_battle_action({
                                     type: Action_Type.ground_target_ability,
                                     unit_id: selected_unit.id,
@@ -1042,13 +1202,17 @@ function setup_mouse_filter() {
                         }
 
                         case Ability_Type.target_unit: {
-                            if (cursor_entity_unit) {
+                            if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position) && cursor_entity_unit) {
                                 take_battle_action({
                                     type: Action_Type.unit_target_ability,
                                     unit_id: selected_unit.id,
                                     ability_id: current_targeted_ability,
                                     target_id: cursor_entity_unit.id
                                 });
+                            } else {
+                                show_ability_error(Ability_Error.invalid_target);
+
+                                return true;
                             }
                         }
 
@@ -1165,9 +1329,28 @@ function show_ability_error(error: Ability_Error) {
     GameEvents.SendEventClientSide("dota_hud_error_message", error_data);
 }
 
+function try_select_unit_ability(unit: Unit, ability: Ability) {
+    const ability_use = authorize_ability_use_by_unit(unit, ability.id);
+
+    $.Msg("clicked ", get_ability_icon(ability.id), " ", ability_use);
+
+    if (ability_use.success) {
+        if (ability.type == Ability_Type.no_target) {
+            take_battle_action({
+                type: Action_Type.use_no_target_ability,
+                unit_id: unit.id,
+                ability_id: ability.id
+            })
+        } else {
+            set_current_targeted_ability(ability.id);
+        }
+    } else {
+        show_ability_error(ability_use.error);
+    }
+}
+
 function setup_custom_ability_hotkeys() {
     // TODO check that unit belongs to the player
-    // TODO check ability targeting
 
     function bind_ability_at_index_to_command(command: string, index: number) {
         GameUI.CustomUIConfig().register_key_bind(command, () => {
@@ -1181,23 +1364,7 @@ function setup_custom_ability_hotkeys() {
 
             if (!ability) return;
 
-            const ability_use = authorize_ability_use_by_unit(unit, ability.id);
-
-            if (ability_use.success) {
-                if (ability.type == Ability_Type.no_target) {
-                    take_battle_action({
-                        type: Action_Type.use_no_target_ability,
-                        unit_id: unit.id,
-                        ability_id: ability.id
-                    })
-                } else {
-                    set_current_targeted_ability(ability.id);
-                }
-            } else {
-                show_ability_error(ability_use.error);
-            }
-
-            $.Msg("clicked ", get_ability_icon(ability.id));
+            try_select_unit_ability(unit, ability);
         });
     }
 
