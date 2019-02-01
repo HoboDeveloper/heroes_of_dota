@@ -1,5 +1,6 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
+// TODO transfer modifiers/state counters
 type Visualizer_Unit_Data = {
     id: number
     level: number

@@ -297,7 +297,7 @@ type Battle_Delta =
     Battle_Delta_Unit_Max_Move_Points_Change |
     Battle_Delta_Unit_Attack_Bonus_Change |
     Battle_Delta_Unit_State_Stunned_Counter_Change |
-    Battle_Delta_Modifier_Applied<any> |
+    Battle_Delta_Modifier_Applied<Ability_Effect> |
     Battle_Delta_Modifier_Removed |
     Battle_Delta_Set_Ability_Cooldown_Remaining |
     Battle_Delta_Start_Turn |

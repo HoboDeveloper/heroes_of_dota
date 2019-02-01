@@ -15,6 +15,7 @@ type Battle = {
         height: number
     };
     camera_dummy: CDOTA_BaseNPC;
+    modifier_id_to_modifier_data: { [modifier_id: number]: Modifier_Data }
 }
 
 type Battle_Unit = {
@@ -40,6 +41,11 @@ type Ranged_Attack_Spec = {
     attack_point: number;
     shake_on_attack?: Shake;
     shake_on_impact?: Shake;
+}
+
+type Modifier_Data = {
+    unit_id: number
+    modifier_name: string
 }
 
 declare let battle: Battle;
@@ -588,6 +594,15 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
     }
 }
 
+function apply_and_record_modifier(target: Battle_Unit, modifier_id: number, modifier_name: string) {
+    print("Apply and record", modifier_id, modifier_name, "to", target.handle.GetName());
+    target.handle.AddNewModifier(target.handle, undefined, modifier_name, {});
+    battle.modifier_id_to_modifier_data[modifier_id] = {
+        unit_id: target.id,
+        modifier_name: modifier_name
+    };
+}
+
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
 
@@ -611,7 +626,10 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             shake_screen(target.position, Shake.medium);
 
             if (effect.type == Ability_Effect_Type.ability) {
-                const [damage] = from_client_tuple(effect.delta.effect.deltas);
+                const modifier_delta = effect.delta;
+                const [damage] = from_client_tuple(modifier_delta.effect.deltas);
+
+                apply_and_record_modifier(target, modifier_delta.modifier_id, "Modifier_Tide_Gush");
 
                 play_delta(main_player, damage);
             }
@@ -955,7 +973,24 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.modifier_removed: break;
+        case Battle_Delta_Type.modifier_removed: {
+            const modifier_data = battle.modifier_id_to_modifier_data[delta.modifier_id];
+
+            if (modifier_data) {
+                const unit = find_unit_by_id(modifier_data.unit_id);
+
+                if (unit) {
+                    print("Remove modifier", delta.modifier_id, modifier_data.modifier_name, "from", unit.handle.GetName());
+
+                    unit.handle.RemoveModifierByName(modifier_data.modifier_name);
+
+                    delete battle.modifier_id_to_modifier_data[delta.modifier_id];
+                }
+            }
+
+            break;
+        }
+
         case Battle_Delta_Type.set_ability_cooldown_remaining: break;
 
         default: unreachable(delta);
@@ -986,7 +1021,8 @@ function load_battle_data() {
             width: 0,
             height: 0
         },
-        camera_dummy: camera_entity
+        camera_dummy: camera_entity,
+        modifier_id_to_modifier_data: {}
     };
 }
 
