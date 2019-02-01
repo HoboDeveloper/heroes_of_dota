@@ -562,7 +562,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
 
         const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
-        if (effect.result.hit) {
+        if (is_attack_hit(effect.result)) {
             play_delta(main_player, effect.result.delta);
         }
 
