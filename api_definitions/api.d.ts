@@ -230,6 +230,7 @@ type Battle_Delta_Start_Turn = {
 
 type Battle_Delta_End_Turn = {
     type: Battle_Delta_Type.end_turn
+    of_player_index: number
 }
 
 type Battle_Delta_Unit_Field_Change = Unit_Field_Change & {
