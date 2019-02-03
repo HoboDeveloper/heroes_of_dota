@@ -6,6 +6,7 @@ type Visualizer_Unit_Data = {
     level: number
     health: number
     mana: number
+    stunned_counter: number
 }
 
 type Player_Net_Table_Base = {

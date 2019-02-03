@@ -557,7 +557,7 @@ function update_grid_visuals() {
 
             if (is_ally) {
                 if (your_turn) {
-                    if (unit_in_cell.has_taken_an_action_this_turn) {
+                    if (unit_in_cell.has_taken_an_action_this_turn || is_unit_stunned(unit_in_cell)) {
                         cell_color = color_yellow;
                     } else {
                         cell_color = color_green;
@@ -703,7 +703,8 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
         level: data.level,
         stat_bar_panel: panel,
         health_label: health_label,
-        level_ticks: level_ticks
+        level_ticks: level_ticks,
+        stunned_counter: data.stunned_counter
     }
 }
 
@@ -842,7 +843,8 @@ function make_battle_snapshot(): Battle_Snapshot {
                 mana: unit.mana,
                 position: unit.position,
                 type: unit.type,
-                facing: battle.unit_id_to_facing[unit.id]
+                facing: battle.unit_id_to_facing[unit.id],
+                stunned_counter: unit[Unit_Field.state_stunned_counter]
             })),
         delta_head: battle.delta_head
     }
@@ -1276,6 +1278,7 @@ function setup_mouse_filter() {
                 return true;
             }
 
+            // TODO before taking an action we should first check if we can perform it and display an error if not
             if (wants_to_perform_automatic_action) {
                 if (cursor_entity_unit) {
                     if (cursor_entity != current_selected_entity) {
@@ -1310,23 +1313,49 @@ function setup_mouse_filter() {
     });
 }
 
-function ability_error_to_reason(error: Ability_Error): number {
+
+type Ability_Error_Reason = {
+    reason: number,
+    message?: string
+};
+
+function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
+    // 24 - silenced
+    // 25 - can't move
+    // 30 - can't be attacked
+    // 41 - can't attack
+    // 46 - target out of range
+    // 48 - can't target that
+    // 62 - secret shop not in range
+    // 63 - not enough gold
+    // 74 - can't act
+    // 75 - muted
+    // 77 - target immune to magic
+    // 80 - custom "message" argument
+    function native(reason: number, message?: string): Ability_Error_Reason {
+        return { reason: reason, message: message };
+    }
+
+    function custom(message: string) {
+        return { reason: 80, message: message };
+    }
+
     switch (error) {
-        case Ability_Error.other: return 0; // TODO
-        case Ability_Error.dead: return 20;
-        case Ability_Error.no_mana: return 14;
-        case Ability_Error.on_cooldown: return 15;
-        case Ability_Error.invalid_target: return 0; // TODO
-        case Ability_Error.not_learned_yet: return 16;
-        case Ability_Error.already_acted_this_turn: return 0; // TODO
+        case Ability_Error.other: return native(0); // TODO
+        case Ability_Error.dead: return native(20);
+        case Ability_Error.no_mana: return native(14);
+        case Ability_Error.on_cooldown: return native(15);
+        case Ability_Error.invalid_target: return native(0); // TODO
+        case Ability_Error.not_learned_yet: return native(16);
+        case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
+        case Ability_Error.stunned: return custom("Stunned");
 
         default: return unreachable(error);
     }
 }
 
 function show_ability_error(error: Ability_Error) {
-    const error_data = { reason: ability_error_to_reason(error) };
-    GameEvents.SendEventClientSide("dota_hud_error_message", error_data);
+    GameEvents.SendEventClientSide("dota_hud_error_message", ability_error_to_reason(error));
 }
 
 function try_select_unit_ability(unit: Unit, ability: Ability) {

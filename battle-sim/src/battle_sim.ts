@@ -7,7 +7,8 @@ declare const enum Ability_Error {
     on_cooldown = 3,
     invalid_target = 4,
     already_acted_this_turn = 5,
-    not_learned_yet = 6
+    not_learned_yet = 6,
+    stunned = 7
 }
 
 type Ability_Authorization_Ok = {
@@ -146,6 +147,10 @@ function rectangular(from: XY, to: XY) {
 
 function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
+}
+
+function is_unit_stunned(unit: Unit) {
+    return unit[Unit_Field.state_stunned_counter] > 0;
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
@@ -350,6 +355,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
 
     if (unit.dead) return error(Ability_Error.dead);
     if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
+    if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
 
     if (!ability) return error(Ability_Error.other);
 

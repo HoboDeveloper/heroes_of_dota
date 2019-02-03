@@ -18,15 +18,11 @@ type Battle = {
     modifier_id_to_modifier_data: { [modifier_id: number]: Modifier_Data }
 }
 
-type Battle_Unit = {
-    id: number;
+type Battle_Unit = Visualizer_Unit_Data & {
     type: Unit_Type;
     handle: CDOTA_BaseNPC_Hero;
     position: XY;
     is_playing_a_delta: boolean;
-    level: number;
-    health: number;
-    mana: number;
 }
 
 declare const enum Shake {
@@ -170,7 +166,8 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): B
         is_playing_a_delta: false,
         level: 1,
         health: definition.health,
-        mana: definition.mana
+        mana: definition.mana,
+        stunned_counter: 0
     };
 
     battle.units.push(unit);
@@ -418,7 +415,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Abilit
         for (const delta of by_distance) {
             const effect = delta.effect;
 
-            const [damage] = from_client_tuple(effect.deltas);
+            const [damage, stun] = from_client_tuple(effect.deltas);
             const target = find_unit_by_id(damage.target_unit_id);
 
             if (!target) {
@@ -443,6 +440,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Abilit
             });
 
             play_delta(main_player, damage);
+            play_delta(main_player, stun);
         }
 
         wait(particle_delay);
@@ -762,6 +760,16 @@ function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     }*/
 }
 
+function update_stun_visuals(unit: Battle_Unit) {
+    if (unit.stunned_counter > 0) {
+        print("Stun unit", unit.handle.GetName());
+        unit.handle.AddNewModifier(unit.handle, undefined, "modifier_stunned", {});
+    } else {
+        print("Unstun unit", unit.handle.GetName());
+        unit.handle.RemoveModifierByName("modifier_stunned");
+    }
+}
+
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
     unit.handle.StopFacing();
     unit.handle.Stop();
@@ -902,16 +910,24 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
         case Battle_Delta_Type.unit_field_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
-            if (unit && delta.field == Unit_Field.level) {
-                unit.level = delta.new_value;
-                unit.handle.EmitSound("hero_level_up");
+            if (unit) {
+                if (delta.field == Unit_Field.state_stunned_counter) {
+                    unit.stunned_counter = delta.new_value;
 
-                const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
-                const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+                    update_stun_visuals(unit);
+                }
 
-                ParticleManager.ReleaseParticleIndex(fx);
+                if (delta.field == Unit_Field.level) {
+                    unit.level = delta.new_value;
+                    unit.handle.EmitSound("hero_level_up");
 
-                update_player_state_net_table(main_player);
+                    const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
+                    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+
+                    ParticleManager.ReleaseParticleIndex(fx);
+
+                    update_player_state_net_table(main_player);
+                }
             }
 
             break;
@@ -1036,10 +1052,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     battle.units = snapshot.units.map(unit => {
         const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position);
 
+        // TODO we need this to be typesafe, codegen a copy<T extends U, U>(source: T, target: U) function
         new_unit.health = unit.health;
         new_unit.level = unit.level;
         new_unit.mana = unit.mana;
-
+        new_unit.stunned_counter = unit.stunned_counter;
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;
@@ -1048,4 +1065,13 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     battle.delta_head = snapshot.delta_head;
 
     update_player_state_net_table(main_player);
+
+    // Otherwise the animations won't apply
+    
+    wait_one_frame();
+    wait_one_frame();
+
+    for (const unit of battle.units) {
+        update_stun_visuals(unit);
+    }
 }

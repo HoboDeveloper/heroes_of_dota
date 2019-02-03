@@ -92,11 +92,13 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
             const entity_id_to_unit_data: { [entity_id:number]:Visualizer_Unit_Data } = {};
 
             for (const unit of battle.units) {
+                // TODO some of those properties are not actually needed
                 entity_id_to_unit_data[unit.handle.entindex()] = {
                     id: unit.id,
                     level: unit.level,
                     health: unit.health,
-                    mana: unit.mana
+                    mana: unit.mana,
+                    stunned_counter: unit.stunned_counter
                 }
             }
 
@@ -170,7 +172,7 @@ function on_player_order_async(callback: (event: ExecuteOrderEvent) => boolean) 
 }
 
 function on_custom_event_async<T>(event_name: string, callback: (data: T) => void) {
-    CustomGameEventManager.RegisterListener(event_name, (user_id, event) => callback(event as T));
+    CustomGameEventManager.RegisterListener(event_name, (user_id, event) => fork(() => callback(event as T)));
 }
 
 function select_or_create_character_and_log_in(main_player: Main_Player) {

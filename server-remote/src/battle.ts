@@ -352,21 +352,14 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
 }
 
 function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action: Turn_Action): Battle_Delta[] | undefined {
-    function find_valid_unit(id: number): Unit | undefined {
+    function find_valid_unit_for_action(id: number): Unit | undefined {
         const unit = find_unit_by_id(battle, id);
 
         if (!unit) return;
         if (unit.dead) return;
         if (unit.owner_player_id != player.id) return;
-
-        return unit;
-    }
-
-    function find_valid_unit_for_action(id: number): Unit | undefined {
-        const unit = find_valid_unit(id);
-
-        if (!unit) return;
         if (unit.has_taken_an_action_this_turn) return;
+        if (is_unit_stunned(unit)) return;
 
         return unit;
     }
@@ -396,10 +389,9 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
 
     switch (action.type) {
         case Action_Type.move: {
-            const unit = find_valid_unit(action.unit_id);
+            const unit = find_valid_unit_for_action(action.unit_id);
 
             if (!unit) return;
-            if (unit.has_taken_an_action_this_turn) return;
             if (xy_equal(unit.position, action.to)) return;
 
             const [could_find_path, cost] = can_find_path(battle, unit.position, action.to, unit.move_points);
