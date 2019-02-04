@@ -525,10 +525,13 @@ handlers.set("/battle_cheat", body => {
     const request = JSON.parse(body) as Battle_Cheat_Command_Request;
     const result = try_do_with_player<true>(request.access_token, player => {
         const parts = request.cheat.split(" ");
-
         const battle = find_battle_by_id(player.current_battle_id);
 
         if (!battle) return;
+
+        const unit = find_unit_by_id(battle, request.selected_unit_id);
+
+        if (!unit) return;
 
         function refresh_unit(battle: Battle_Record, unit: Unit) {
             const deltas: Battle_Delta[] = [
@@ -561,14 +564,17 @@ handlers.set("/battle_cheat", body => {
 
         switch (parts[0]) {
             case "lvl": {
+                const new_lvl = parseInt(parts[1]);
+                const delta = new_lvl - unit[Unit_Field.level];
+
                 submit_battle_deltas(battle, [{
                     type: Battle_Delta_Type.unit_field_change,
                     field: Unit_Field.level,
                     source_ability_id: Ability_Id.basic_attack,
                     source_unit_id: request.selected_unit_id,
                     target_unit_id: request.selected_unit_id,
-                    new_value: parseInt(parts[1]),
-                    value_delta: 0,
+                    new_value: new_lvl,
+                    value_delta: delta,
                     received_from_enemy_kill: false
                 }]);
 
@@ -576,10 +582,6 @@ handlers.set("/battle_cheat", body => {
             }
 
             case "ref": {
-                const unit = find_unit_by_id(battle, request.selected_unit_id);
-
-                if (!unit) return;
-
                 refresh_unit(battle, unit);
 
                 break;

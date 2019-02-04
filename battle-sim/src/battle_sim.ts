@@ -56,6 +56,7 @@ type Unit = {
     [Unit_Field.max_move_points]: number;
     [Unit_Field.attack_bonus]: number;
     [Unit_Field.state_stunned_counter]: number
+    [Unit_Field.armor]: number
     abilities: Ability[];
     modifiers: Modifier[]
 }
@@ -299,6 +300,7 @@ function flatten_deltas(deltas: Battle_Delta[]): Battle_Delta[] {
         flattened.push(delta);
 
         switch (delta.type) {
+            case Battle_Delta_Type.ability_effect_applied:
             case Battle_Delta_Type.modifier_appled:
             case Battle_Delta_Type.unit_ground_target_ability:
             case Battle_Delta_Type.unit_unit_target_ability:
@@ -381,6 +383,7 @@ function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | unde
         case Ability_Id.tide_gush: if (effect.type == Ability_Effect_Type.ability) return flatten_deltas([ effect.delta ]); return flatten_deltas(effect.deltas);
         case Ability_Id.tide_anchor_smash: return flatten_deltas(effect.deltas); // TODO we need a recursive flattener
         case Ability_Id.tide_ravage: return flatten_deltas(effect.deltas);
+        case Ability_Id.tide_kraken_shell: return [];
 
         default: unreachable(effect);
     }
@@ -421,7 +424,8 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
                 [Unit_Field.max_mana]: definition.mana,
                 [Unit_Field.max_health]: definition.health,
                 [Unit_Field.max_move_points]: definition.move_points,
-                [Unit_Field.state_stunned_counter]: 0
+                [Unit_Field.state_stunned_counter]: 0,
+                [Unit_Field.armor]: 0
             });
 
             grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
@@ -554,6 +558,10 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             }
 
             break;
+        }
+
+        case Battle_Delta_Type.ability_effect_applied: {
+            return ability_effect_to_deltas(delta.effect);
         }
 
         default: unreachable(delta);

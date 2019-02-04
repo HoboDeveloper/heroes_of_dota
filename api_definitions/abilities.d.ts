@@ -110,6 +110,7 @@ type Ability_Effect =
     Ability_Effect_Tide_Gush_Modifier |
     Ability_Effect_Tide_Anchor_Smash |
     Ability_Effect_Tide_Anchor_Smash_Modifier |
+    Ability_Effect_Tide_Kraken_Shell_Trigger |
     Ability_Effect_Tide_Ravage |
     Ability_Effect_Tide_Ravage_Modifier;
 
@@ -180,6 +181,11 @@ type Ability_Effect_Tide_Anchor_Smash_Modifier = {
     ability_id: Ability_Id.tide_anchor_smash
     type: Ability_Effect_Type.modifier
     deltas: [Battle_Delta_Health_Change, Battle_Delta_Unit_Attack_Bonus_Change]
+}
+
+type Ability_Effect_Tide_Kraken_Shell_Trigger = {
+    ability_id: Ability_Id.tide_kraken_shell
+    unit_id: number
 }
 
 type Ability_Effect_Tide_Ravage = {

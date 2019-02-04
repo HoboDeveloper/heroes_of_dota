@@ -18,7 +18,8 @@ declare const enum Battle_Delta_Type {
     unit_field_change = 10,
     modifier_appled = 11,
     modifier_removed = 12,
-    set_ability_cooldown_remaining = 13
+    set_ability_cooldown_remaining = 13,
+    ability_effect_applied = 14
 }
 
 declare const enum Action_Type {
@@ -43,7 +44,8 @@ declare const enum Unit_Field {
     max_move_points = 2,
     level = 3,
     attack_bonus = 4,
-    state_stunned_counter = 5
+    armor = 5,
+    state_stunned_counter = 6,
 }
 
 declare const enum Unit_State {
@@ -258,6 +260,10 @@ type Battle_Delta_Unit_Attack_Bonus_Change = Battle_Delta_Unit_Field_Change & {
     field: Unit_Field.attack_bonus
 }
 
+type Battle_Delta_Unit_Armor_Change = Battle_Delta_Unit_Field_Change & {
+    field: Unit_Field.armor
+}
+
 type Battle_Delta_Unit_State_Stunned_Counter_Change = Battle_Delta_Unit_Field_Change & {
     field: Unit_Field.state_stunned_counter
 }
@@ -282,6 +288,11 @@ type Battle_Delta_Set_Ability_Cooldown_Remaining = {
     cooldown_remaining: number
 }
 
+type Battle_Delta_Ability_Effect_Applied = {
+    type: Battle_Delta_Type.ability_effect_applied
+    effect: Ability_Effect
+}
+
 type Battle_Delta =
     Battle_Delta_Health_Change |
     Battle_Delta_Mana_Change |
@@ -296,10 +307,12 @@ type Battle_Delta =
     Battle_Delta_Unit_Max_Mana_Change |
     Battle_Delta_Unit_Max_Move_Points_Change |
     Battle_Delta_Unit_Attack_Bonus_Change |
+    Battle_Delta_Unit_Armor_Change |
     Battle_Delta_Unit_State_Stunned_Counter_Change |
     Battle_Delta_Modifier_Applied<Ability_Effect> |
     Battle_Delta_Modifier_Removed |
     Battle_Delta_Set_Ability_Cooldown_Remaining |
+    Battle_Delta_Ability_Effect_Applied |
     Battle_Delta_Start_Turn |
     Battle_Delta_End_Turn
 

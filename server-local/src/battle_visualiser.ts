@@ -730,6 +730,33 @@ function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Un
 
             break;
         }
+
+        default: {
+            log_chat_debug_message(`Error no modifier effect for ability ${effect.ability_id} found`);
+        }
+    }
+}
+
+function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Effect) {
+    switch (effect.ability_id) {
+        case Ability_Id.tide_kraken_shell: {
+            const unit = find_unit_by_id(effect.unit_id);
+
+            if (unit) {
+                const path = "particles/units/heroes/hero_tidehunter/tidehunter_krakenshell_purge.vpcf";
+                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+
+                unit.handle.EmitSound("Hero_Tidehunter.KrakenShell");
+
+                ParticleManager.ReleaseParticleIndex(fx);
+            }
+
+            break;
+        }
+
+        default: {
+            log_chat_debug_message(`Error no ability effect for ability ${effect.ability_id} found`);
+        }
     }
 }
 
@@ -1003,6 +1030,12 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
                     delete battle.modifier_id_to_modifier_data[delta.modifier_id];
                 }
             }
+
+            break;
+        }
+
+        case Battle_Delta_Type.ability_effect_applied: {
+            play_ability_effect_delta(main_player, delta.effect);
 
             break;
         }
