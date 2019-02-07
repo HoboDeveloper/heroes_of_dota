@@ -82,15 +82,15 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
     }
 }
 
-function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths: Move_Delta_Paths) {
+function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
-        case Battle_Delta_Type.unit_spawn: {
+        case Delta_Type.unit_spawn: {
             battle.unit_id_to_facing[delta.unit_id] = xy(1, 0);
 
             break;
         }
 
-        case Battle_Delta_Type.unit_move: {
+        case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
@@ -110,7 +110,7 @@ function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths:
             break;
         }
 
-        case Battle_Delta_Type.unit_unit_target_ability: {
+        case Delta_Type.use_unit_target_ability: {
             const unit = find_unit_by_id(battle, delta.unit_id);
             const target = find_unit_by_id(battle, delta.target_unit_id);
 
@@ -121,7 +121,7 @@ function update_related_visual_data_from_delta(delta: Battle_Delta, delta_paths:
             break;
         }
 
-        case Battle_Delta_Type.unit_ground_target_ability: {
+        case Delta_Type.use_ground_target_ability: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
@@ -143,7 +143,7 @@ function rebuild_cell_index_to_unit() {
     }
 }
 
-function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
+function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     $.Msg(`Received ${deltas.length} new deltas`);
 
     for (let index = 0; index < deltas.length; index++) {
@@ -167,7 +167,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
             update_related_visual_data_from_delta(flat_delta, delta_paths);
             collapse_delta(battle, flat_delta);
 
-            if (flat_delta.type == Battle_Delta_Type.unit_spawn) {
+            if (flat_delta.type == Delta_Type.unit_spawn) {
                 const spawned_unit = find_unit_by_id(battle, flat_delta.unit_id);
 
                 if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
@@ -186,7 +186,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]
     if (visualiser_head != undefined && battle.delta_head - visualiser_head > 40) {
         fire_event<Fast_Forward_Event>("fast_forward", make_battle_snapshot());
     } else if (deltas.length > 0) {
-        fire_event<Put_Battle_Deltas_Event>("put_battle_deltas", {
+        fire_event<Put_Deltas_Event>("put_battle_deltas", {
             deltas: deltas,
             delta_paths: delta_paths,
             from_head: head_before_merge
@@ -218,12 +218,12 @@ function periodically_request_battle_deltas_when_in_battle() {
     }
 
     const head_before = battle.delta_head;
-    const request: Query_Battle_Deltas_Request = {
+    const request: Query_Deltas_Request = {
         access_token: get_access_token(),
         since_delta: head_before
     };
 
-    remote_request<Query_Battle_Deltas_Request, Query_Battle_Deltas_Response>("/query_battle_deltas", request, response => {
+    remote_request<Query_Deltas_Request, Query_Deltas_Response>("/query_battle_deltas", request, response => {
         receive_battle_deltas(head_before, response.deltas);
     });
 }

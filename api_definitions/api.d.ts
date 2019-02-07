@@ -4,7 +4,7 @@ declare const enum Player_State {
     not_logged_in = 2
 }
 
-declare const enum Battle_Delta_Type {
+declare const enum Delta_Type {
     health_change = 0,
     mana_change = 1,
     unit_move = 2,
@@ -12,9 +12,9 @@ declare const enum Battle_Delta_Type {
     start_turn = 4,
     end_turn = 5,
     unit_force_move = 6,
-    unit_ground_target_ability = 7,
-    unit_unit_target_ability = 8,
-    unit_use_no_target_ability = 9,
+    use_ground_target_ability = 7,
+    use_unit_target_ability = 8,
+    use_no_target_ability = 9,
     unit_field_change = 10,
     modifier_appled = 11,
     modifier_removed = 12,
@@ -162,19 +162,19 @@ type Unit_Field_Change = {
     value_delta: number
 }
 
-type Battle_Delta_Health_Change = Unit_Field_Change & {
-    type: Battle_Delta_Type.health_change
+type Delta_Health_Change = Unit_Field_Change & {
+    type: Delta_Type.health_change
 }
 
-type Battle_Delta_Mana_Change = {
-    type: Battle_Delta_Type.mana_change
+type Delta_Mana_Change = {
+    type: Delta_Type.mana_change
     unit_id: number
     new_mana: number
     mana_change: number
 }
 
-type Battle_Delta_Unit_Move = {
-    type: Battle_Delta_Type.unit_move
+type Delta_Move = {
+    type: Delta_Type.unit_move
     unit_id: number
     move_cost: number
     to_position: {
@@ -183,8 +183,8 @@ type Battle_Delta_Unit_Move = {
     }
 }
 
-type Battle_Delta_Unit_Force_Move = {
-    type: Battle_Delta_Type.unit_force_move
+type Delta_Force_Move = {
+    type: Delta_Type.unit_force_move
     unit_id: number
     to_position: {
         x: number
@@ -192,8 +192,8 @@ type Battle_Delta_Unit_Force_Move = {
     }
 }
 
-type Battle_Delta_Unit_Spawn = {
-    type: Battle_Delta_Type.unit_spawn
+type Delta_Spawn = {
+    type: Delta_Type.unit_spawn
     unit_type: Unit_Type
     unit_id: number
     owner_id: number
@@ -203,8 +203,8 @@ type Battle_Delta_Unit_Spawn = {
     }
 }
 
-type Battle_Delta_Unit_Ground_Target_Ability_Base = {
-    type: Battle_Delta_Type.unit_ground_target_ability
+type Delta_Ground_Target_Ability_Base = {
+    type: Delta_Type.use_ground_target_ability
     unit_id: number
     target_position: {
         x: number
@@ -212,106 +212,106 @@ type Battle_Delta_Unit_Ground_Target_Ability_Base = {
     }
 }
 
-type Battle_Delta_Unit_Unit_Target_Ability_Base = {
-    type: Battle_Delta_Type.unit_unit_target_ability
+type Delta_Unit_Target_Ability_Base = {
+    type: Delta_Type.use_unit_target_ability
     unit_id: number
     target_unit_id: number
 }
 
-type Battle_Delta_Unit_Use_No_Target_Ability_Base = {
-    type: Battle_Delta_Type.unit_use_no_target_ability
+type Delta_Use_No_Target_Ability_Base = {
+    type: Delta_Type.use_no_target_ability
     unit_id: number
 }
 
-type Battle_Delta_Start_Turn = {
-    type: Battle_Delta_Type.start_turn
+type Delta_Start_Turn = {
+    type: Delta_Type.start_turn
 }
 
-type Battle_Delta_End_Turn = {
-    type: Battle_Delta_Type.end_turn
+type Delta_End_Turn = {
+    type: Delta_Type.end_turn
     of_player_index: number
 }
 
-type Battle_Delta_Unit_Field_Change = Unit_Field_Change & {
-    type: Battle_Delta_Type.unit_field_change
+type Delta_Field_Change = Unit_Field_Change & {
+    type: Delta_Type.unit_field_change
 }
 
-type Battle_Delta_Unit_Level_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Level_Change = Delta_Field_Change & {
     field: Unit_Field.level
     received_from_enemy_kill: boolean
 }
 
-type Battle_Delta_Unit_Max_Health_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Max_Health_Change = Delta_Field_Change & {
     field: Unit_Field.max_health
 }
 
-type Battle_Delta_Unit_Max_Mana_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Max_Mana_Change = Delta_Field_Change & {
     field: Unit_Field.max_mana
 }
 
-type Battle_Delta_Unit_Max_Move_Points_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Max_Move_Points_Change = Delta_Field_Change & {
     field: Unit_Field.max_move_points
 }
 
-type Battle_Delta_Unit_Attack_Bonus_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Attack_Bonus_Change = Delta_Field_Change & {
     field: Unit_Field.attack_bonus
 }
 
-type Battle_Delta_Unit_Armor_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_Armor_Change = Delta_Field_Change & {
     field: Unit_Field.armor
 }
 
-type Battle_Delta_Unit_State_Stunned_Counter_Change = Battle_Delta_Unit_Field_Change & {
+type Delta_State_Stunned_Counter_Change = Delta_Field_Change & {
     field: Unit_Field.state_stunned_counter
 }
 
-type Battle_Delta_Modifier_Applied<T extends Ability_Effect> = {
-    type: Battle_Delta_Type.modifier_appled
+type Delta_Modifier_Applied<T extends Ability_Effect> = {
+    type: Delta_Type.modifier_appled
     modifier_id: number
     effect: T
     target_unit_id: number
     source_unit_id: number
 }
 
-type Battle_Delta_Modifier_Removed = {
-    type: Battle_Delta_Type.modifier_removed
+type Delta_Modifier_Removed = {
+    type: Delta_Type.modifier_removed
     modifier_id: number
 }
 
-type Battle_Delta_Set_Ability_Cooldown_Remaining = {
-    type: Battle_Delta_Type.set_ability_cooldown_remaining
+type Delta_Set_Ability_Cooldown_Remaining = {
+    type: Delta_Type.set_ability_cooldown_remaining
     unit_id: number
     ability_id: Ability_Id
     cooldown_remaining: number
 }
 
-type Battle_Delta_Ability_Effect_Applied = {
-    type: Battle_Delta_Type.ability_effect_applied
+type Delta_Ability_Effect_Applied = {
+    type: Delta_Type.ability_effect_applied
     effect: Ability_Effect
 }
 
-type Battle_Delta =
-    Battle_Delta_Health_Change |
-    Battle_Delta_Mana_Change |
-    Battle_Delta_Unit_Move |
-    Battle_Delta_Unit_Spawn |
-    Battle_Delta_Unit_Force_Move |
-    Battle_Delta_Unit_Ground_Target_Ability |
-    Battle_Delta_Unit_Unit_Target_Ability |
-    Battle_Delta_Unit_Use_No_Target_Ability |
-    Battle_Delta_Unit_Level_Change |
-    Battle_Delta_Unit_Max_Health_Change |
-    Battle_Delta_Unit_Max_Mana_Change |
-    Battle_Delta_Unit_Max_Move_Points_Change |
-    Battle_Delta_Unit_Attack_Bonus_Change |
-    Battle_Delta_Unit_Armor_Change |
-    Battle_Delta_Unit_State_Stunned_Counter_Change |
-    Battle_Delta_Modifier_Applied<Ability_Effect> |
-    Battle_Delta_Modifier_Removed |
-    Battle_Delta_Set_Ability_Cooldown_Remaining |
-    Battle_Delta_Ability_Effect_Applied |
-    Battle_Delta_Start_Turn |
-    Battle_Delta_End_Turn
+type Delta =
+    Delta_Health_Change |
+    Delta_Mana_Change |
+    Delta_Move |
+    Delta_Spawn |
+    Delta_Force_Move |
+    Delta_Ground_Target_Ability |
+    Delta_Unit_Target_Ability |
+    Delta_Use_No_Target_Ability |
+    Delta_Level_Change |
+    Delta_Max_Health_Change |
+    Delta_Max_Mana_Change |
+    Delta_Max_Move_Points_Change |
+    Delta_Attack_Bonus_Change |
+    Delta_Armor_Change |
+    Delta_State_Stunned_Counter_Change |
+    Delta_Modifier_Applied<Ability_Effect> |
+    Delta_Modifier_Removed |
+    Delta_Set_Ability_Cooldown_Remaining |
+    Delta_Ability_Effect_Applied |
+    Delta_Start_Turn |
+    Delta_End_Turn
 
 type Movement_History_Entry = {
     order_x: number
@@ -320,13 +320,13 @@ type Movement_History_Entry = {
     location_y: number
 }
 
-type Query_Battle_Deltas_Request = {
+type Query_Deltas_Request = {
     access_token: string
     since_delta: number
 }
 
-type Query_Battle_Deltas_Response = {
-    deltas: Battle_Delta[]
+type Query_Deltas_Response = {
+    deltas: Delta[]
 }
 
 type Take_Battle_Action_Request = {
@@ -336,7 +336,7 @@ type Take_Battle_Action_Request = {
 
 type Take_Battle_Action_Response = {
     previous_head: number
-    deltas: Battle_Delta[]
+    deltas: Delta[]
 }
 
 type Submit_Player_Movement_Request = {

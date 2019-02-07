@@ -458,8 +458,8 @@ handlers.set("/trusted/attack_player", body => {
 });
 
 handlers.set("/query_battle_deltas", body => {
-    const request = JSON.parse(body) as Query_Battle_Deltas_Request;
-    const result = try_do_with_player<Query_Battle_Deltas_Response>(request.access_token, player => {
+    const request = JSON.parse(body) as Query_Deltas_Request;
+    const result = try_do_with_player<Query_Deltas_Response>(request.access_token, player => {
         if (!can_player(player, Right.query_battle_actions)) {
             return;
         }
@@ -534,9 +534,9 @@ handlers.set("/battle_cheat", body => {
         if (!unit) return;
 
         function refresh_unit(battle: Battle_Record, unit: Unit) {
-            const deltas: Battle_Delta[] = [
+            const deltas: Delta[] = [
                 {
-                    type: Battle_Delta_Type.health_change,
+                    type: Delta_Type.health_change,
                     source_unit_id: unit.id,
                     target_unit_id: unit.id,
                     source_ability_id: Ability_Id.basic_attack,
@@ -544,20 +544,20 @@ handlers.set("/battle_cheat", body => {
                     value_delta: 0
                 },
                 {
-                    type: Battle_Delta_Type.mana_change,
+                    type: Delta_Type.mana_change,
                     unit_id: unit.id,
                     mana_change: unit[Unit_Field.max_mana] - unit.mana,
                     new_mana: unit[Unit_Field.max_mana]
                 }
             ];
 
-            const cooldown_deltas: Battle_Delta_Set_Ability_Cooldown_Remaining[] = unit.abilities
+            const cooldown_deltas: Delta_Set_Ability_Cooldown_Remaining[] = unit.abilities
                 .map(ability => ({
-                    type: Battle_Delta_Type.set_ability_cooldown_remaining,
+                    type: Delta_Type.set_ability_cooldown_remaining,
                     unit_id: unit.id,
                     ability_id: ability.id,
                     cooldown_remaining: 0
-                }) as Battle_Delta_Set_Ability_Cooldown_Remaining); // WTF typescript
+                }) as Delta_Set_Ability_Cooldown_Remaining); // WTF typescript
 
             submit_battle_deltas(battle, deltas.concat(cooldown_deltas));
         }
@@ -568,7 +568,7 @@ handlers.set("/battle_cheat", body => {
                 const delta = new_lvl - unit[Unit_Field.level];
 
                 submit_battle_deltas(battle, [{
-                    type: Battle_Delta_Type.unit_field_change,
+                    type: Delta_Type.unit_field_change,
                     field: Unit_Field.level,
                     source_ability_id: Ability_Id.basic_attack,
                     source_unit_id: request.selected_unit_id,

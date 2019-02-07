@@ -107,35 +107,35 @@ type Ability_Effect =
     Ability_Effect_Tide_Kraken_Shell_Trigger |
     Ability_Effect_Tide_Ravage_Modifier;
 
-type Battle_Delta_Unit_Ground_Target_Ability =
-    Battle_Delta_Ability_Basic_Attack |
-    Battle_Delta_Ability_Pudge_Hook
+type Delta_Ground_Target_Ability =
+    Delta_Ability_Basic_Attack |
+    Delta_Ability_Pudge_Hook
 
-type Battle_Delta_Unit_Unit_Target_Ability =
-    Battle_Delta_Ability_Pudge_Dismember |
-    Battle_Delta_Ability_Tide_Gush
+type Delta_Unit_Target_Ability =
+    Delta_Ability_Pudge_Dismember |
+    Delta_Ability_Tide_Gush
 
-type Battle_Delta_Unit_Use_No_Target_Ability =
-    Battle_Delta_Ability_Pudge_Rot |
-    Battle_Delta_Ability_Tide_Anchor_Smash |
-    Battle_Delta_Ability_Tide_Ravage
+type Delta_Use_No_Target_Ability =
+    Delta_Ability_Pudge_Rot |
+    Delta_Ability_Tide_Anchor_Smash |
+    Delta_Ability_Tide_Ravage
 
-type Battle_Delta_Ability_Basic_Attack_Deltas_Hit = {
+type Delta_Ability_Basic_Attack_Deltas_Hit = {
     hit: true
-    delta: Battle_Delta_Health_Change
+    delta: Delta_Health_Change
 }
 
-type Battle_Delta_Ability_Basic_Attack = Battle_Delta_Unit_Ground_Target_Ability_Base & {
+type Delta_Ability_Basic_Attack = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.basic_attack
-    result: Battle_Delta_Ability_Basic_Attack_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
+    result: Delta_Ability_Basic_Attack_Deltas_Hit | Delta_Ability_Line_Ability_Miss
 }
 
-type Battle_Delta_Ability_Pudge_Hook_Deltas_Hit = {
+type Delta_Ability_Pudge_Hook_Deltas_Hit = {
     hit: true
-    deltas: [ Battle_Delta_Health_Change, Battle_Delta_Unit_Force_Move ]
+    deltas: [ Delta_Health_Change, Delta_Force_Move ]
 }
 
-type Battle_Delta_Ability_Line_Ability_Miss = {
+type Delta_Ability_Line_Ability_Miss = {
     hit: false
     final_point: {
         x: number
@@ -143,47 +143,47 @@ type Battle_Delta_Ability_Line_Ability_Miss = {
     }
 }
 
-type Battle_Delta_Ability_Pudge_Hook = Battle_Delta_Unit_Ground_Target_Ability_Base & {
+type Delta_Ability_Pudge_Hook = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_hook
-    result: Battle_Delta_Ability_Pudge_Hook_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
+    result: Delta_Ability_Pudge_Hook_Deltas_Hit | Delta_Ability_Line_Ability_Miss
 }
 
-type Battle_Delta_Ability_Pudge_Rot = Battle_Delta_Unit_Use_No_Target_Ability_Base & {
+type Delta_Ability_Pudge_Rot = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_rot
-    deltas: Battle_Delta_Health_Change[]
+    deltas: Delta_Health_Change[]
 }
 
 type Ability_Effect_Pudge_Flesh_Heap = {
     ability_id: Ability_Id.pudge_flesh_heap
-    deltas: [ Battle_Delta_Unit_Max_Health_Change, Battle_Delta_Health_Change ]
+    deltas: [ Delta_Max_Health_Change, Delta_Health_Change ]
 }
 
-type Battle_Delta_Ability_Pudge_Dismember = Battle_Delta_Unit_Unit_Target_Ability_Base & {
+type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_dismember
-    heal_delta: Battle_Delta_Health_Change
-    damage_delta: Battle_Delta_Health_Change
+    heal_delta: Delta_Health_Change
+    damage_delta: Delta_Health_Change
 }
 
-type Battle_Delta_Ability_Tide_Gush = Battle_Delta_Unit_Unit_Target_Ability_Base & {
+type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
-    delta: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Gush_Modifier>
+    delta: Delta_Modifier_Applied<Ability_Effect_Tide_Gush_Modifier>
 }
 
 type Ability_Effect_Tide_Gush_Modifier = {
     ability_id: Ability_Id.tide_gush
     type: Ability_Effect_Type.modifier
-    deltas: [Battle_Delta_Health_Change, Battle_Delta_Unit_Max_Move_Points_Change]
+    deltas: [Delta_Health_Change, Delta_Max_Move_Points_Change]
 }
 
-type Battle_Delta_Ability_Tide_Anchor_Smash = Battle_Delta_Unit_Use_No_Target_Ability_Base & {
+type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
-    deltas: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash_Modifier>[]
+    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash_Modifier>[]
 }
 
 type Ability_Effect_Tide_Anchor_Smash_Modifier = {
     ability_id: Ability_Id.tide_anchor_smash
     type: Ability_Effect_Type.modifier
-    deltas: [Battle_Delta_Health_Change, Battle_Delta_Unit_Attack_Bonus_Change]
+    deltas: [Delta_Health_Change, Delta_Attack_Bonus_Change]
 }
 
 type Ability_Effect_Tide_Kraken_Shell_Trigger = {
@@ -191,13 +191,13 @@ type Ability_Effect_Tide_Kraken_Shell_Trigger = {
     unit_id: number
 }
 
-type Battle_Delta_Ability_Tide_Ravage = Battle_Delta_Unit_Use_No_Target_Ability_Base & {
+type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
-    deltas: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[]
+    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[]
 }
 
 type Ability_Effect_Tide_Ravage_Modifier = {
     ability_id: Ability_Id.tide_ravage
     type: Ability_Effect_Type.modifier
-    deltas: [Battle_Delta_Health_Change, Battle_Delta_Unit_State_Stunned_Counter_Change]
+    deltas: [Delta_Health_Change, Delta_State_Stunned_Counter_Change]
 }

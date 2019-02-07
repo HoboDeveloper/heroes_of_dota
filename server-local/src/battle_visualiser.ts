@@ -5,7 +5,7 @@ type XY = {
 
 type Battle = {
     players: Battle_Player[],
-    deltas: Battle_Delta[];
+    deltas: Delta[];
     delta_paths: Move_Delta_Paths;
     delta_head: number;
     world_origin: Vector;
@@ -92,7 +92,7 @@ function pre_visualize_action(action: Turn_Action) {
     }
 }
 
-function merge_battle_deltas(head_before_merge: number, deltas: Battle_Delta[]) {
+function merge_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
@@ -210,10 +210,10 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
     ParticleManager.ReleaseParticleIndex(fx);
 }
 
-function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Battle_Delta_Ability_Pudge_Hook) {
+function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ability_Pudge_Hook) {
     function is_hook_hit(
-        cast: Battle_Delta_Ability_Pudge_Hook_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
-    ): cast is Battle_Delta_Ability_Pudge_Hook_Deltas_Hit {
+        cast: Delta_Ability_Pudge_Hook_Deltas_Hit | Delta_Ability_Line_Ability_Miss
+    ): cast is Delta_Ability_Pudge_Hook_Deltas_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
@@ -334,7 +334,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Battle_D
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
-function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Ability_Tide_Ravage) {
+function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Tide_Ravage) {
     unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
     wait(0.1);
@@ -346,7 +346,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Battle_D
     const path = "particles/tide_ravage/tide_ravage.vpcf";
     const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
     const particle_delay = 0.1;
-    const deltas_by_distance: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[][] = [];
+    const deltas_by_distance: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[][] = [];
     const deltas = from_client_array(cast.deltas);
 
     for (let distance = 1; distance <= 5; distance++) {
@@ -449,7 +449,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Battle_D
     wait_until(() => delta_completion_status.every(value => value));
 }
 
-function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Ability_Basic_Attack) {
+function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Basic_Attack) {
     const target = cast.target_position;
 
     function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
@@ -514,8 +514,8 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
     const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
     function is_attack_hit(
-        cast: Battle_Delta_Ability_Basic_Attack_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
-    ): cast is Battle_Delta_Ability_Basic_Attack_Deltas_Hit {
+        cast: Delta_Ability_Basic_Attack_Deltas_Hit | Delta_Ability_Line_Ability_Miss
+    ): cast is Delta_Ability_Basic_Attack_Deltas_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
@@ -572,7 +572,7 @@ function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
     return unit.GetAttachmentOrigin(unit.ScriptLookupAttachment(attachment_name));
 }
 
-function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Ground_Target_Ability) {
+function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ground_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
             perform_basic_attack(main_player, unit, cast);
@@ -597,7 +597,7 @@ function apply_and_record_modifier(target: Battle_Unit, modifier_id: number, mod
     };
 }
 
-function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Unit_Target_Ability, target: Battle_Unit) {
+function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Unit_Target_Ability, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
 
     switch (cast.ability_id) {
@@ -633,7 +633,7 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
     }
 }
 
-function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Use_No_Target_Ability) {
+function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Use_No_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.pudge_rot: {
             const particle_path = "particles/units/heroes/hero_pudge/pudge_rot.vpcf";
@@ -805,11 +805,11 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
     return sequence_duration - time_passed;
 }
 
-function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number = 0) {
+function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
     switch (delta.type) {
-        case Battle_Delta_Type.unit_spawn: {
+        case Delta_Type.unit_spawn: {
             const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.at_position);
             unit.is_playing_a_delta = true;
 
@@ -820,7 +820,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_move: {
+        case Delta_Type.unit_move: {
             const unit = find_unit_by_id(delta.unit_id);
 
             if (unit) {
@@ -856,7 +856,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_ground_target_ability: {
+        case Delta_Type.use_ground_target_ability: {
             const attacker = find_unit_by_id(delta.unit_id);
 
             if (attacker) {
@@ -870,7 +870,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_unit_target_ability: {
+        case Delta_Type.use_unit_target_ability: {
             const attacker = find_unit_by_id(delta.unit_id);
             const target = find_unit_by_id(delta.target_unit_id);
 
@@ -885,7 +885,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_use_no_target_ability: {
+        case Delta_Type.use_no_target_ability: {
             const attacker = find_unit_by_id(delta.unit_id);
 
             if (attacker) {
@@ -899,7 +899,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.unit_force_move: {
+        case Delta_Type.unit_force_move: {
             const unit = find_unit_by_id(delta.unit_id);
             const to = battle_position_to_world_position_center(delta.to_position);
 
@@ -912,15 +912,15 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.start_turn: {
+        case Delta_Type.start_turn: {
             break;
         }
 
-        case Battle_Delta_Type.end_turn: {
+        case Delta_Type.end_turn: {
             break;
         }
 
-        case Battle_Delta_Type.unit_field_change: {
+        case Delta_Type.unit_field_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
             if (unit) {
@@ -946,7 +946,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.mana_change: {
+        case Delta_Type.mana_change: {
             const unit = find_unit_by_id(delta.unit_id);
 
             if (unit) {
@@ -964,7 +964,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.health_change: {
+        case Delta_Type.health_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
             if (unit) {
@@ -989,7 +989,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.modifier_appled: {
+        case Delta_Type.modifier_appled: {
             const source = find_unit_by_id(delta.source_unit_id);
             const target = find_unit_by_id(delta.target_unit_id);
 
@@ -1002,7 +1002,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.modifier_removed: {
+        case Delta_Type.modifier_removed: {
             const modifier_data = battle.modifier_id_to_modifier_data[delta.modifier_id];
 
             if (modifier_data) {
@@ -1020,13 +1020,13 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             break;
         }
 
-        case Battle_Delta_Type.ability_effect_applied: {
+        case Delta_Type.ability_effect_applied: {
             play_ability_effect_delta(main_player, delta.effect);
 
             break;
         }
 
-        case Battle_Delta_Type.set_ability_cooldown_remaining: break;
+        case Delta_Type.set_ability_cooldown_remaining: break;
 
         default: unreachable(delta);
     }

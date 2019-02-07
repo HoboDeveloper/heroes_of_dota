@@ -330,7 +330,7 @@ function game_loop() {
         return false;
     });
 
-    on_custom_event_async<Put_Battle_Deltas_Event>("put_battle_deltas", event => {
+    on_custom_event_async<Put_Deltas_Event>("put_battle_deltas", event => {
         merge_battle_deltas(event.from_head, from_client_array(event.deltas));
         merge_delta_paths_from_client(event.delta_paths);
     });

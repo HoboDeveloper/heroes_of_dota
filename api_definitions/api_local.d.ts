@@ -41,8 +41,8 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
 
 type Player_Net_Table = Player_Net_Table_On_Global_Map | Player_Net_Table_In_Battle | Player_Net_Table_Not_Logged_In
 
-type Put_Battle_Deltas_Event = {
-    deltas: Battle_Delta[]
+type Put_Deltas_Event = {
+    deltas: Delta[]
     delta_paths: Move_Delta_Paths
     from_head: number
 }
