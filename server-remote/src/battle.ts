@@ -204,7 +204,7 @@ function field_change_to_modifier<T extends Unit_Field, U extends Ability_Effect
     };
 }
 
-function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Ability_Effect | undefined {
+function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Battle_Delta_Unit_Ground_Target_Ability | undefined {
     switch (ability.id) {
         case Ability_Id.basic_attack: {
             const scan = scan_for_unit_in_direction(battle, unit.position, target, ability.targeting.line_length);
@@ -214,6 +214,9 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 const delta = damage_delta(unit, ability.id, scan.unit, damage);
 
                 return {
+                    type: Battle_Delta_Type.unit_ground_target_ability,
+                    unit_id: unit.id,
+                    target_position: target,
                     ability_id: Ability_Id.basic_attack,
                     result: {
                         hit: true,
@@ -222,6 +225,9 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 };
             } else {
                 return {
+                    type: Battle_Delta_Type.unit_ground_target_ability,
+                    unit_id: unit.id,
+                    target_position: target,
                     ability_id: Ability_Id.basic_attack,
                     result: {
                         hit: false,
@@ -245,11 +251,17 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 };
 
                 return {
+                    type: Battle_Delta_Type.unit_ground_target_ability,
+                    unit_id: unit.id,
+                    target_position: target,
                     ability_id: ability.id,
                     result: { hit: true, deltas: [ damage , move ] }
                 };
             } else {
                 return {
+                    type: Battle_Delta_Type.unit_ground_target_ability,
+                    unit_id: unit.id,
+                    target_position: target,
                     ability_id: ability.id,
                     result: { hit: false, final_point: scan.final_point }
                 }
@@ -260,7 +272,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
     }
 }
 
-function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Ability_Effect | undefined {
+function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Battle_Delta_Unit_Use_No_Target_Ability | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_rot: {
             const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
@@ -269,6 +281,8 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             deltas.push(damage_delta(unit, ability.id, unit, ability.damage));
 
             return {
+                type: Battle_Delta_Type.unit_use_no_target_ability,
+                unit_id: unit.id,
                 ability_id: ability.id,
                 deltas: deltas
             }
@@ -289,8 +303,9 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 })));
 
             return {
+                type: Battle_Delta_Type.unit_use_no_target_ability,
+                unit_id: unit.id,
                 ability_id: ability.id,
-                type: Ability_Effect_Type.ability,
                 deltas: deltas
             };
         }
@@ -309,8 +324,9 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 })));
 
             return {
+                type: Battle_Delta_Type.unit_use_no_target_ability,
+                unit_id: unit.id,
                 ability_id: ability.id,
-                type: Ability_Effect_Type.ability,
                 deltas: deltas
             };
         }
@@ -319,10 +335,13 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
     }
 }
 
-function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Ability_Effect | undefined {
+function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Battle_Delta_Unit_Unit_Target_Ability | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_dismember: {
             return {
+                type: Battle_Delta_Type.unit_unit_target_ability,
+                unit_id: unit.id,
+                target_unit_id: target.id,
                 ability_id: ability.id,
                 heal_delta: heal_delta(unit, ability.id, unit, 14),
                 damage_delta: damage_delta(unit, ability.id, target, 14)
@@ -340,9 +359,11 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
                 ]
             }));
 
-            return  {
+            return {
+                type: Battle_Delta_Type.unit_unit_target_ability,
+                unit_id: unit.id,
+                target_unit_id: target.id,
                 ability_id: ability.id,
-                type: Ability_Effect_Type.ability,
                 delta: modifier_applied
             };
         }
@@ -428,17 +449,13 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             if (!actors) return;
             if (actors.ability.type != Ability_Type.no_target) return;
 
-            const effect = perform_ability_cast_no_target(battle, actors.unit, actors.ability);
+            const cast = perform_ability_cast_no_target(battle, actors.unit, actors.ability);
 
-            if (!effect) return;
+            if (!cast) return;
 
             return [
                 mana_change(actors.unit, -actors.ability.mana_cost),
-                {
-                    type: Battle_Delta_Type.unit_use_no_target_ability,
-                    unit_id: action.unit_id,
-                    effect: effect
-                }
+                cast
             ]
         }
 
@@ -453,18 +470,13 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             if (!target) return;
             if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, target.position)) return;
 
-            const effect = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
+            const cast = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
 
-            if (!effect) return;
+            if (!cast) return;
 
             return [
                 mana_change(actors.unit, -actors.ability.mana_cost),
-                {
-                    type: Battle_Delta_Type.unit_unit_target_ability,
-                    unit_id: action.unit_id,
-                    target_unit_id: action.target_id,
-                    effect: effect
-                }
+                cast
             ]
         }
 
@@ -479,23 +491,18 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             if (!cell) return;
             if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, action.to)) return;
 
-            const effect = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
+            const cast = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
 
-            if (!effect) return;
+            if (!cast) return;
 
             const deltas: Battle_Delta[] = [
                 mana_change(actors.unit, -actors.ability.mana_cost),
-                {
-                    type: Battle_Delta_Type.unit_ground_target_ability,
-                    unit_id: action.unit_id,
-                    target_position: action.to,
-                    effect: effect
-                }
+                cast
             ];
 
-            if (effect.ability_id == Ability_Id.basic_attack) {
-                if (effect.result.hit) {
-                    const damage_delta = effect.result.delta;
+            if (cast.ability_id == Ability_Id.basic_attack) {
+                if (cast.result.hit) {
+                    const damage_delta = cast.result.delta;
                     const target = find_unit_by_id(battle, damage_delta.target_unit_id)!;
                     const new_delta = on_target_attacked(target);
 

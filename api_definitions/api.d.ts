@@ -203,9 +203,8 @@ type Battle_Delta_Unit_Spawn = {
     }
 }
 
-type Battle_Delta_Unit_Ground_Target_Ability = {
+type Battle_Delta_Unit_Ground_Target_Ability_Base = {
     type: Battle_Delta_Type.unit_ground_target_ability
-    effect: Ability_Effect
     unit_id: number
     target_position: {
         x: number
@@ -213,16 +212,14 @@ type Battle_Delta_Unit_Ground_Target_Ability = {
     }
 }
 
-type Battle_Delta_Unit_Unit_Target_Ability = {
+type Battle_Delta_Unit_Unit_Target_Ability_Base = {
     type: Battle_Delta_Type.unit_unit_target_ability
-    effect: Ability_Effect
     unit_id: number
     target_unit_id: number
 }
 
-type Battle_Delta_Unit_Use_No_Target_Ability = {
+type Battle_Delta_Unit_Use_No_Target_Ability_Base = {
     type: Battle_Delta_Type.unit_use_no_target_ability
-    effect: Ability_Effect
     unit_id: number
 }
 

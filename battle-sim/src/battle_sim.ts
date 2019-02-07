@@ -300,11 +300,20 @@ function flatten_deltas(deltas: Battle_Delta[]): Battle_Delta[] {
         flattened.push(delta);
 
         switch (delta.type) {
-            case Battle_Delta_Type.ability_effect_applied:
-            case Battle_Delta_Type.modifier_appled:
             case Battle_Delta_Type.unit_ground_target_ability:
             case Battle_Delta_Type.unit_unit_target_ability:
             case Battle_Delta_Type.unit_use_no_target_ability: {
+                const cast_deltas = cast_to_deltas(delta);
+
+                if (cast_deltas) {
+                    flattened.push(...cast_deltas);
+                }
+
+                break;
+            }
+
+            case Battle_Delta_Type.ability_effect_applied:
+            case Battle_Delta_Type.modifier_appled: {
                 const effect_deltas = ability_effect_to_deltas(delta.effect);
 
                 if (effect_deltas) {
@@ -373,14 +382,24 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
+function cast_to_deltas(cast: Battle_Delta_Unit_Unit_Target_Ability | Battle_Delta_Unit_Ground_Target_Ability | Battle_Delta_Unit_Use_No_Target_Ability): Battle_Delta[] | undefined {
+    switch (cast.ability_id) {
+        case Ability_Id.basic_attack: if (cast.result.hit) return [ cast.result.delta ]; else return;
+        case Ability_Id.pudge_hook: if (cast.result.hit) return cast.result.deltas; else return;
+        case Ability_Id.pudge_rot: return cast.deltas;
+        case Ability_Id.pudge_dismember: return [ cast.damage_delta, cast.heal_delta ];
+        case Ability_Id.tide_gush: return flatten_deltas([ cast.delta ]);
+        case Ability_Id.tide_anchor_smash: return flatten_deltas(cast.deltas); // TODO we need a recursive flattener
+        case Ability_Id.tide_ravage: return flatten_deltas(cast.deltas);
+
+        default: unreachable(cast);
+    }
+}
+
 function ability_effect_to_deltas(effect: Ability_Effect): Battle_Delta[] | undefined {
     switch (effect.ability_id) {
-        case Ability_Id.basic_attack: if (effect.result.hit) return [ effect.result.delta ]; else return;
-        case Ability_Id.pudge_hook: if (effect.result.hit) return effect.result.deltas; else return;
-        case Ability_Id.pudge_rot: return effect.deltas;
-        case Ability_Id.pudge_dismember: return [ effect.damage_delta, effect.heal_delta ];
         case Ability_Id.pudge_flesh_heap: return effect.deltas;
-        case Ability_Id.tide_gush: if (effect.type == Ability_Effect_Type.ability) return flatten_deltas([ effect.delta ]); return flatten_deltas(effect.deltas);
+        case Ability_Id.tide_gush: return flatten_deltas(effect.deltas);
         case Ability_Id.tide_anchor_smash: return flatten_deltas(effect.deltas); // TODO we need a recursive flattener
         case Ability_Id.tide_ravage: return flatten_deltas(effect.deltas);
         case Ability_Id.tide_kraken_shell: return [];
@@ -467,7 +486,7 @@ function collapse_delta(battle: Battle, delta: Battle_Delta) {
             if (unit) {
                 unit.has_taken_an_action_this_turn = true;
 
-                const ability = find_unit_ability(unit, delta.effect.ability_id);
+                const ability = find_unit_ability(unit, delta.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
                     ability.cooldown_remaining = ability.cooldown;

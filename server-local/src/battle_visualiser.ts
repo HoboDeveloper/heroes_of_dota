@@ -210,18 +210,14 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
     ParticleManager.ReleaseParticleIndex(fx);
 }
 
-function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, effect: Ability_Effect_Pudge_Hook) {
+function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Battle_Delta_Ability_Pudge_Hook) {
     function is_hook_hit(
-        effect: Ability_Effect_Pudge_Hook_Deltas_Hit | Ability_Effect_Line_Ability_Miss
-    ): effect is Ability_Effect_Pudge_Hook_Deltas_Hit {
-        return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
+        cast: Battle_Delta_Ability_Pudge_Hook_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
+    ): cast is Battle_Delta_Ability_Pudge_Hook_Deltas_Hit {
+        return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
-    if (!pudge) {
-        log_chat_debug_message("Error, Pudge not found");
-        return;
-    }
-
+    const target = cast.target_position;
     const hook_offset = Vector(0, 0, 96);
     const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vector;
     const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
@@ -230,8 +226,8 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
     let travel_target: XY;
 
-    if (is_hook_hit(effect.result)) {
-        const [damage] = from_client_tuple(effect.result.deltas);
+    if (is_hook_hit(cast.result)) {
+        const [damage] = from_client_tuple(cast.result.deltas);
         const target = find_unit_by_id(damage.target_unit_id);
 
         if (!target) {
@@ -241,7 +237,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
 
         travel_target = target.position;
     } else {
-        travel_target = effect.result.final_point;
+        travel_target = cast.result.final_point;
     }
 
     turn_unit_towards_target(pudge, target);
@@ -268,8 +264,8 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
     ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
 
-    if (is_hook_hit(effect.result)) {
-        const [damage, move] = from_client_tuple(effect.result.deltas);
+    if (is_hook_hit(cast.result)) {
+        const [damage, move] = from_client_tuple(cast.result.deltas);
         const target = find_unit_by_id(damage.target_unit_id);
 
         if (!target) {
@@ -338,7 +334,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, target: XY, ef
     ParticleManager.ReleaseParticleIndex(chain);
 }
 
-function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Tide_Ravage) {
+function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Ability_Tide_Ravage) {
     unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
     wait(0.1);
@@ -351,7 +347,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Abilit
     const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
     const particle_delay = 0.1;
     const deltas_by_distance: Battle_Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[][] = [];
-    const deltas = from_client_array(effect.deltas);
+    const deltas = from_client_array(cast.deltas);
 
     for (let distance = 1; distance <= 5; distance++) {
         ParticleManager.SetParticleControl(fx, distance, Vector(distance * battle_cell_size * 0.85, 0, 0));
@@ -453,7 +449,9 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, effect: Abilit
     wait_until(() => delta_completion_status.every(value => value));
 }
 
-function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect_Basic_Attack, target: XY) {
+function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Ability_Basic_Attack) {
+    const target = cast.target_position;
+
     function get_unit_pre_attack_sound(type: Unit_Type): string | undefined {
         switch (type) {
             case Unit_Type.pudge: return "Hero_Pudge.PreAttack";
@@ -516,9 +514,9 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
     const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
     function is_attack_hit(
-        effect: Ability_Effect_Basic_Attack_Deltas_Hit | Ability_Effect_Line_Ability_Miss
-    ): effect is Ability_Effect_Basic_Attack_Deltas_Hit {
-        return effect.hit as any as number == 1; // Panorama passes booleans this way, meh
+        cast: Battle_Delta_Ability_Basic_Attack_Deltas_Hit | Battle_Delta_Ability_Line_Ability_Miss
+    ): cast is Battle_Delta_Ability_Basic_Attack_Deltas_Hit {
+        return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
     if (ranged_attack_spec) {
@@ -533,8 +531,8 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
             shake_screen(unit.position, ranged_attack_spec.shake_on_attack);
         }
 
-        if (is_attack_hit(effect.result)) {
-            const delta = effect.result.delta;
+        if (is_attack_hit(cast.result)) {
+            const delta = cast.result.delta;
             const target_unit = find_unit_by_id(delta.target_unit_id);
 
             if (!target_unit) {
@@ -550,7 +548,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
                 shake_screen(target_unit.position, ranged_attack_spec.shake_on_impact);
             }
         } else {
-            tracking_projectile_to_point(unit, effect.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
+            tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
         try_play_sound_for_unit(unit, get_unit_attack_vo);
@@ -560,8 +558,8 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, effec
 
         const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
-        if (is_attack_hit(effect.result)) {
-            play_delta(main_player, effect.result.delta);
+        if (is_attack_hit(cast.result)) {
+            play_delta(main_player, cast.result.delta);
         }
 
         shake_screen(target, Shake.weak);
@@ -574,21 +572,19 @@ function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
     return unit.GetAttachmentOrigin(unit.ScriptLookupAttachment(attachment_name));
 }
 
-function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: XY) {
-    switch (effect.ability_id) {
+function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Ground_Target_Ability) {
+    switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
-            perform_basic_attack(main_player, unit, effect, target);
+            perform_basic_attack(main_player, unit, cast);
             break;
         }
 
         case Ability_Id.pudge_hook: {
-            pudge_hook(main_player, unit, target, effect);
+            pudge_hook(main_player, unit, cast);
             break;
         }
 
-        default: {
-            log_chat_debug_message(`Error: ground target ability ${effect.ability_id} not found`);
-        }
+        default: unreachable(cast);
     }
 }
 
@@ -601,15 +597,15 @@ function apply_and_record_modifier(target: Battle_Unit, modifier_id: number, mod
     };
 }
 
-function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect, target: Battle_Unit) {
+function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Unit_Target_Ability, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
 
-    switch (effect.ability_id) {
+    switch (cast.ability_id) {
         case Ability_Id.pudge_dismember: {
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
 
-            play_delta(main_player, effect.damage_delta);
-            play_delta(main_player, effect.heal_delta);
+            play_delta(main_player, cast.damage_delta);
+            play_delta(main_player, cast.heal_delta);
 
             break;
         }
@@ -623,26 +619,22 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             unit.handle.EmitSound("Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
 
-            if (effect.type == Ability_Effect_Type.ability) {
-                const modifier_delta = effect.delta;
-                const [damage] = from_client_tuple(modifier_delta.effect.deltas);
+            const modifier_delta = cast.delta;
+            const [damage] = from_client_tuple(modifier_delta.effect.deltas);
 
-                apply_and_record_modifier(target, modifier_delta.modifier_id, "Modifier_Tide_Gush");
+            apply_and_record_modifier(target, modifier_delta.modifier_id, "Modifier_Tide_Gush");
 
-                play_delta(main_player, damage);
-            }
+            play_delta(main_player, damage);
 
             break;
         }
 
-        default: {
-            log_chat_debug_message(`Error: unit target ability with id ${effect.ability_id} not found`);
-        }
+        default: unreachable(cast);
     }
 }
 
-function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, effect: Ability_Effect) {
-    switch (effect.ability_id) {
+function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Battle_Delta_Unit_Use_No_Target_Ability) {
+    switch (cast.ability_id) {
         case Ability_Id.pudge_rot: {
             const particle_path = "particles/units/heroes/hero_pudge/pudge_rot.vpcf";
             const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
@@ -655,7 +647,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            for (const delta of from_client_array(effect.deltas)) {
+            for (const delta of from_client_array(cast.deltas)) {
                 play_delta(main_player, delta);
             }
 
@@ -685,12 +677,10 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            if (effect.type == Ability_Effect_Type.ability) {
-                for (const delta of from_client_array(effect.deltas)) {
-                    const [damage] = from_client_tuple(delta.effect.deltas);
+            for (const delta of from_client_array(cast.deltas)) {
+                const [damage] = from_client_tuple(delta.effect.deltas);
 
-                    play_delta(main_player, damage);
-                }
+                play_delta(main_player, damage);
             }
 
             wait(1);
@@ -701,16 +691,12 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         }
 
         case Ability_Id.tide_ravage: {
-            if (effect.type != Ability_Effect_Type.ability) return;
-
-            tide_ravage(main_player, unit, effect);
+            tide_ravage(main_player, unit, cast);
 
             break;
         }
 
-        default: {
-            log_chat_debug_message(`Error: no target ability ${effect.ability_id} not found`);
-        }
+        default: unreachable(cast);
     }
 }
 
@@ -876,7 +862,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             if (attacker) {
                 attacker.is_playing_a_delta = true;
 
-                play_ground_target_ability_delta(main_player, attacker, delta.effect, delta.target_position);
+                play_ground_target_ability_delta(main_player, attacker, delta);
 
                 attacker.is_playing_a_delta = false;
             }
@@ -891,7 +877,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             if (attacker && target) {
                 attacker.is_playing_a_delta = true;
 
-                play_unit_target_ability_delta(main_player, attacker, delta.effect, target);
+                play_unit_target_ability_delta(main_player, attacker, delta, target);
 
                 attacker.is_playing_a_delta = false;
             }
@@ -905,7 +891,7 @@ function play_delta(main_player: Main_Player, delta: Battle_Delta, head: number 
             if (attacker) {
                 attacker.is_playing_a_delta = true;
 
-                play_no_target_ability_delta(main_player, attacker, delta.effect);
+                play_no_target_ability_delta(main_player, attacker, delta);
 
                 attacker.is_playing_a_delta = false;
             }
