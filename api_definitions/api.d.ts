@@ -229,7 +229,6 @@ type Delta_Start_Turn = {
 
 type Delta_End_Turn = {
     type: Delta_Type.end_turn
-    of_player_index: number
 }
 
 type Delta_Field_Change = Unit_Field_Change & {
@@ -272,6 +271,7 @@ type Delta_Modifier_Applied<T extends Ability_Effect> = {
     effect: T
     target_unit_id: number
     source_unit_id: number
+    duration: number
 }
 
 type Delta_Modifier_Removed = {
@@ -286,9 +286,9 @@ type Delta_Set_Ability_Cooldown_Remaining = {
     cooldown_remaining: number
 }
 
-type Delta_Ability_Effect_Applied = {
+type Delta_Ability_Effect_Applied<T extends Ability_Effect> = {
     type: Delta_Type.ability_effect_applied
-    effect: Ability_Effect
+    effect: T
 }
 
 type Delta =
@@ -310,7 +310,7 @@ type Delta =
     Delta_Modifier_Applied<Ability_Effect> |
     Delta_Modifier_Removed |
     Delta_Set_Ability_Cooldown_Remaining |
-    Delta_Ability_Effect_Applied |
+    Delta_Ability_Effect_Applied<Ability_Effect> |
     Delta_Start_Turn |
     Delta_End_Turn
 

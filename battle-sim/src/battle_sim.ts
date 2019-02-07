@@ -65,6 +65,7 @@ type Modifier = {
     id: number
     source: Unit
     source_ability: Ability_Id
+    duration_remaining: number
 }
 
 type Ability_Passive = Ability_Definition_Passive;
@@ -287,6 +288,12 @@ function pass_turn_to_next_player(battle: Battle) {
             for (const ability of unit.abilities) {
                 if (ability.type != Ability_Type.passive && ability.cooldown_remaining > 0) {
                     ability.cooldown_remaining--;
+                }
+            }
+
+            for (const modifier of unit.modifiers) {
+                if (modifier.duration_remaining > 0) {
+                    modifier.duration_remaining--;
                 }
             }
         }
@@ -545,7 +552,8 @@ function collapse_delta(battle: Battle, delta: Delta) {
                 unit.modifiers.push({
                     id: delta.modifier_id,
                     source: source,
-                    source_ability: delta.effect.ability_id
+                    source_ability: delta.effect.ability_id,
+                    duration_remaining: delta.duration
                 });
             }
 

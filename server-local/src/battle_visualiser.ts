@@ -699,21 +699,6 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
 function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, effect: Ability_Effect) {
     switch (effect.ability_id) {
-        case Ability_Id.pudge_flesh_heap: {
-            const path = "particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf";
-            const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, target.handle);
-            ParticleManager.SetParticleControl(fx, 1, target.handle.GetAbsOrigin());
-            ParticleManager.ReleaseParticleIndex(fx);
-
-            target.handle.EmitSound("pudge_ability_flesh_heap");
-
-            for (const delta of from_client_tuple(effect.deltas)) {
-                play_delta(main_player, delta);
-            }
-
-            break;
-        }
-
         default: {
             log_chat_debug_message(`Error no modifier effect for ability ${effect.ability_id} found`);
         }
@@ -732,6 +717,25 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
                 unit.handle.EmitSound("Hero_Tidehunter.KrakenShell");
 
                 ParticleManager.ReleaseParticleIndex(fx);
+            }
+
+            break;
+        }
+
+        case Ability_Id.pudge_flesh_heap: {
+            const [ health_bonus, heal ] = from_client_tuple(effect.deltas);
+            const unit = find_unit_by_id(health_bonus.target_unit_id);
+
+            if (unit) {
+                const path = "particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf";
+                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+                ParticleManager.SetParticleControl(fx, 1, unit.handle.GetAbsOrigin());
+                ParticleManager.ReleaseParticleIndex(fx);
+
+                unit.handle.EmitSound("pudge_ability_flesh_heap");
+
+                play_delta(main_player, health_bonus);
+                play_delta(main_player, heal);
             }
 
             break;

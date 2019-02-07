@@ -31,7 +31,6 @@ type Modifier_Data_Base = {
     ability_id: Ability_Id
     target: Unit
     source: Unit
-    duration_remaining: number
 }
 
 type Modifier_Data_Field_Change = Modifier_Data_Base & {
@@ -52,24 +51,21 @@ type Scan_Result_Missed = {
     final_point: XY
 }
 
-function field_change<T extends Unit_Field>(
-    battle: Battle_Record,
-    duration: number,
-    source: Unit,
-    target: Unit,
-    ability_id: Ability_Id,
-    field: T,
-    change: number
-): Modifier_Data_Field_Change & { field: T } {
-    return {
-        id: get_next_modifier_id(battle),
-        type: Modifier_Data_Type.field_change,
-        ability_id: ability_id,
-        source: source,
-        target: target,
-        field: field,
-        change: change,
-        duration_remaining: duration
+function register_modifier(battle: Battle_Record, modifier: Delta_Modifier_Applied<Ability_Effect>) {
+    const flat = flatten_deltas([ modifier ]);
+
+    for (const delta of flat) {
+        if (delta.type == Delta_Type.unit_field_change) {
+            battle.modifiers.push({
+                id: modifier.modifier_id,
+                type: Modifier_Data_Type.field_change,
+                ability_id: delta.source_ability_id,
+                source: find_unit_by_id(battle, delta.source_unit_id)!,
+                target: find_unit_by_id(battle, delta.target_unit_id)!,
+                field: delta.field,
+                change: delta.value_delta,
+            });
+        }
     }
 }
 
@@ -153,7 +149,7 @@ function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal
     };
 }
 
-function field_change_delta<T extends Unit_Field>(field: T, source: Unit, source_ability: Ability_Id, target: Unit, value_delta: number): Delta_Field_Change & { field: T } {
+function field_change_delta<T extends Unit_Field>(field: T, source: Unit, target: Unit, source_ability: Ability_Id, value_delta: number): Delta_Field_Change & { field: T } {
     return {
         type: Delta_Type.unit_field_change,
         field: field,
@@ -165,14 +161,22 @@ function field_change_delta<T extends Unit_Field>(field: T, source: Unit, source
     }
 }
 
-function apply_modifier_delta<T extends Ability_Effect>(battle: Battle_Record, source: Unit, target: Unit, effect: T): Delta_Modifier_Applied<T> {
+function apply_modifier_delta<T extends Ability_Effect>(battle: Battle_Record, source: Unit, target: Unit, duration: number, effect: T): Delta_Modifier_Applied<T> {
     return {
         type: Delta_Type.modifier_appled,
         modifier_id: get_next_modifier_id(battle),
         target_unit_id: target.id,
         source_unit_id: source.id,
+        duration: duration,
         effect: effect
     };
+}
+
+function apply_ability_effect_delta<T extends Ability_Effect>(effect: T): Delta_Ability_Effect_Applied<T> {
+    return {
+        type: Delta_Type.ability_effect_applied,
+        effect: effect
+    }
 }
 
 function damage_delta(source: Unit, source_ability: Ability_Id, target: Unit, damage: number): Delta_Health_Change {
@@ -183,24 +187,6 @@ function damage_delta(source: Unit, source_ability: Ability_Id, target: Unit, da
         type: Delta_Type.health_change,
         new_value: Math.max(0, target.health - damage),
         value_delta: -damage
-    };
-}
-
-function field_change_to_modifier<T extends Unit_Field, U extends Ability_Effect>(
-    battle: Battle_Record,
-    modifier_data: Modifier_Data & { field: T },
-    effect_supplier: (delta: Delta_Field_Change & { field: T }) => U
-): Delta_Modifier_Applied<U> {
-    battle.modifiers.push(modifier_data);
-
-    const delta = field_change_delta(modifier_data.field, modifier_data.source, modifier_data.ability_id, modifier_data.target, modifier_data.change);
-
-    return {
-        type: Delta_Type.modifier_appled,
-        modifier_id: modifier_data.id,
-        target_unit_id: modifier_data.target.id,
-        source_unit_id: modifier_data.source.id,
-        effect: effect_supplier(delta)
     };
 }
 
@@ -291,41 +277,51 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
         case Ability_Id.tide_anchor_smash: {
             const reduce_by = -ability.attack_reduction;
             const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
-            const deltas = targets
-                .map(target => field_change(battle, 1, unit, target, ability.id, Unit_Field.attack_bonus, reduce_by))
-                .map(data => field_change_to_modifier(battle, data, field_change => ({
-                    ability_id: ability.id,
-                    deltas: [
-                        damage_delta(unit, data.ability_id, data.target, ability.damage),
-                        field_change
-                    ]
-                })));
+            const modifier_applied_deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash>[] = [];
+
+            for (const target of targets) {
+                const damage = damage_delta(unit, ability.id, target, ability.damage);
+                const reduction = field_change_delta(Unit_Field.attack_bonus, unit, target, ability.id, reduce_by);
+                const modifier = apply_modifier_delta(battle, unit, target, 1, {
+                    ability_id: Ability_Id.tide_anchor_smash,
+                    deltas: [damage, reduction]
+                });
+
+                register_modifier(battle, modifier);
+
+                modifier_applied_deltas.push(modifier);
+            }
 
             return {
                 type: Delta_Type.use_no_target_ability,
                 unit_id: unit.id,
                 ability_id: ability.id,
-                deltas: deltas
+                deltas: modifier_applied_deltas
             };
         }
 
         case Ability_Id.tide_ravage: {
             const targets = query_units_in_manhattan_area(battle, unit.position, ability.targeting.distance);
-            const deltas = targets
-                .map(target => field_change(battle, 1, unit, target, ability.id, Unit_Field.state_stunned_counter, 1))
-                .map(data => field_change_to_modifier(battle, data, field_change => ({
-                    ability_id: ability.id,
-                    deltas: [
-                        damage_delta(unit, data.ability_id, data.target, ability.damage),
-                        field_change
-                    ]
-                })));
+            const modifier_applied_deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[] = [];
+
+            for (const target of targets) {
+                const damage = damage_delta(unit, ability.id, target, ability.damage);
+                const stun = field_change_delta(Unit_Field.state_stunned_counter, unit, target, ability.id, 1);
+                const modifier = apply_modifier_delta(battle, unit, target, 1, {
+                    ability_id: Ability_Id.tide_ravage,
+                    deltas: [damage, stun]
+                });
+
+                register_modifier(battle, modifier);
+
+                modifier_applied_deltas.push(modifier);
+            }
 
             return {
                 type: Delta_Type.use_no_target_ability,
                 unit_id: unit.id,
                 ability_id: ability.id,
-                deltas: deltas
+                deltas: modifier_applied_deltas
             };
         }
 
@@ -347,21 +343,21 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
         }
 
         case Ability_Id.tide_gush: {
-            const change = field_change(battle, 1, unit, target, ability.id, Unit_Field.max_move_points, -ability.move_points_reduction);
-            const modifier_applied = field_change_to_modifier(battle, change, field_change => ({
-                ability_id: ability.id,
-                deltas: [
-                    damage_delta(unit, ability.id, target, ability.damage),
-                    field_change
-                ]
-            }));
+            const damage = damage_delta(unit, ability.id, target, ability.damage);
+            const slow = field_change_delta(Unit_Field.max_move_points, unit, target, ability.id, -ability.move_points_reduction);
+            const modifier = apply_modifier_delta(battle, unit, target, 1, {
+                ability_id: Ability_Id.tide_gush,
+                deltas: [damage, slow]
+            });
+
+            register_modifier(battle, modifier);
 
             return {
                 type: Delta_Type.use_unit_target_ability,
                 unit_id: unit.id,
                 target_unit_id: target.id,
                 ability_id: ability.id,
-                delta: modifier_applied
+                delta: modifier
             };
         }
 
@@ -373,13 +369,10 @@ function on_target_attacked(target: Unit): Delta | undefined {
     const ability = find_unit_ability(target, Ability_Id.tide_kraken_shell);
 
     if (ability && target[Unit_Field.level] >= ability.available_since_level) {
-        return {
-            type: Delta_Type.ability_effect_applied,
-            effect: {
-                ability_id: Ability_Id.tide_kraken_shell,
-                unit_id: target.id
-            }
-        };
+        return apply_ability_effect_delta({
+            ability_id: Ability_Id.tide_kraken_shell,
+            unit_id: target.id
+        });
     }
 }
 
@@ -514,8 +507,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
 
         case Action_Type.end_turn: {
             return [{
-                type: Delta_Type.end_turn,
-                of_player_index: battle.turning_player_index
+                type: Delta_Type.end_turn
             }];
         }
 
@@ -568,32 +560,32 @@ function push_modifier_removed_deltas(battle: Battle_Record, data: Modifier_Data
             switch (field) {
                 // IDK why those can't go under the same case, literally the same code!
                 case Unit_Field.max_health: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
                 case Unit_Field.max_mana: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
                 case Unit_Field.max_move_points: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
                 case Unit_Field.attack_bonus: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
                 case Unit_Field.state_stunned_counter: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
                 case Unit_Field.armor: {
-                    target_deltas.push(field_change_delta(field, data.source, data.ability_id, data.target, -change));
+                    target_deltas.push(field_change_delta(field, data.source, data.target, data.ability_id, -change));
                     break;
                 }
 
@@ -612,10 +604,10 @@ function push_modifier_removed_deltas(battle: Battle_Record, data: Modifier_Data
 }
 
 function push_pudge_flesh_heap_deltas(battle: Battle_Record, pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Delta[]) {
-    const delta = apply_modifier_delta(battle, pudge, pudge, {
+    const delta = apply_ability_effect_delta( {
         ability_id: ability.id,
         deltas: [
-            field_change_delta(Unit_Field.max_health, pudge, ability.id, pudge, ability.health_per_kill),
+            field_change_delta(Unit_Field.max_health, pudge, pudge, ability.id, ability.health_per_kill),
             heal_delta(pudge, ability.id, pudge, ability.health_per_kill, pudge[Unit_Field.max_health] + ability.health_per_kill)
         ]
     });
@@ -678,7 +670,7 @@ function on_level_up(battle: Battle_Record, delta: Delta_Level_Change, target_de
                 }
 
                 case Ability_Id.tide_kraken_shell: {
-                    target_deltas.push(field_change_delta(Unit_Field.armor, unit, Ability_Id.tide_kraken_shell, unit, 3));
+                    target_deltas.push(field_change_delta(Unit_Field.armor, unit, unit, Ability_Id.tide_kraken_shell, 3));
 
                     break;
                 }
@@ -720,22 +712,27 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Delta[]): Delta
             }
 
             case Delta_Type.end_turn: {
-                const turning_player_id = battle.players[delta.of_player_index].id;
+                for (const unit of battle.units) {
+                    if (unit.dead) continue;
 
-                for (const modifier of battle.modifiers) {
-                    if (modifier.target.owner_player_id != turning_player_id) {
-                        continue;
-                    }
+                    for (const modifier of unit.modifiers) {
+                        if (modifier.duration_remaining == 0) {
+                            new_deltas.push({
+                                type: Delta_Type.modifier_removed,
+                                modifier_id: modifier.id
+                            });
 
-                    modifier.duration_remaining--;
+                            for (let index = 0; index < battle.modifiers.length; index++) {
+                                const modifier_data = battle.modifiers[index];
 
-                    if (modifier.duration_remaining == 0) {
-                        new_deltas.push({
-                            type: Delta_Type.modifier_removed,
-                            modifier_id: modifier.id
-                        });
+                                if (modifier_data.id == modifier.id) {
+                                    push_modifier_removed_deltas(battle, modifier_data, new_deltas);
 
-                        push_modifier_removed_deltas(battle, modifier, new_deltas);
+                                    battle.modifiers.splice(index, 1);
+                                    index--;
+                                }
+                            }
+                        }
                     }
                 }
 
