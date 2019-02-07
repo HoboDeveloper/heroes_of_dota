@@ -97,10 +97,10 @@ type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive
 
 type Ability_Effect =
     Ability_Effect_Pudge_Flesh_Heap |
-    Ability_Effect_Tide_Gush_Modifier |
-    Ability_Effect_Tide_Anchor_Smash_Modifier |
+    Ability_Effect_Tide_Gush |
+    Ability_Effect_Tide_Anchor_Smash |
     Ability_Effect_Tide_Kraken_Shell_Trigger |
-    Ability_Effect_Tide_Ravage_Modifier;
+    Ability_Effect_Tide_Ravage;
 
 type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
@@ -161,20 +161,20 @@ type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
 
 type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
-    delta: Delta_Modifier_Applied<Ability_Effect_Tide_Gush_Modifier>
+    delta: Delta_Modifier_Applied<Ability_Effect_Tide_Gush>
 }
 
-type Ability_Effect_Tide_Gush_Modifier = {
+type Ability_Effect_Tide_Gush = {
     ability_id: Ability_Id.tide_gush
     deltas: [Delta_Health_Change, Delta_Max_Move_Points_Change]
 }
 
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
-    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash_Modifier>[]
+    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash>[]
 }
 
-type Ability_Effect_Tide_Anchor_Smash_Modifier = {
+type Ability_Effect_Tide_Anchor_Smash = {
     ability_id: Ability_Id.tide_anchor_smash
     deltas: [Delta_Health_Change, Delta_Attack_Bonus_Change]
 }
@@ -186,10 +186,10 @@ type Ability_Effect_Tide_Kraken_Shell_Trigger = {
 
 type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
-    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[]
+    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[]
 }
 
-type Ability_Effect_Tide_Ravage_Modifier = {
+type Ability_Effect_Tide_Ravage = {
     ability_id: Ability_Id.tide_ravage
     deltas: [Delta_Health_Change, Delta_State_Stunned_Counter_Change]
 }

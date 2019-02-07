@@ -234,6 +234,7 @@ type Delta_End_Turn = {
 
 type Delta_Field_Change = Unit_Field_Change & {
     type: Delta_Type.unit_field_change
+    field: Unit_Field
 }
 
 type Delta_Level_Change = Delta_Field_Change & {

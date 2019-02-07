@@ -346,7 +346,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
     const path = "particles/tide_ravage/tide_ravage.vpcf";
     const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
     const particle_delay = 0.1;
-    const deltas_by_distance: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage_Modifier>[][] = [];
+    const deltas_by_distance: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[][] = [];
     const deltas = from_client_array(cast.deltas);
 
     for (let distance = 1; distance <= 5; distance++) {
@@ -555,16 +555,13 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         turn_unit_towards_target(unit, target);
         wait(0.2);
         try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
-
-        const time_remaining = unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
+        unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
         if (is_attack_hit(cast.result)) {
             play_delta(main_player, cast.result.delta);
+            shake_screen(target, Shake.weak);
+            try_play_sound_for_unit(unit, get_unit_attack_sound);
         }
-
-        shake_screen(target, Shake.weak);
-        try_play_sound_for_unit(unit, get_unit_attack_sound);
-        wait(time_remaining * 0.95);
     }
 }
 
