@@ -12,11 +12,6 @@ declare const enum Ability_Id {
     sniper_shrapnel = 8
 }
 
-declare const enum Ability_Effect_Type {
-    ability = 0,
-    modifier = 1
-}
-
 type Ability_Basic_Attack = Ability_Definition_Active_Base & {
     id: Ability_Id.basic_attack
     type: Ability_Type.target_ground
@@ -171,7 +166,6 @@ type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
 
 type Ability_Effect_Tide_Gush_Modifier = {
     ability_id: Ability_Id.tide_gush
-    type: Ability_Effect_Type.modifier
     deltas: [Delta_Health_Change, Delta_Max_Move_Points_Change]
 }
 
@@ -182,7 +176,6 @@ type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
 
 type Ability_Effect_Tide_Anchor_Smash_Modifier = {
     ability_id: Ability_Id.tide_anchor_smash
-    type: Ability_Effect_Type.modifier
     deltas: [Delta_Health_Change, Delta_Attack_Bonus_Change]
 }
 
@@ -198,6 +191,5 @@ type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
 
 type Ability_Effect_Tide_Ravage_Modifier = {
     ability_id: Ability_Id.tide_ravage
-    type: Ability_Effect_Type.modifier
     deltas: [Delta_Health_Change, Delta_State_Stunned_Counter_Change]
 }

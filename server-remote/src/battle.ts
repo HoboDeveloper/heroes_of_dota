@@ -295,7 +295,6 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 .map(target => field_change(battle, 1, unit, target, ability.id, Unit_Field.attack_bonus, reduce_by))
                 .map(data => field_change_to_modifier(battle, data, field_change => ({
                     ability_id: ability.id,
-                    type: Ability_Effect_Type.modifier,
                     deltas: [
                         damage_delta(unit, data.ability_id, data.target, ability.damage),
                         field_change
@@ -316,7 +315,6 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 .map(target => field_change(battle, 1, unit, target, ability.id, Unit_Field.state_stunned_counter, 1))
                 .map(data => field_change_to_modifier(battle, data, field_change => ({
                     ability_id: ability.id,
-                    type: Ability_Effect_Type.modifier,
                     deltas: [
                         damage_delta(unit, data.ability_id, data.target, ability.damage),
                         field_change
@@ -352,7 +350,6 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             const change = field_change(battle, 1, unit, target, ability.id, Unit_Field.max_move_points, -ability.move_points_reduction);
             const modifier_applied = field_change_to_modifier(battle, change, field_change => ({
                 ability_id: ability.id,
-                type: Ability_Effect_Type.modifier,
                 deltas: [
                     damage_delta(unit, ability.id, target, ability.damage),
                     field_change
