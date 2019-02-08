@@ -60,6 +60,10 @@ function find_unit_by_id(id: number): Battle_Unit | undefined {
     return array_find(battle.units, unit => unit.id == id);
 }
 
+function manhattan(from: XY, to: XY) {
+    return Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+}
+
 // TODO utilize this for responsiveness
 function pre_visualize_action(action: Turn_Action) {
     switch (action.type) {
@@ -771,30 +775,44 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 wait(0.3);
             }
 
-            const distance = 4;
+            if (cast.missed_beams > 0) {
+                const distance = 4;
 
-            for (let beams_remaining = cast.missed_beams; beams_remaining > 0; beams_remaining--) {
-                const random_horizontal = RandomInt(0, distance);
-                const side_x = RandomInt(0, 1) == 0 ? 1 : -1;
-                const side_y = RandomInt(0, 1) == 0 ? 1 : -1;
-                const random_x = side_x * random_horizontal;
-                const random_y = side_y * RandomInt(random_horizontal == 0 ? 1 : 0, distance - random_horizontal);
-                const position = battle_position_to_world_position_center({
-                    x: unit.position.x + random_x,
-                    y: unit.position.y + random_y
-                });
+                const cells: XY[] = [];
 
-                const particle = ParticleManager.CreateParticle(no_target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+                const unit_x = unit.position.x;
+                const unit_y = unit.position.y;
 
-                for (const control_point of [ 0, 1, 5 ]) {
-                    ParticleManager.SetParticleControl(particle, control_point, position);
+                const min_x = Math.max(0, unit_x - distance);
+                const min_y = Math.max(0, unit_y - distance);
+
+                const max_x = Math.min(battle.grid_size.width, unit_x + distance);
+                const max_y = Math.min(battle.grid_size.height, unit_y + distance);
+
+                for (let x = min_x; x < max_x; x++) {
+                    for (let y = min_y; y < max_y; y++) {
+                        const xy = { x: x, y: y };
+
+                        if ((x != unit_x || y != unit_y) && manhattan(xy, { x: unit_x, y: unit_y }) < distance) {
+                            cells.push(xy);
+                        }
+                    }
                 }
 
-                ParticleManager.ReleaseParticleIndex(particle);
+                for (let beams_remaining = cast.missed_beams; beams_remaining > 0; beams_remaining--) {
+                    const position = battle_position_to_world_position_center(cells[RandomInt(0, cells.length - 1)]);
+                    const particle = ParticleManager.CreateParticle(no_target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
 
-                EmitSoundOnLocationWithCaster(position, "Hero_Luna.Eclipse.NoTarget", unit.handle);
+                    for (const control_point of [0, 1, 5]) {
+                        ParticleManager.SetParticleControl(particle, control_point, position);
+                    }
 
-                wait(0.3);
+                    ParticleManager.ReleaseParticleIndex(particle);
+
+                    EmitSoundOnLocationWithCaster(position, "Hero_Luna.Eclipse.NoTarget", unit.handle);
+
+                    wait(0.3);
+                }
             }
 
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
