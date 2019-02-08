@@ -250,4 +250,5 @@ type Ability_Effect_Luna_Lunar_Blessing = {
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
     deltas: Delta_Health_Change[]
+    missed_beams: number
 }

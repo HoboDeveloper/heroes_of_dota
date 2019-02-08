@@ -356,8 +356,9 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             }));
 
             let remaining_targets = targets.length;
+            let remaining_beams = ability.total_beams;
 
-            for (let beams_remaining = ability.total_beams; beams_remaining > 0; beams_remaining--) {
+            for (; remaining_beams > 0 && remaining_targets > 0; remaining_beams--) {
                 const target_index = random_int_up_to(remaining_targets);
                 const random_target = targets[target_index];
 
@@ -379,7 +380,8 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 type: Delta_Type.use_no_target_ability,
                 unit_id: unit.id,
                 ability_id: ability.id,
-                deltas: damage_deltas
+                deltas: damage_deltas,
+                missed_beams: remaining_beams
             };
         }
 

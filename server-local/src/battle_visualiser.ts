@@ -721,6 +721,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         case Ability_Id.luna_eclipse: {
             const fx = "particles/units/heroes/hero_luna/luna_eclipse.vpcf";
             const target_fx = "particles/units/heroes/hero_luna/luna_eclipse_impact.vpcf";
+            const no_target_fx = "particles/units/heroes/hero_luna/luna_eclipse_impact_notarget.vpcf";
             const day_time = GameRules.GetTimeOfDay();
 
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
@@ -742,7 +743,6 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 beams_remaining: -delta.value_delta
             }));
 
-            // TODO add missed beams
             while (beam_targets.length > 0) {
                 const random_index = RandomInt(0, beam_targets.length - 1);
                 const random_target = beam_targets[random_index];
@@ -767,6 +767,32 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 if (random_target.beams_remaining == 0) {
                     beam_targets.splice(random_index, 1);
                 }
+
+                wait(0.3);
+            }
+
+            const distance = 4;
+
+            for (let beams_remaining = cast.missed_beams; beams_remaining > 0; beams_remaining--) {
+                const random_horizontal = RandomInt(0, distance);
+                const side_x = RandomInt(0, 1) == 0 ? 1 : -1;
+                const side_y = RandomInt(0, 1) == 0 ? 1 : -1;
+                const random_x = side_x * random_horizontal;
+                const random_y = side_y * RandomInt(random_horizontal == 0 ? 1 : 0, distance - random_horizontal);
+                const position = battle_position_to_world_position_center({
+                    x: unit.position.x + random_x,
+                    y: unit.position.y + random_y
+                });
+
+                const particle = ParticleManager.CreateParticle(no_target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+
+                for (const control_point of [ 0, 1, 5 ]) {
+                    ParticleManager.SetParticleControl(particle, control_point, position);
+                }
+
+                ParticleManager.ReleaseParticleIndex(particle);
+
+                EmitSoundOnLocationWithCaster(position, "Hero_Luna.Eclipse.NoTarget", unit.handle);
 
                 wait(0.3);
             }
