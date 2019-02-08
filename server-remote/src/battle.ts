@@ -131,7 +131,7 @@ function query_units_in_manhattan_area(battle: Battle, from_exclusive: XY, dista
     return units;
 }
 
-function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
+function query_units_in_rectangular_area_around_point(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
@@ -157,7 +157,7 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
         }
 
         case Ability_Targeting_Type.rectangular_area_around_caster: {
-            return query_units_in_rectangular_area(battle, from_exclusive, targeting.area_radius);
+            return query_units_in_rectangular_area_around_point(battle, from_exclusive, targeting.area_radius);
         }
     }
 }
@@ -444,8 +444,8 @@ function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, d
         switch (ability.id) {
             case Ability_Id.luna_moon_glaive: {
                 const is_ally = (target: Unit) => target.owner_player_id == source.owner_player_id;
-                const targets = query_units_in_rectangular_area(battle, target.position, 2);
-                const allies = targets.filter(is_ally);
+                const targets = query_units_in_rectangular_area_around_point(battle, target.position, 2);
+                const allies = targets.filter(target => is_ally(target) && target != source);
                 const enemies = targets.filter(target => !is_ally(target));
                 const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 

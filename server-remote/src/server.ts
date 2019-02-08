@@ -551,7 +551,7 @@ handlers.set("/battle_cheat", body => {
                 }
             ];
 
-            const cooldown_deltas: Delta_Set_Ability_Cooldown_Remaining[] = unit.abilities
+            const cooldown_deltas = unit.abilities
                 .filter(ability => ability.type != Ability_Type.passive && ability.cooldown_remaining > 0)
                 .map(ability => ({
                     type: Delta_Type.set_ability_cooldown_remaining,
