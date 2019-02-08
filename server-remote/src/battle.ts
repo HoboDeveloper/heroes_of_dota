@@ -944,17 +944,17 @@ export function start_battle(players: Player[]): number {
     fill_grid(battle);
 
     const spawn_deltas = [
-        spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa),
+        // spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa),
         spawn_unit(battle, players[0], xy(3, 1), Unit_Type.sniper),
         spawn_unit(battle, players[0], xy(5, 1), Unit_Type.pudge),
         spawn_unit(battle, players[0], xy(7, 1), Unit_Type.tidehunter),
         spawn_unit(battle, players[0], xy(9, 1), Unit_Type.luna),
 
-        spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
-        spawn_unit(battle, players[1], xy(4, 7), Unit_Type.sniper),
-        spawn_unit(battle, players[1], xy(6, 7), Unit_Type.pudge),
-        spawn_unit(battle, players[1], xy(8, 7), Unit_Type.tidehunter),
-        spawn_unit(battle, players[1], xy(10, 7), Unit_Type.luna),
+        // spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
+        spawn_unit(battle, players[1], xy(4, 10), Unit_Type.sniper),
+        spawn_unit(battle, players[1], xy(6, 10), Unit_Type.pudge),
+        spawn_unit(battle, players[1], xy(8, 10), Unit_Type.tidehunter),
+        spawn_unit(battle, players[1], xy(10, 10), Unit_Type.luna),
     ];
 
     collapse_deltas(battle, battle.delta_head, spawn_deltas);
