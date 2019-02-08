@@ -22,6 +22,16 @@ function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {
     return xy(Math.sign(delta.x), Math.sign(delta.y));
 }
 
+function random_int_up_to(upper_bound: number) {
+    return Math.floor(Math.random() * upper_bound);
+}
+
+function random_in_array<T>(array: T[], length = array.length): T | undefined {
+    if (length == 0) return;
+
+    return array[random_int_up_to(length)];
+}
+
 declare const enum Modifier_Data_Type {
     field_change = 0
 }
@@ -348,7 +358,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             let remaining_targets = targets.length;
 
             for (let beams_remaining = ability.total_beams; beams_remaining > 0; beams_remaining--) {
-                const target_index = Math.floor(Math.random() * remaining_targets);
+                const target_index = random_int_up_to(remaining_targets);
                 const random_target = targets[target_index];
 
                 random_target.beams_applied++;
@@ -425,14 +435,42 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
     }
 }
 
-function on_target_attacked(target: Unit): Delta | undefined {
-    const ability = find_unit_ability(target, Ability_Id.tide_kraken_shell);
+function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, damage: number): Delta | undefined {
+    for (const ability of source.abilities) {
+        if (source[Unit_Field.level] <= ability.available_since_level) continue;
 
-    if (ability && target[Unit_Field.level] >= ability.available_since_level) {
-        return apply_ability_effect_delta({
-            ability_id: Ability_Id.tide_kraken_shell,
-            unit_id: target.id
-        });
+        switch (ability.id) {
+            case Ability_Id.luna_moon_glaive: {
+                const is_ally = (target: Unit) => target.owner_player_id == source.owner_player_id;
+                const targets = query_units_in_rectangular_area(battle, target.position, 2);
+                const allies = targets.filter(is_ally);
+                const enemies = targets.filter(target => !is_ally(target));
+                const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
+
+                if (glaive_target) {
+                    const delta = damage_delta(source, ability.id, glaive_target, damage);
+
+                    return apply_ability_effect_delta({
+                        ability_id: ability.id,
+                        delta: delta
+                    });
+                }
+            }
+        }
+    }
+
+
+    for (const ability of target.abilities) {
+        if (target[Unit_Field.level] <= ability.available_since_level) continue;
+
+        switch (ability.id) {
+            case Ability_Id.tide_kraken_shell: {
+                return apply_ability_effect_delta({
+                    ability_id: ability.id,
+                    unit_id: target.id
+                });
+            }
+        }
     }
 }
 
@@ -554,7 +592,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
                 if (cast.result.hit) {
                     const damage_delta = cast.result.delta;
                     const target = find_unit_by_id(battle, damage_delta.target_unit_id)!;
-                    const new_delta = on_target_attacked(target);
+                    const new_delta = on_target_attacked(battle, actors.unit, target, -damage_delta.value_delta);
 
                     if (new_delta) {
                         deltas.push(new_delta);
@@ -663,7 +701,7 @@ function push_modifier_removed_deltas(battle: Battle_Record, data: Modifier_Data
     }
 }
 
-function push_pudge_flesh_heap_deltas(battle: Battle_Record, pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Delta[]) {
+function push_pudge_flesh_heap_deltas(pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Delta[]) {
     const delta = apply_ability_effect_delta( {
         ability_id: ability.id,
         deltas: [
@@ -701,7 +739,43 @@ function process_on_death_delta(battle: Battle_Record, delta: Delta_Health_Chang
         if (source_level < ability.available_since_level) continue;
 
         if (ability.id == Ability_Id.pudge_flesh_heap) {
-            push_pudge_flesh_heap_deltas(battle, source, ability, target_deltas);
+            push_pudge_flesh_heap_deltas(source, ability, target_deltas);
+        }
+    }
+}
+
+function on_ability_received(battle: Battle_Record, unit: Unit, ability: Ability, from_enemy_kill: boolean, target_deltas: Delta[]) {
+    switch (ability.id) {
+        case Ability_Id.pudge_flesh_heap: {
+            if (from_enemy_kill) {
+                push_pudge_flesh_heap_deltas(unit, ability, target_deltas);
+            }
+
+            break;
+        }
+
+        case Ability_Id.tide_kraken_shell: {
+            const armor = field_change_delta(Unit_Field.armor, unit, unit, Ability_Id.tide_kraken_shell, 3);
+
+            target_deltas.push(armor);
+
+            break;
+        }
+
+        case Ability_Id.luna_lunar_blessing: {
+            for (const target of battle.units) {
+                // Even if dead
+                if (target.owner_player_id == unit.owner_player_id) {
+                    const effect = apply_ability_effect_delta({
+                        ability_id: Ability_Id.luna_lunar_blessing,
+                        delta: field_change_delta(Unit_Field.attack_bonus, unit, target, ability.id, ability.attack_bonus)
+                    });
+
+                    target_deltas.push(effect);
+                }
+            }
+
+            break;
         }
     }
 }
@@ -720,23 +794,8 @@ function on_level_up(battle: Battle_Record, delta: Delta_Level_Change, target_de
         const just_received_this_ability = new_level >= ability.available_since_level && previous_level < ability.available_since_level;
 
         if (just_received_this_ability) {
-            switch (ability.id) {
-                case Ability_Id.pudge_flesh_heap: {
-                    if (delta.received_from_enemy_kill) {
-                        push_pudge_flesh_heap_deltas(battle, unit, ability, target_deltas);
-                    }
-
-                    break;
-                }
-
-                case Ability_Id.tide_kraken_shell: {
-                    target_deltas.push(field_change_delta(Unit_Field.armor, unit, unit, Ability_Id.tide_kraken_shell, 3));
-
-                    break;
-                }
-            }
+            on_ability_received(battle, unit, ability, delta.received_from_enemy_kill, target_deltas);
         }
-
     }
 }
 
