@@ -150,7 +150,29 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 mana: 12,
                 move_points: 4,
                 attack: basic_attack(5, 2),
-                abilities: []
+                abilities: [
+                    active_ability<Ability_Luna_Lucent_Beam>({
+                        available_since_level: 1,
+                        targeting: target_unit_in_manhattan_distance(5),
+                        cooldown: 2,
+                        mana_cost: 4,
+                        damage: 6
+                    }),
+                    passive_ability<Ability_Luna_Moon_Glaive>({
+                        available_since_level: 2
+                    }),
+                    passive_ability<Ability_Luna_Lunar_Blessing>({
+                        available_since_level: 3,
+                        attack_bonus: 2
+                    }),
+                    active_ability<Ability_Luna_Eclipse>({
+                        available_since_level: 4,
+                        targeting: target_unit_in_manhattan_distance(4),
+                        total_beams: 16,
+                        cooldown: 3,
+                        mana_cost: 5
+                    })
+                ]
             }
         }
 

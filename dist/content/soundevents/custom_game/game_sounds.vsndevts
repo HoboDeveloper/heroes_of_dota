@@ -109,4 +109,16 @@
             "sounds/vo/tidehunter/tide_attack_08.vsnd",
         ]
     }
+
+    vo_luna_eclipse = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/luna/luna_ability_eclipse_01.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_02.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_03.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_07.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_09.vsnd",
+        ]
+    }
 }

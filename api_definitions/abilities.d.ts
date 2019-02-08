@@ -8,8 +8,12 @@ declare const enum Ability_Id {
     tide_anchor_smash = 5,
     tide_kraken_shell = 6,
     tide_ravage = 7,
+    luna_lucent_beam = 8,
+    luna_moon_glaive = 9,
+    luna_lunar_blessing = 10,
+    luna_eclipse = 11,
 
-    sniper_shrapnel = 8
+    sniper_shrapnel = 12
 }
 
 type Ability_Basic_Attack = Ability_Definition_Active_Base & {
@@ -74,6 +78,31 @@ type Ability_Tide_Ravage = Ability_Definition_Active_Base & {
     damage: number
 }
 
+type Ability_Luna_Lucent_Beam = Ability_Definition_Active_Base & {
+    id: Ability_Id.luna_lucent_beam
+    type: Ability_Type.target_unit
+    targeting: Ability_Targeting_Unit_In_Manhattan_Distance
+    damage: number
+}
+
+type Ability_Luna_Moon_Glaive = Ability_Definition_Passive_Base & {
+    id: Ability_Id.luna_moon_glaive
+    type: Ability_Type.passive
+}
+
+type Ability_Luna_Lunar_Blessing = Ability_Definition_Passive_Base & {
+    id: Ability_Id.luna_lunar_blessing
+    type: Ability_Type.passive
+    attack_bonus: number
+}
+
+type Ability_Luna_Eclipse = Ability_Definition_Active_Base & {
+    id: Ability_Id.luna_eclipse
+    type: Ability_Type.no_target
+    targeting: Ability_Targeting_Unit_In_Manhattan_Distance
+    total_beams: number
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -87,11 +116,15 @@ type Ability_Definition_Active =
     Ability_Pudge_Dismember |
     Ability_Tide_Gush |
     Ability_Tide_Anchor_Smash |
-    Ability_Tide_Ravage;
+    Ability_Tide_Ravage |
+    Ability_Luna_Lucent_Beam |
+    Ability_Luna_Eclipse
 
 type Ability_Definition_Passive =
     Ability_Pudge_Flesh_Heap |
-    Ability_Tide_Kraken_Shell
+    Ability_Tide_Kraken_Shell |
+    Ability_Luna_Moon_Glaive |
+    Ability_Luna_Lunar_Blessing
 
 type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive
 
@@ -100,7 +133,9 @@ type Ability_Effect =
     Ability_Effect_Tide_Gush |
     Ability_Effect_Tide_Anchor_Smash |
     Ability_Effect_Tide_Kraken_Shell_Trigger |
-    Ability_Effect_Tide_Ravage;
+    Ability_Effect_Tide_Ravage |
+    Ability_Effect_Luna_Moon_Glaive |
+    Ability_Effect_Luna_Lunar_Blessing
 
 type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
@@ -108,12 +143,14 @@ type Delta_Ground_Target_Ability =
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
-    Delta_Ability_Tide_Gush
+    Delta_Ability_Tide_Gush |
+    Delta_Ability_Luna_Lucent_Beam
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
     Delta_Ability_Tide_Anchor_Smash |
-    Delta_Ability_Tide_Ravage
+    Delta_Ability_Tide_Ravage |
+    Delta_Ability_Luna_Eclipse
 
 type Delta_Ability_Basic_Attack_Deltas_Hit = {
     hit: true
@@ -192,4 +229,24 @@ type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
 type Ability_Effect_Tide_Ravage = {
     ability_id: Ability_Id.tide_ravage
     deltas: [Delta_Health_Change, Delta_State_Stunned_Counter_Change]
+}
+
+type Delta_Ability_Luna_Lucent_Beam = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.luna_lucent_beam,
+    delta: Delta_Health_Change
+}
+
+type Ability_Effect_Luna_Moon_Glaive = {
+    ability_id: Ability_Id.luna_moon_glaive
+    delta: Delta_Health_Change
+}
+
+type Ability_Effect_Luna_Lunar_Blessing = {
+    ability_id: Ability_Id.luna_lunar_blessing
+    delta: Delta_Attack_Bonus_Change
+}
+
+type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
+    ability_id: Ability_Id.luna_eclipse
+    deltas: Delta_Health_Change[]
 }

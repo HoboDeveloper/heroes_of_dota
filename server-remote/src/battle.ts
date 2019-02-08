@@ -138,6 +138,20 @@ function query_units_in_rectangular_area(battle: Battle, from_exclusive: XY, dis
     return units;
 }
 
+function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeting: Ability_Targeting_Unit_In_Manhattan_Distance | Ability_Targeting_Rectangular_Area_Around_Caster): Unit[] {
+    const from_exclusive = caster.position;
+
+    switch (targeting.type) {
+        case Ability_Targeting_Type.unit_in_manhattan_distance: {
+            return query_units_in_manhattan_area(battle, from_exclusive, targeting.distance);
+        }
+
+        case Ability_Targeting_Type.rectangular_area_around_caster: {
+            return query_units_in_rectangular_area(battle, from_exclusive, targeting.area_radius);
+        }
+    }
+}
+
 function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number, max_health_override: number = target[Unit_Field.max_health]): Delta_Health_Change {
     return {
         source_unit_id: source.id,
@@ -261,7 +275,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
 function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Delta_Use_No_Target_Ability | undefined {
     switch (ability.id) {
         case Ability_Id.pudge_rot: {
-            const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
             const deltas = targets.map(target => damage_delta(unit, ability.id, target, ability.damage));
 
             deltas.push(damage_delta(unit, ability.id, unit, ability.damage));
@@ -276,7 +290,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
 
         case Ability_Id.tide_anchor_smash: {
             const reduce_by = -ability.attack_reduction;
-            const targets = query_units_in_rectangular_area(battle, unit.position, ability.targeting.area_radius);
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
             const modifier_applied_deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash>[] = [];
 
             for (const target of targets) {
@@ -301,7 +315,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
         }
 
         case Ability_Id.tide_ravage: {
-            const targets = query_units_in_manhattan_area(battle, unit.position, ability.targeting.distance);
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
             const modifier_applied_deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[] = [];
 
             for (const target of targets) {
@@ -322,6 +336,40 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 unit_id: unit.id,
                 ability_id: ability.id,
                 deltas: modifier_applied_deltas
+            };
+        }
+
+        case Ability_Id.luna_eclipse: {
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
+                unit: target,
+                beams_applied: 0
+            }));
+
+            let remaining_targets = targets.length;
+
+            for (let beams_remaining = ability.total_beams; beams_remaining > 0; beams_remaining--) {
+                const target_index = Math.floor(Math.random() * remaining_targets);
+                const random_target = targets[target_index];
+
+                random_target.beams_applied++;
+
+                if (random_target.beams_applied == random_target.unit.health) {
+                    const last_target = targets[remaining_targets - 1];
+
+                    targets[remaining_targets - 1] = random_target;
+                    targets[target_index] = last_target;
+
+                    remaining_targets--;
+                }
+            }
+
+            const damage_deltas: Delta_Health_Change[] = targets.map(target => damage_delta(unit, ability.id, target.unit, target.beams_applied));
+
+            return {
+                type: Delta_Type.use_no_target_ability,
+                unit_id: unit.id,
+                ability_id: ability.id,
+                deltas: damage_deltas
             };
         }
 
@@ -358,6 +406,18 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
                 target_unit_id: target.id,
                 ability_id: ability.id,
                 delta: modifier
+            };
+        }
+
+        case Ability_Id.luna_lucent_beam: {
+            const damage = damage_delta(unit, ability.id, target, ability.damage);
+
+            return {
+                type: Delta_Type.use_unit_target_ability,
+                unit_id: unit.id,
+                target_unit_id: target.id,
+                ability_id: ability.id,
+                delta: damage
             };
         }
 

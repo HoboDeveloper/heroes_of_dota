@@ -277,8 +277,10 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
         play_delta(main_player, damage);
 
         pudge.handle.StopSound(chain_sound);
-        target.handle.EmitSound("Hero_Pudge.AttackHookImpact");
-        target.handle.EmitSound(chain_sound);
+
+        unit_emit_sound(target, "Hero_Pudge.AttackHookImpact");
+        unit_emit_sound(target, chain_sound);
+
         target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
 
         const move_target = find_unit_by_id(move.unit_id);
@@ -339,8 +341,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
 
     wait(0.1);
 
-    unit.handle.EmitSound("Ability.Ravage");
-
+    unit_emit_sound(unit, "Ability.Ravage");
     shake_screen(unit.position, Shake.strong);
 
     const path = "particles/tide_ravage/tide_ravage.vpcf";
@@ -428,8 +429,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
                 const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, target.handle);
                 ParticleManager.ReleaseParticleIndex(fx);
 
-                target.handle.EmitSound("Hero_Tidehunter.RavageDamage");
-
+                unit_emit_sound(target, "Hero_Tidehunter.RavageDamage");
                 toss_target_up(target);
 
                 delta_completion_status[delta_id] = true;
@@ -507,7 +507,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         const sound = supplier(unit.type);
 
         if (sound) {
-            target.handle.EmitSound(sound);
+            unit_emit_sound(target, sound);
         }
     }
 
@@ -594,6 +594,10 @@ function apply_and_record_modifier(target: Battle_Unit, modifier_id: number, mod
     };
 }
 
+function unit_emit_sound(unit: Battle_Unit, sound: string) {
+    unit.handle.EmitSound(sound);
+}
+
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Unit_Target_Ability, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
 
@@ -611,9 +615,9 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             const fx = "particles/units/heroes/hero_tidehunter/tidehunter_gush.vpcf";
 
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.2);
-            unit.handle.EmitSound("Ability.GushCast");
+            unit_emit_sound(unit, "Ability.GushCast");
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
-            unit.handle.EmitSound("Ability.GushImpact");
+            unit_emit_sound(unit, "Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
 
             const modifier_delta = cast.delta;
@@ -622,6 +626,28 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             apply_and_record_modifier(target, modifier_delta.modifier_id, "Modifier_Tide_Gush");
 
             play_delta(main_player, damage);
+
+            break;
+        }
+
+        case Ability_Id.luna_lucent_beam: {
+            const fx = "particles/units/heroes/hero_luna/luna_lucent_beam.vpcf";
+
+            unit_emit_sound(unit, "Hero_Luna.LucentBeam.Cast");
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.6);
+
+            const particle = ParticleManager.CreateParticle(fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+
+            for (const control_point of [0, 1, 5]) {
+                ParticleManager.SetParticleControl(particle, control_point, target.handle.GetAbsOrigin());
+            }
+
+            ParticleManager.SetParticleControl(particle, 6, unit.handle.GetAbsOrigin());
+            ParticleManager.ReleaseParticleIndex(particle);
+
+            shake_screen(target.position, Shake.medium);
+            unit_emit_sound(unit, "Hero_Luna.LucentBeam.Target");
+            play_delta(main_player, cast.delta);
 
             break;
         }
@@ -668,8 +694,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
             ParticleManager.ReleaseParticleIndex(fx);
 
-            unit.handle.EmitSound("Hero_Tidehunter.AnchorSmash");
-
+            unit_emit_sound(unit, "Hero_Tidehunter.AnchorSmash");
             shake_screen(unit.position, Shake.weak);
 
             wait(0.2);
@@ -689,6 +714,69 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
         case Ability_Id.tide_ravage: {
             tide_ravage(main_player, unit, cast);
+
+            break;
+        }
+
+        case Ability_Id.luna_eclipse: {
+            const fx = "particles/units/heroes/hero_luna/luna_eclipse.vpcf";
+            const target_fx = "particles/units/heroes/hero_luna/luna_eclipse_impact.vpcf";
+            const day_time = GameRules.GetTimeOfDay();
+
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            unit_emit_sound(unit, "vo_luna_eclipse");
+            wait(0.6);
+            unit_emit_sound(unit, "Hero_Luna.Eclipse.Cast");
+
+            GameRules.SetTimeOfDay(0);
+
+            const eclipse_particle = ParticleManager.CreateParticle(fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+            ParticleManager.SetParticleControl(eclipse_particle, 1, Vector(500, 0, 0));
+            ParticleManager.SetParticleControl(eclipse_particle, 2, unit.handle.GetAbsOrigin());
+            ParticleManager.SetParticleControl(eclipse_particle, 3, unit.handle.GetAbsOrigin());
+
+            const deltas = from_client_array(cast.deltas);
+            const beam_targets = deltas.map(delta => ({
+                delta: delta,
+                beams_remaining: -delta.value_delta
+            }));
+
+            // TODO add missed beams
+            while (beam_targets.length > 0) {
+                const random_index = RandomInt(0, beam_targets.length - 1);
+                const random_target = beam_targets[random_index];
+                const target_unit = find_unit_by_id(random_target.delta.target_unit_id);
+
+                random_target.beams_remaining--;
+
+                if (target_unit) {
+                    const particle = ParticleManager.CreateParticle(target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, target_unit.handle);
+
+                    for (const control_point of [ 0, 1, 5 ]) {
+                        ParticleManager.SetParticleControl(particle, control_point, target_unit.handle.GetAbsOrigin());
+                    }
+
+                    ParticleManager.ReleaseParticleIndex(particle);
+
+                    unit_emit_sound(target_unit, "Hero_Luna.Eclipse.Target");
+                    change_health(main_player, target_unit, target_unit.health - 1, -1);
+                    shake_screen(target_unit.position, Shake.weak);
+                }
+
+                if (random_target.beams_remaining == 0) {
+                    beam_targets.splice(random_index, 1);
+                }
+
+                wait(0.3);
+            }
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            ParticleManager.DestroyParticle(eclipse_particle, false);
+            ParticleManager.ReleaseParticleIndex(eclipse_particle);
+
+            GameRules.SetTimeOfDay(day_time);
 
             break;
         }
@@ -714,7 +802,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
                 const path = "particles/units/heroes/hero_tidehunter/tidehunter_krakenshell_purge.vpcf";
                 const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
 
-                unit.handle.EmitSound("Hero_Tidehunter.KrakenShell");
+                unit_emit_sound(unit, "Hero_Tidehunter.KrakenShell");
 
                 ParticleManager.ReleaseParticleIndex(fx);
             }
@@ -732,7 +820,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
                 ParticleManager.SetParticleControl(fx, 1, unit.handle.GetAbsOrigin());
                 ParticleManager.ReleaseParticleIndex(fx);
 
-                unit.handle.EmitSound("pudge_ability_flesh_heap");
+                unit_emit_sound(unit, "pudge_ability_flesh_heap");
 
                 play_delta(main_player, health_bonus);
                 play_delta(main_player, heal);
@@ -804,6 +892,25 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
     const time_passed = GameRules.GetGameTime() - start_time;
 
     return sequence_duration - time_passed;
+}
+
+function change_health(main_player: Main_Player, target: Battle_Unit, new_value: number, value_delta: number) {
+    const player = PlayerResource.GetPlayer(main_player.player_id);
+
+    if (value_delta > 0) {
+        SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_HEAL, target.handle, value_delta, player);
+
+    } else if (value_delta < 0) {
+        SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, target.handle, -value_delta, player);
+    }
+
+    target.health = new_value;
+
+    update_player_state_net_table(main_player);
+
+    if (new_value == 0) {
+        target.handle.ForceKill(false);
+    }
 }
 
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
@@ -933,7 +1040,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
                 if (delta.field == Unit_Field.level) {
                     unit.level = delta.new_value;
-                    unit.handle.EmitSound("hero_level_up");
+
+                    unit_emit_sound(unit, "hero_level_up");
 
                     const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
                     const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
@@ -969,22 +1077,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const unit = find_unit_by_id(delta.target_unit_id);
 
             if (unit) {
-                const player = PlayerResource.GetPlayer(main_player.player_id);
-
-                if (delta.value_delta > 0) {
-                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_HEAL, unit.handle, delta.value_delta, player);
-
-                } else if (delta.value_delta < 0) {
-                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_DAMAGE, unit.handle, -delta.value_delta, player);
-                }
-
-                unit.health = delta.new_value;
-
-                update_player_state_net_table(main_player);
-
-                if (delta.new_value == 0) {
-                    unit.handle.ForceKill(false);
-                }
+                change_health(main_player, unit, delta.new_value, delta.value_delta);
             }
 
             break;

@@ -398,6 +398,8 @@ function cast_to_deltas(cast: Delta_Unit_Target_Ability | Delta_Ground_Target_Ab
         case Ability_Id.tide_gush: return flatten_deltas([ cast.delta ]);
         case Ability_Id.tide_anchor_smash: return flatten_deltas(cast.deltas); // TODO we need a recursive flattener
         case Ability_Id.tide_ravage: return flatten_deltas(cast.deltas);
+        case Ability_Id.luna_lucent_beam: return [ cast.delta ];
+        case Ability_Id.luna_eclipse: return cast.deltas;
 
         default: unreachable(cast);
     }
@@ -410,6 +412,8 @@ function ability_effect_to_deltas(effect: Ability_Effect): Delta[] | undefined {
         case Ability_Id.tide_anchor_smash: return flatten_deltas(effect.deltas); // TODO we need a recursive flattener
         case Ability_Id.tide_ravage: return flatten_deltas(effect.deltas);
         case Ability_Id.tide_kraken_shell: return [];
+        case Ability_Id.luna_moon_glaive: return [ effect.delta ];
+        case Ability_Id.luna_lunar_blessing: return [ effect.delta ];
 
         default: unreachable(effect);
     }
