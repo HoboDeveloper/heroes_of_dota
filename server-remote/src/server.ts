@@ -564,6 +564,28 @@ handlers.set("/battle_cheat", body => {
         }
 
         switch (parts[0]) {
+            case "dbg": {
+                const messages = [
+                    `=========DEBUG=======`,
+                    `Battle ${battle.id}`,
+                    `Participants: ${battle.players[0].name} (id${battle.players[0].id}) and ${battle.players[1].name} (id${battle.players[1].id})`,
+                    `Deltas: ${battle.deltas.length} total, head at ${battle.delta_head}`,
+                    `Turning player: index ${battle.turning_player_index} (${battle.players[battle.turning_player_index].name})`,
+                ];
+
+                for (const message of messages) {
+                    submit_chat_message(player, message);
+                }
+
+                break;
+            }
+
+            case "skipturn": {
+                submit_battle_deltas(battle, [ { type: Delta_Type.end_turn } ]);
+
+                break;
+            }
+
             case "lvl": {
                 const new_lvl = parseInt(parts[1]);
                 const delta = new_lvl - unit[Unit_Field.level];
