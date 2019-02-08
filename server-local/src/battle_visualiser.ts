@@ -449,6 +449,23 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
     wait_until(() => delta_completion_status.every(value => value));
 }
 
+function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined {
+    switch (type) {
+        case Unit_Type.sniper: return {
+            particle_path: "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf",
+            projectile_speed: 1600,
+            attack_point: 0.1,
+            shake_on_attack: Shake.weak
+        };
+
+        case Unit_Type.luna: return {
+            particle_path: "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf",
+            projectile_speed: 900,
+            attack_point: 0.4
+        };
+    }
+}
+
 function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Basic_Attack) {
     const target = cast.target_position;
 
@@ -474,23 +491,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         switch (type) {
             case Unit_Type.sniper: return "Hero_Sniper.ProjectileImpact";
             case Unit_Type.luna: return "Hero_Luna.ProjectileImpact";
-        }
-    }
-
-    function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined {
-        switch (type) {
-            case Unit_Type.sniper: return {
-                particle_path: "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf",
-                projectile_speed: 1600,
-                attack_point: 0.1,
-                shake_on_attack: Shake.weak
-            };
-
-            case Unit_Type.luna: return {
-                particle_path: "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf",
-                projectile_speed: 900,
-                attack_point: 0.4
-            };
         }
     }
 
@@ -824,6 +824,26 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
 
                 play_delta(main_player, health_bonus);
                 play_delta(main_player, heal);
+            }
+
+            break;
+        }
+
+        case Ability_Id.luna_moon_glaive: {
+            const delta = effect.delta;
+            const source = find_unit_by_id(delta.source_unit_id);
+            const target = find_unit_by_id(delta.target_unit_id);
+            const original_target = find_unit_by_id(effect.original_target_id);
+
+            if (source && target && original_target) {
+                const spec = get_ranged_attack_spec(source.type);
+
+                if (spec) {
+                    tracking_projectile_to_unit(original_target, target, spec.particle_path, spec.projectile_speed, "attach_hitloc");
+                    unit_emit_sound(target, "Hero_Luna.MoonGlaive.Impact");
+                }
+
+                play_delta(main_player, delta);
             }
 
             break;

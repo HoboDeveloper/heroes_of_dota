@@ -239,6 +239,7 @@ type Delta_Ability_Luna_Lucent_Beam = Delta_Unit_Target_Ability_Base & {
 type Ability_Effect_Luna_Moon_Glaive = {
     ability_id: Ability_Id.luna_moon_glaive
     delta: Delta_Health_Change
+    original_target_id: number
 }
 
 type Ability_Effect_Luna_Lunar_Blessing = {

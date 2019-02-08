@@ -451,6 +451,7 @@ function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, d
                     const delta = damage_delta(source, ability.id, glaive_target, damage);
 
                     return apply_ability_effect_delta({
+                        original_target_id: target.id,
                         ability_id: ability.id,
                         delta: delta
                     });
