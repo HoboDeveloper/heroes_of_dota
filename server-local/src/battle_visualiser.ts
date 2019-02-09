@@ -983,7 +983,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            const fx = ParticleManager.CreateParticle("particles/hero_spawn.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, GameRules.GetGameModeEntity() as any as CDOTA_BaseNPC);
+            const fx = ParticleManager.CreateParticle("particles/hero_spawn.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, GameRules.GetGameModeEntity());
             ParticleManager.SetParticleControl(fx, 0, battle_position_to_world_position_center(delta.at_position));
             ParticleManager.ReleaseParticleIndex(fx);
 
