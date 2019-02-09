@@ -1040,10 +1040,12 @@ function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
     current_targeted_ability_ui.SetHasClass("visible", is_ui_visible);
 
     if (is_ui_visible) {
-        const selected_unit = find_unit_by_entity_id(battle, current_selected_entity)!;
+        const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-        safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(selected_unit.type));
-        safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(current_targeted_ability!));
+        if (selected_unit) {
+            safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(selected_unit.type));
+            safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(current_targeted_ability!));
+        }
     }
 }
 
