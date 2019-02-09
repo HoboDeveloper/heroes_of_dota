@@ -9,6 +9,14 @@
         vsnd_files = "sounds/ui/bonus_level.vsnd"
     }
 
+    hero_spawn = {
+        type = "dota_src1_2d"
+        volume = 1.0
+        pitch = 1.0
+        event_type = 3.0
+        vsnd_files = "sounds/weapons/hero/tiny/tiny_toss_impact.vsnd"
+    }
+
     pudge_ability_rot = {
         type = "dota_update_default"
         vsnd_files =

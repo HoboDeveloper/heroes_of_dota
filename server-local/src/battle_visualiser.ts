@@ -154,13 +154,14 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
     }
 }
 
-function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY): Battle_Unit {
+function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY, facing: XY): Battle_Unit {
     const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
+    handle.SetForwardVector(Vector(facing.x, facing.y));
 
     const unit: Battle_Unit = {
         handle: handle,
@@ -982,10 +983,22 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.at_position);
+            const fx = ParticleManager.CreateParticle("particles/hero_spawn.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, GameRules.GetGameModeEntity() as any as CDOTA_BaseNPC);
+            ParticleManager.SetParticleControl(fx, 0, battle_position_to_world_position_center(delta.at_position));
+            ParticleManager.ReleaseParticleIndex(fx);
+
+            wait(0.25);
+
+            shake_screen(delta.at_position, Shake.medium);
+
+            const facing = delta.owner_id == main_player.remote_id ? { x: 0, y: -1 } : { x: 0, y : 1};
+            const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.at_position, facing);
+
+            unit_emit_sound(unit, "hero_spawn");
+
             unit.is_playing_a_delta = true;
 
-            wait(1);
+            wait(0.25);
 
             unit.is_playing_a_delta = false;
 
@@ -1227,7 +1240,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     }
 
     battle.units = snapshot.units.map(unit => {
-        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position);
+        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position, unit.facing);
 
         // TODO we need this to be typesafe, codegen a copy<T extends U, U>(source: T, target: U) function
         new_unit.health = unit.health;

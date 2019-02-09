@@ -85,7 +85,7 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
 function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            battle.unit_id_to_facing[delta.unit_id] = xy(1, 0);
+            battle.unit_id_to_facing[delta.unit_id] = delta.owner_id == this_player_id ? xy(0, -1) : xy(0, 1);
 
             break;
         }
