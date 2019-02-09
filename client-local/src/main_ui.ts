@@ -163,8 +163,8 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     if (data.state == Player_State.in_battle) {
         GameUI.SetCameraDistance(1600);
         GameUI.SetCameraYaw(0);
-        GameUI.SetCameraPitchMin(60);
-        GameUI.SetCameraPitchMax(60);
+        GameUI.SetCameraPitchMin(65);
+        GameUI.SetCameraPitchMax(65);
     } else {
         GameUI.SetCameraDistance(1300);
         GameUI.SetCameraYaw(0);
