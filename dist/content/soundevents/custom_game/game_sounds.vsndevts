@@ -78,6 +78,38 @@
         ]
     }
 
+    vo_luna_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/luna/luna_deny_01.vsnd",
+            "sounds/vo/luna/luna_deny_02.vsnd",
+            "sounds/vo/luna/luna_deny_03.vsnd",
+            "sounds/vo/luna/luna_deny_04.vsnd",
+            "sounds/vo/luna/luna_deny_05.vsnd",
+            "sounds/vo/luna/luna_deny_06.vsnd",
+            "sounds/vo/luna/luna_deny_07.vsnd",
+            "sounds/vo/luna/luna_deny_08.vsnd",
+            "sounds/vo/luna/luna_deny_09.vsnd",
+            "sounds/vo/luna/luna_deny_10.vsnd",
+            "sounds/vo/luna/luna_deny_11.vsnd",
+            "sounds/vo/luna/luna_deny_12.vsnd",
+            "sounds/vo/luna/luna_deny_12.vsnd",
+        ]
+    }
+
+    vo_luna_eclipse = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/luna/luna_ability_eclipse_01.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_02.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_03.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_07.vsnd",
+            "sounds/vo/luna/luna_ability_eclipse_09.vsnd",
+        ]
+    }
+
     vo_sniper_attack = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -90,6 +122,20 @@
             "sounds/vo/sniper/snip_attack_08.vsnd",
             "sounds/vo/sniper/snip_attack_09.vsnd",
             "sounds/vo/sniper/snip_attack_12.vsnd",
+        ]
+    }
+
+    vo_sniper_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/sniper/snip_deny_01.vsnd",
+            "sounds/vo/sniper/snip_deny_02.vsnd",
+            "sounds/vo/sniper/snip_deny_03.vsnd",
+            "sounds/vo/sniper/snip_deny_04.vsnd",
+            "sounds/vo/sniper/snip_deny_05.vsnd",
+            "sounds/vo/sniper/snip_deny_06.vsnd",
+            "sounds/vo/sniper/snip_deny_07.vsnd",
         ]
     }
 
@@ -107,6 +153,20 @@
         ]
     }
 
+    vo_pudge_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/pudge/pud_deny_01.vsnd",
+            "sounds/vo/pudge/pud_deny_02.vsnd",
+            "sounds/vo/pudge/pud_deny_03.vsnd",
+            "sounds/vo/pudge/pud_deny_04.vsnd",
+            "sounds/vo/pudge/pud_deny_05.vsnd",
+            "sounds/vo/pudge/pud_deny_06.vsnd",
+            "sounds/vo/pudge/pud_deny_07.vsnd",
+        ]
+    }
+
     vo_tide_attack = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -118,15 +178,14 @@
         ]
     }
 
-    vo_luna_eclipse = {
+    vo_tide_deny = {
         type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/vo/luna/luna_ability_eclipse_01.vsnd",
-            "sounds/vo/luna/luna_ability_eclipse_02.vsnd",
-            "sounds/vo/luna/luna_ability_eclipse_03.vsnd",
-            "sounds/vo/luna/luna_ability_eclipse_07.vsnd",
-            "sounds/vo/luna/luna_ability_eclipse_09.vsnd",
+            "sounds/vo/tidehunter/tide_deny_01.vsnd",
+            "sounds/vo/tidehunter/tide_deny_02.vsnd",
+            "sounds/vo/tidehunter/tide_deny_03.vsnd",
+            "sounds/vo/tidehunter/tide_deny_04.vsnd",
         ]
     }
 }

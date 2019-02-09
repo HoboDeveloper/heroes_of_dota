@@ -18,8 +18,9 @@ type Battle = {
     modifier_id_to_modifier_data: { [modifier_id: number]: Modifier_Data }
 }
 
-type Battle_Unit = Visualizer_Unit_Data & {
+type Battle_Unit = Shared_Visualizer_Unit_Data & {
     type: Unit_Type;
+    owner_remote_id: number
     handle: CDOTA_BaseNPC_Hero;
     position: XY;
     is_playing_a_delta: boolean;
@@ -154,7 +155,7 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
     }
 }
 
-function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY, facing: XY): Battle_Unit {
+function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
     const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
@@ -168,6 +169,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, at: XY, fa
         id: unit_id,
         type: unit_type,
         position: at,
+        owner_remote_id: owner_id,
         is_playing_a_delta: false,
         level: 1,
         health: definition.health,
@@ -471,6 +473,23 @@ function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined
     }
 }
 
+function get_unit_deny_voice_line(type: Unit_Type): string | undefined {
+    switch (type) {
+        case Unit_Type.pudge: return "vo_pudge_deny";
+        case Unit_Type.tidehunter: return "vo_tidehunter_deny";
+        case Unit_Type.luna: return "vo_luna_deny";
+        case Unit_Type.sniper: return "vo_sniper_deny";
+    }
+}
+
+function try_play_sound_for_unit(unit: Battle_Unit, supplier: (type: Unit_Type) => string | undefined, target: Battle_Unit = unit) {
+    const sound = supplier(unit.type);
+
+    if (sound) {
+        unit_emit_sound(target, sound);
+    }
+}
+
 function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Basic_Attack) {
     const target = cast.target_position;
 
@@ -505,14 +524,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Unit_Type.luna: return "vo_luna_attack";
             case Unit_Type.pudge: return "vo_pudge_attack";
             case Unit_Type.tidehunter: return "vo_tide_attack";
-        }
-    }
-
-    function try_play_sound_for_unit(unit: Battle_Unit, supplier: (type: Unit_Type) => string | undefined, target: Battle_Unit = unit) {
-        const sound = supplier(unit.type);
-
-        if (sound) {
-            unit_emit_sound(target, sound);
         }
     }
 
@@ -765,7 +776,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                     ParticleManager.ReleaseParticleIndex(particle);
 
                     unit_emit_sound(target_unit, "Hero_Luna.Eclipse.Target");
-                    change_health(main_player, target_unit, target_unit.health - 1, -1);
+                    change_health(main_player, unit, target_unit, target_unit.health - 1, -1);
                     shake_screen(target_unit.position, Shake.weak);
                 }
 
@@ -959,7 +970,7 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
     return sequence_duration - time_passed;
 }
 
-function change_health(main_player: Main_Player, target: Battle_Unit, new_value: number, value_delta: number) {
+function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, new_value: number, value_delta: number) {
     const player = PlayerResource.GetPlayer(main_player.player_id);
 
     if (value_delta > 0) {
@@ -974,6 +985,10 @@ function change_health(main_player: Main_Player, target: Battle_Unit, new_value:
     update_player_state_net_table(main_player);
 
     if (new_value == 0) {
+        if (source.owner_remote_id == target.owner_remote_id) {
+            try_play_sound_for_unit(source, get_unit_deny_voice_line);
+        }
+
         target.handle.ForceKill(false);
     }
 }
@@ -991,10 +1006,13 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             shake_screen(delta.at_position, Shake.medium);
 
-            const facing = delta.owner_id == main_player.remote_id ? { x: 0, y: -1 } : { x: 0, y : 1};
-            const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.at_position, facing);
+            const facing = delta.owner_id == main_player.remote_id ? { x: 0, y: 1 } : { x: 0, y : -1 };
+            const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
 
             unit_emit_sound(unit, "hero_spawn");
+
+            const dust = "particles/dev/library/base_dust_hit.vpcf";
+            ParticleManager.ReleaseParticleIndex(ParticleManager.CreateParticle(dust, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle));
 
             unit.is_playing_a_delta = true;
 
@@ -1151,10 +1169,11 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.health_change: {
-            const unit = find_unit_by_id(delta.target_unit_id);
+            const source = find_unit_by_id(delta.source_unit_id);
+            const target = find_unit_by_id(delta.target_unit_id);
 
-            if (unit) {
-                change_health(main_player, unit, delta.new_value, delta.value_delta);
+            if (source && target) {
+                change_health(main_player, source, target, delta.new_value, delta.value_delta);
             }
 
             break;
@@ -1240,7 +1259,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     }
 
     battle.units = snapshot.units.map(unit => {
-        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.position, unit.facing);
+        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.owner_id, unit.position, unit.facing);
 
         // TODO we need this to be typesafe, codegen a copy<T extends U, U>(source: T, target: U) function
         new_unit.health = unit.health;

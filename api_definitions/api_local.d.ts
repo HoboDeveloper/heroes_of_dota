@@ -1,7 +1,7 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
 // TODO transfer modifiers/state counters
-type Visualizer_Unit_Data = {
+type Shared_Visualizer_Unit_Data = {
     id: number
     level: number
     health: number
@@ -34,7 +34,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
             width: number
             height: number
         }
-        entity_id_to_unit_data: { [entity_id: number]: Visualizer_Unit_Data }
+        entity_id_to_unit_data: { [entity_id: number]: Shared_Visualizer_Unit_Data }
         current_visual_head: number
     }
 }
@@ -53,7 +53,8 @@ type Debug_Chat_Message_Event = {
 
 type Fast_Forward_Event = Battle_Snapshot
 
-type Unit_Snapshot = Visualizer_Unit_Data & {
+type Unit_Snapshot = Shared_Visualizer_Unit_Data & {
+    owner_id: number
     type: Unit_Type
     position: {
         x: number
