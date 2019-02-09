@@ -14,7 +14,7 @@ const control_panel: Control_Panel = {
 
 const battle_cell_size = 128;
 
-type UI_Unit_Data = Visualizer_Unit_Data & {
+type UI_Unit_Data = Shared_Visualizer_Unit_Data & {
     stat_bar_panel: Panel,
     health_label: LabelPanel,
     level_ticks: Panel[],
@@ -85,7 +85,7 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
 function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            battle.unit_id_to_facing[delta.unit_id] = delta.owner_id == this_player_id ? xy(0, -1) : xy(0, 1);
+            battle.unit_id_to_facing[delta.unit_id] = delta.owner_id == this_player_id ? xy(0, 1) : xy(0, -1);
 
             break;
         }
@@ -180,6 +180,8 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     for (const unit of battle.units) {
         update_hero_control_panel_state(unit);
     }
+
+    update_current_turning_player_indicator();
 
     const visualiser_head = get_visualiser_delta_head();
 
@@ -679,7 +681,7 @@ function end_turn() {
     });
 }
 
-function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
+function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
     const panel = $.CreatePanel("Panel", $("#health_bar_container"), "");
     const level_bar = $.CreatePanel("Panel", panel, "level_bar");
     const health_label = $.CreatePanel("Label", panel, "health_label");
@@ -844,7 +846,8 @@ function make_battle_snapshot(): Battle_Snapshot {
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
-                stunned_counter: unit[Unit_Field.state_stunned_counter]
+                stunned_counter: unit[Unit_Field.state_stunned_counter],
+                owner_id: unit.owner_player_id
             })),
         delta_head: battle.delta_head
     }
@@ -983,6 +986,12 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
     };
 
     control_panel.hero_rows.push(new_row);
+}
+
+function update_current_turning_player_indicator() {
+    const label = $("#current_turning_player_label") as LabelPanel;
+
+    label.text = `${battle.players[battle.turning_player_index].name}'s turn`;
 }
 
 function update_hero_control_panel_state(unit: Unit) {
