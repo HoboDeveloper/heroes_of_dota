@@ -6,4 +6,12 @@ class Modifier_Battle_Unit extends CDOTA_Modifier_Lua {
             [modifierstate.MODIFIER_STATE_INVULNERABLE]: true
         }
     }
+
+    DeclareFunctions(): modifierfunction[] {
+        return [ modifierfunction.MODIFIER_PROPERTY_MODEL_SCALE ];
+    }
+
+    GetModifierModelScale(): number {
+        return -15;
+    }
 }

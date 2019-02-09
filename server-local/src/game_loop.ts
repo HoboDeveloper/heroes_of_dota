@@ -259,6 +259,7 @@ function main() {
 
     LinkLuaModifier("Modifier_Battle_Unit", "modifiers/modifier_battle_unit", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
     LinkLuaModifier("Modifier_Tide_Gush", "modifiers/modifier_tide_gush", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
+    LinkLuaModifier("Modifier_Damage_Effect", "modifiers/modifier_damage_effect", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
 
     const scheduler: Scheduler = {
         tasks: new Map<Coroutine<any>, Task>()

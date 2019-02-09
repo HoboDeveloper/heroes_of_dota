@@ -541,7 +541,7 @@ handlers.set("/battle_cheat", body => {
                     target_unit_id: unit.id,
                     source_ability_id: Ability_Id.basic_attack,
                     new_value: unit[Unit_Field.max_health],
-                    value_delta: 0
+                    value_delta: unit[Unit_Field.max_health] - unit.health
                 },
                 {
                     type: Delta_Type.mana_change,
