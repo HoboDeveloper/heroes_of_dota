@@ -113,7 +113,7 @@ function update_player_from_movement_history(player: Player) {
 
     if (closest_entry) {
         player.hero_unit.MoveToPosition(Vector(closest_entry.order_x, closest_entry.order_y));
-    } else {
+    } else if (player.movement_history.length > 0) {
         const last_entry = player.movement_history[player.movement_history.length - 1];
 
         FindClearSpaceForUnit(player.hero_unit, Vector(last_entry.location_x, last_entry.location_y), true);
@@ -140,7 +140,7 @@ function query_other_players_movement(main_player: Main_Player, players: Player_
             player.movement_history = player_data.movement_history;
 
             update_player_from_movement_history(player);
-        } else {
+        } else if (player_data.movement_history.length > 0) {
             const new_player = create_new_player_from_response(player_data);
 
             players[new_player.id] = new_player;
