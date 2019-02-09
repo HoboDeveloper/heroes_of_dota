@@ -439,7 +439,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
 
 function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, damage: number): Delta | undefined {
     for (const ability of source.abilities) {
-        if (source[Unit_Field.level] <= ability.available_since_level) continue;
+        if (source[Unit_Field.level] < ability.available_since_level) continue;
 
         switch (ability.id) {
             case Ability_Id.luna_moon_glaive: {
@@ -464,7 +464,7 @@ function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, d
 
 
     for (const ability of target.abilities) {
-        if (target[Unit_Field.level] <= ability.available_since_level) continue;
+        if (target[Unit_Field.level] < ability.available_since_level) continue;
 
         switch (ability.id) {
             case Ability_Id.tide_kraken_shell: {
