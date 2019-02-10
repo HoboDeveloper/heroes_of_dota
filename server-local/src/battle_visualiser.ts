@@ -174,6 +174,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         level: 1,
         health: definition.health,
         mana: definition.mana,
+        attack_bonus: 0,
         stunned_counter: 0
     };
 
@@ -716,9 +717,9 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             wait(0.2);
 
             for (const delta of from_client_array(cast.deltas)) {
-                const [damage] = from_client_tuple(delta.effect.deltas);
-
-                play_delta(main_player, damage);
+                for (const effect of from_client_tuple(delta.effect.deltas)) {
+                    play_delta(main_player, effect);
+                }
             }
 
             wait(1);
@@ -901,6 +902,12 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
 
                 play_delta(main_player, delta);
             }
+
+            break;
+        }
+
+        case Ability_Id.luna_lunar_blessing: {
+            play_delta(main_player, effect.delta);
 
             break;
         }
@@ -1134,11 +1141,19 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         case Delta_Type.unit_field_change: {
             const unit = find_unit_by_id(delta.target_unit_id);
 
+            print("Changing field of", delta.target_unit_id, unit ? unit.handle.GetName() : "none", delta.field, "new value", delta.new_value);
+
             if (unit) {
                 if (delta.field == Unit_Field.state_stunned_counter) {
                     unit.stunned_counter = delta.new_value;
 
                     update_stun_visuals(unit);
+                }
+                
+                if (delta.field == Unit_Field.attack_bonus) {
+                    unit.attack_bonus = delta.new_value;
+
+                    update_player_state_net_table(main_player);
                 }
 
                 if (delta.field == Unit_Field.level) {
@@ -1274,6 +1289,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         new_unit.level = unit.level;
         new_unit.mana = unit.mana;
         new_unit.stunned_counter = unit.stunned_counter;
+        new_unit.attack_bonus = unit.attack_bonus
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;

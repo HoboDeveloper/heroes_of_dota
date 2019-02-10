@@ -6,6 +6,7 @@ type Shared_Visualizer_Unit_Data = {
     level: number
     health: number
     mana: number
+    attack_bonus: number
     stunned_counter: number
 }
 

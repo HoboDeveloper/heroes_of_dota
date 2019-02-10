@@ -98,7 +98,8 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     level: unit.level,
                     health: unit.health,
                     mana: unit.mana,
-                    stunned_counter: unit.stunned_counter
+                    stunned_counter: unit.stunned_counter,
+                    attack_bonus: unit.attack_bonus
                 }
             }
 

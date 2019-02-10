@@ -17,8 +17,10 @@ const battle_cell_size = 128;
 type UI_Unit_Data = Shared_Visualizer_Unit_Data & {
     stat_bar_panel: Panel,
     health_label: LabelPanel,
+    attack_label: LabelPanel,
     level_ticks: Panel[],
-    current_displayed_health: number
+    current_displayed_health: number,
+    current_displayed_attack_bonus: number
 }
 
 type UI_Battle = Battle & {
@@ -684,7 +686,12 @@ function end_turn() {
 function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
     const panel = $.CreatePanel("Panel", $("#health_bar_container"), "");
     const level_bar = $.CreatePanel("Panel", panel, "level_bar");
-    const health_label = $.CreatePanel("Label", panel, "health_label");
+    const health_container = $.CreatePanel("Panel", panel, "health_container");
+    const health_label = $.CreatePanel("Label", health_container, "health_label");
+    const health_icon = $.CreatePanel("Panel", health_container, "health_icon");
+    const attack_container = $.CreatePanel("Panel", panel, "attack_container");
+    const attack_label = $.CreatePanel("Label", attack_container, "attack_label");
+    const attack_icon = $.CreatePanel("Panel", attack_container, "attack_icon");
     const level_ticks: Panel[] = [];
 
     for (let index = 0; index < max_unit_level; index++) {
@@ -701,12 +708,15 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
         id: data.id,
         health: data.health,
         current_displayed_health: data.health,
+        current_displayed_attack_bonus: data.attack_bonus,
         mana: data.mana,
         level: data.level,
         stat_bar_panel: panel,
         health_label: health_label,
         level_ticks: level_ticks,
-        stunned_counter: data.stunned_counter
+        stunned_counter: data.stunned_counter,
+        attack_bonus: data.attack_bonus,
+        attack_label: attack_label
     }
 }
 
@@ -728,6 +738,7 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
         const unit = find_unit_by_id(battle, data.id);
 
         if (unit) {
+            data.attack_label.text = get_unit_attack_value(unit, data.current_displayed_attack_bonus).toString();
             data.stat_bar_panel.SetHasClass("enemy", unit.owner_player_id != this_player_id);
         } else {
             $.Schedule(0, try_find_associated_unit);
@@ -761,9 +772,11 @@ function process_state_update(state: Player_Net_Table) {
             }
 
             if (existing_data) {
+                // TODO this should be typesafe with a copy function
                 existing_data.health = new_data.health;
                 existing_data.mana = new_data.mana;
                 existing_data.level = new_data.level;
+                existing_data.attack_bonus = new_data.attack_bonus;
 
                 update_unit_stat_bar_data(existing_data);
             } else {
@@ -847,7 +860,8 @@ function make_battle_snapshot(): Battle_Snapshot {
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
                 stunned_counter: unit[Unit_Field.state_stunned_counter],
-                owner_id: unit.owner_player_id
+                owner_id: unit.owner_player_id,
+                attack_bonus: unit[Unit_Field.attack_bonus]
             })),
         delta_head: battle.delta_head
     }
@@ -1075,12 +1089,34 @@ function update_current_ability_based_on_cursor_state() {
     }
 }
 
-function try_update_stat_bar_displayed_health(ui_data: UI_Unit_Data) {
+function get_unit_attack_value(unit: Unit, bonus: number) {
+    const base_value = unit.attack.id == Ability_Id.basic_attack ? unit.attack.damage : 0;
+
+    return base_value + bonus;
+}
+
+function try_update_stat_bar_display(ui_data: UI_Unit_Data) {
+    const unit = find_unit_by_entity_id(battle, current_selected_entity);
+    const is_this_unit_selected = unit ? ui_data.id == unit.id : false;
+
+    ui_data.stat_bar_panel.SetHasClass("show_additional_stats", is_this_unit_selected);
+
     if (ui_data.health != ui_data.current_displayed_health) {
         const direction = Math.sign(ui_data.health - ui_data.current_displayed_health);
 
         ui_data.current_displayed_health += direction;
         ui_data.health_label.text = ui_data.current_displayed_health.toString();
+    }
+
+    if (ui_data.attack_bonus != ui_data.current_displayed_attack_bonus) {
+        const unit = find_unit_by_id(battle, ui_data.id);
+
+        if (unit) {
+            const direction = Math.sign(ui_data.attack_bonus - ui_data.current_displayed_attack_bonus);
+
+            ui_data.current_displayed_attack_bonus += direction;
+            ui_data.attack_label.text = get_unit_attack_value(unit, ui_data.current_displayed_attack_bonus).toString();
+        }
     }
 }
 
@@ -1135,7 +1171,7 @@ function periodically_update_stat_bar_display() {
     if (current_state != Player_State.in_battle) return;
 
     for (const id in battle.entity_id_to_unit_data) {
-        try_update_stat_bar_displayed_health(battle.entity_id_to_unit_data[id]);
+        try_update_stat_bar_display(battle.entity_id_to_unit_data[id]);
     }
 }
 
@@ -1146,23 +1182,23 @@ declare const enum Edge {
     right = 3
 }
 
-function setup_mouse_filter() {
-    function get_entity_under_cursor(): EntityId | undefined {
-        const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
+function get_entity_under_cursor(): EntityId | undefined {
+    const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
 
-        for (const entity of entities_under_cursor) {
-            if (entity.accurateCollision) {
-                return entity.entityIndex;
-            }
+    for (const entity of entities_under_cursor) {
+        if (entity.accurateCollision) {
+            return entity.entityIndex;
         }
-
-        if (entities_under_cursor.length > 0) {
-            return entities_under_cursor[0].entityIndex;
-        }
-
-        return undefined;
     }
 
+    if (entities_under_cursor.length > 0) {
+        return entities_under_cursor[0].entityIndex;
+    }
+
+    return undefined;
+}
+
+function setup_mouse_filter() {
     GameUI.SetMouseCallback((event, button) => {
         if (current_state != Player_State.in_battle) {
             return false;

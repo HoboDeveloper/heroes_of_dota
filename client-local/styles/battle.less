@@ -251,15 +251,58 @@
     border-radius: 4px;
     width: 32px;
     flow-children: down;
+    transition-property: width;
+    transition-duration: 0.05s;
 
-    &.enemy Label#health_label {
+    &.show_additional_stats {
+      width: 40px;
+
+      #attack_container {
+        visibility: visible;
+      }
+
+      #health_container {
+        horizontal-align: right;
+
+        #health_icon {
+          visibility: visible;
+        }
+
+        #health_label {
+          text-align: right;
+        }
+      }
+    }
+
+    .stat_icon {
+      background-size: cover;
+      width: 12px;
+      height: 12px;
+      vertical-align: center;
+      margin-right: 3px;
+    }
+
+    &.enemy #health_label {
       text-shadow: 0px 0px 2px 2.0 #aa0000aa;
     }
 
-    > Label#health_label {
-      text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0);
+    #health_container {
+      flow-children: right;
       horizontal-align: center;
-      text-align: center;
+
+      #health_label {
+        text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0);
+        horizontal-align: center;
+        text-align: center;
+        margin-left: 3px;
+        margin-right: 3px;
+      }
+
+      #health_icon {
+        .stat_icon();
+        visibility: collapse;
+        background-image: url("s2r://panorama/images/hud/reborn/icon_armor_psd.vtex");
+      }
     }
 
     #level_bar {
@@ -281,12 +324,29 @@
       margin-top: 3px;
     }
 
+    #attack_container {
+      visibility: collapse;
+      flow-children: right;
+      horizontal-align: right;
+      margin-bottom: 3px;
+
+      #attack_label {
+        text-align: right;
+        margin-left: 3px;
+        margin-right: 3px;
+        text-shadow: 0px 0px 2px 2.0 #aa0000aa;
+      }
+
+      #attack_icon {
+        .stat_icon();
+        background-image: url("s2r://panorama/images/hud/reborn/icon_damage_psd.vtex");
+      }
+    }
+
     Label {
-      font-family: @font-regular;
+      font-family: @font-mono;
       color: white;
       font-size: 16px;
-      margin-left: 3px;
-      margin-right: 3px;
       margin-bottom: -3px;
     }
   }
