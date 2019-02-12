@@ -1,8 +1,10 @@
 type FX = {
-    to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string): FX;
+    to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string, offset?: Vector): FX;
     to_unit_origin(control_point: number, unit: Battle_Unit): FX;
+    to_unit_custom_origin(control_point: number, unit: Battle_Unit): FX;
     to_location(control_point: number, point: XY): FX;
     with_point_value(control_point: number, x?: number, y?: number, z?: number): FX;
+    with_vector_value(control_point: number, vec: Vector): FX;
     follow_unit_origin(control_point: number, unit: Battle_Unit): FX;
     release(): void;
     destroy_and_release(instant: boolean): void;
@@ -33,10 +35,10 @@ function native_fx(path: string, attach: ParticleAttachment_t, handle: CBaseEnti
 
             return this;
         },
-        to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string): FX {
+        to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string, offset: Vector = unit.handle.GetOrigin()): FX {
             check_particle_validity();
 
-            ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, attach_point, Vector(), true);
+            ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, attach_point, offset, true);
 
             return this;
         },
@@ -47,10 +49,24 @@ function native_fx(path: string, attach: ParticleAttachment_t, handle: CBaseEnti
 
             return this;
         },
+        to_unit_custom_origin(control_point: number, unit: Battle_Unit): FX {
+            check_particle_validity();
+
+            ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, unit.handle.GetOrigin(), true);
+
+            return this;
+        },
         follow_unit_origin(control_point: number, unit: Battle_Unit): FX {
             check_particle_validity();
 
-            ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, undefined, Vector(), true);
+            ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, undefined, unit.handle.GetOrigin(), true);
+
+            return this;
+        },
+        with_vector_value(control_point: number, vec: Vector): FX {
+            check_particle_validity();
+
+            ParticleManager.SetParticleControl(fx, control_point, vec);
 
             return this;
         },

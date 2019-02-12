@@ -184,38 +184,35 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
 }
 
 function tracking_projectile_to_unit(source: Battle_Unit, target: Battle_Unit, particle_path: string, speed: number, out_attach: string = "attach_attack1") {
-    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, source.handle);
     const in_attach = "attach_hitloc";
-
-    ParticleManager.SetParticleControlEnt(fx, 0, source.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, out_attach, Vector(), true);
-    ParticleManager.SetParticleControlEnt(fx, 1, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, in_attach, Vector(), true);
-    ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
-    ParticleManager.SetParticleControlEnt(fx, 3, target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, in_attach, Vector(), true);
+    const particle = fx(particle_path)
+        .to_unit_attach_point(0, source, out_attach)
+        .to_unit_attach_point(1, target, in_attach)
+        .with_point_value(2, speed)
+        .to_unit_attach_point(3, target, in_attach);
 
     const world_distance = (attachment_world_origin(source.handle, out_attach) - attachment_world_origin(target.handle, in_attach) as Vector).Length();
 
     wait(world_distance / speed);
 
-    ParticleManager.DestroyParticle(fx, false);
-    ParticleManager.ReleaseParticleIndex(fx);
+    particle.destroy_and_release(false);
 }
 
 function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_path: string, speed: number) {
-    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, source.handle);
     const out_attach = "attach_attack1";
     const world_location = battle_position_to_world_position_center(target) + Vector(0, 0, 128) as Vector;
 
-    ParticleManager.SetParticleControlEnt(fx, 0, source.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, out_attach, Vector(), true);
-    ParticleManager.SetParticleControl(fx, 1, world_location);
-    ParticleManager.SetParticleControl(fx, 2, Vector(speed, 0, 0));
-    ParticleManager.SetParticleControl(fx, 3, world_location);
+    const particle = fx(particle_path)
+        .to_unit_attach_point(0, source, out_attach)
+        .with_vector_value(1, world_location)
+        .with_point_value(2, speed)
+        .with_vector_value(3, world_location);
 
     const world_distance = (attachment_world_origin(source.handle, out_attach) - world_location as Vector).Length();
 
     wait(world_distance / speed);
 
-    ParticleManager.DestroyParticle(fx, false);
-    ParticleManager.ReleaseParticleIndex(fx);
+    particle.destroy_and_release(false);
 }
 
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ability_Pudge_Hook) {
@@ -228,7 +225,6 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     const target = cast.target_position;
     const hook_offset = Vector(0, 0, 96);
     const pudge_origin = pudge.handle.GetAbsOrigin() + hook_offset as Vector;
-    const particle_path = "particles/units/heroes/hero_pudge/pudge_meathook.vpcf";
     const travel_direction = Vector(target.x - pudge.position.x, target.y - pudge.position.y).Normalized();
     const travel_speed = 1600;
 
@@ -263,14 +259,14 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     const distance_to_travel = battle_cell_size * Math.max(Math.abs(travel_target.x - pudge.position.x), Math.abs(travel_target.y - pudge.position.y));
     const time_to_travel = distance_to_travel / travel_speed;
 
-    const chain = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, pudge.handle);
-    ParticleManager.SetParticleControlEnt(chain, 0, pudge.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_weapon_chain_rt", pudge_origin, true);
-    ParticleManager.SetParticleControl(chain, 1, pudge_origin + travel_direction * distance_to_travel as Vector);
-    ParticleManager.SetParticleControl(chain, 2, Vector(travel_speed, distance_to_travel, 64));
-    ParticleManager.SetParticleControl(chain, 3, Vector(time_to_travel * 2, 0, 0));
-    ParticleManager.SetParticleControl(chain, 4, Vector(1, 0, 0));
-    ParticleManager.SetParticleControl(chain, 5, Vector(0, 0, 0));
-    ParticleManager.SetParticleControlEnt(chain, 7, pudge.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, pudge.handle.GetOrigin(), true);
+    const chain = fx("particles/units/heroes/hero_pudge/pudge_meathook.vpcf")
+        .to_unit_attach_point(0, pudge, "attach_weapon_chain_rt")
+        .with_vector_value(1, pudge_origin + travel_direction * distance_to_travel as Vector)
+        .with_point_value(2, travel_speed, distance_to_travel, 64)
+        .with_point_value(3, time_to_travel * 2)
+        .with_point_value(4, 1)
+        .with_point_value(5)
+        .to_unit_custom_origin(7, pudge);
 
     if (is_hook_hit(cast.result)) {
         const [damage, move] = from_client_tuple(cast.result.deltas);
@@ -298,12 +294,11 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
             return;
         }
 
-        const impact_path = "particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf";
-        const impact = ParticleManager.CreateParticle(impact_path, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, move_target.handle);
-        ParticleManager.SetParticleControlEnt(impact, 0, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", Vector(), true);
-        ParticleManager.ReleaseParticleIndex(impact);
+        fx("particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf")
+            .to_unit_attach_point(0, move_target, "attach_hitloc")
+            .release();
 
-        ParticleManager.SetParticleControlEnt(chain, 1, move_target.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vector, true);
+        chain.to_unit_attach_point(1, move_target, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vector);
 
         const travel_start_time = GameRules.GetGameTime();
         const target_world_position = battle_position_to_world_position_center(move.to_position);
@@ -331,7 +326,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     } else {
         wait(time_to_travel);
 
-        ParticleManager.SetParticleControl(chain, 1, pudge_origin);
+        chain.with_vector_value(1, pudge_origin);
 
         pudge.handle.StopSound(chain_sound);
         EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(travel_target), "Hero_Pudge.AttackHookRetractStop", pudge.handle);
@@ -341,7 +336,8 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
 
     hook_wearable.RemoveEffects(Effects.EF_NODRAW);
     pudge.handle.FadeGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_1);
-    ParticleManager.ReleaseParticleIndex(chain);
+
+    chain.release();
 }
 
 function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Tide_Ravage) {
@@ -352,15 +348,16 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
     unit_emit_sound(unit, "Ability.Ravage");
     shake_screen(unit.position, Shake.strong);
 
-    const path = "particles/tide_ravage/tide_ravage.vpcf";
-    const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+    const fx = fx_by_unit("particles/tide_ravage/tide_ravage.vpcf", unit);
     const particle_delay = 0.1;
     const deltas_by_distance: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[][] = [];
     const deltas = from_client_array(cast.deltas);
 
     for (let distance = 1; distance <= 5; distance++) {
-        ParticleManager.SetParticleControl(fx, distance, Vector(distance * battle_cell_size * 0.85, 0, 0));
+        fx.with_point_value(distance, distance * battle_cell_size * 0.85);
     }
+
+    fx.release();
 
     for (const delta of deltas) {
         const target = find_unit_by_id(delta.target_unit_id);
@@ -433,10 +430,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
             delta_completion_status[delta_id] = false;
 
             fork(() => {
-                const path = "particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage_hit.vpcf";
-                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, target.handle);
-                ParticleManager.ReleaseParticleIndex(fx);
-
+                fx_by_unit("particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage_hit.vpcf", target).release();
                 unit_emit_sound(target, "Hero_Tidehunter.RavageDamage");
                 toss_target_up(target);
 
@@ -451,8 +445,6 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
     }
 
     unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
-
-    ParticleManager.ReleaseParticleIndex(fx);
 
     wait_until(() => delta_completion_status.every(value => value));
 }
@@ -648,19 +640,15 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
         }
 
         case Ability_Id.luna_lucent_beam: {
-            const fx = "particles/units/heroes/hero_luna/luna_lucent_beam.vpcf";
-
             unit_emit_sound(unit, "Hero_Luna.LucentBeam.Cast");
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.6);
 
-            const particle = ParticleManager.CreateParticle(fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
-
-            for (const control_point of [0, 1, 5]) {
-                ParticleManager.SetParticleControl(particle, control_point, target.handle.GetAbsOrigin());
-            }
-
-            ParticleManager.SetParticleControl(particle, 6, unit.handle.GetAbsOrigin());
-            ParticleManager.ReleaseParticleIndex(particle);
+            fx("particles/units/heroes/hero_luna/luna_lucent_beam.vpcf")
+                .to_unit_origin(0, target)
+                .to_unit_origin(1, target)
+                .to_unit_origin(5, target)
+                .to_unit_origin(6, unit)
+                .release();
 
             shake_screen(target.position, Shake.medium);
             unit_emit_sound(unit, "Hero_Luna.LucentBeam.Target");
@@ -676,14 +664,14 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Use_No_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.pudge_rot: {
-            const particle_path = "particles/units/heroes/hero_pudge/pudge_rot.vpcf";
-            const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
-            const snd = "pudge_ability_rot";
-
-            ParticleManager.SetParticleControl(fx, 1, Vector(300, 1, 1));
+            const particle = fx("particles/units/heroes/hero_pudge/pudge_rot.vpcf")
+                .follow_unit_origin(0, unit)
+                .with_point_value(1, 300, 1, 1);
+            
+            const sound = "pudge_ability_rot";
 
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
-            unit.handle.EmitSound(snd);
+            unit.handle.EmitSound(sound);
 
             wait(0.2);
 
@@ -693,11 +681,10 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(1.0);
 
-            unit.handle.StopSound(snd);
+            unit.handle.StopSound(sound);
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
 
-            ParticleManager.DestroyParticle(fx, false);
-            ParticleManager.ReleaseParticleIndex(fx);
+            particle.destroy_and_release(false);
 
             break;
         }
@@ -707,10 +694,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            const path = "particles/units/heroes/hero_tidehunter/tidehunter_anchor_hero.vpcf";
-            const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
-            ParticleManager.ReleaseParticleIndex(fx);
-
+            fx_by_unit("particles/units/heroes/hero_tidehunter/tidehunter_anchor_hero.vpcf", unit).release();
             unit_emit_sound(unit, "Hero_Tidehunter.AnchorSmash");
             shake_screen(unit.position, Shake.weak);
 
@@ -736,9 +720,6 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         }
 
         case Ability_Id.luna_eclipse: {
-            const fx = "particles/units/heroes/hero_luna/luna_eclipse.vpcf";
-            const target_fx = "particles/units/heroes/hero_luna/luna_eclipse_impact.vpcf";
-            const no_target_fx = "particles/units/heroes/hero_luna/luna_eclipse_impact_notarget.vpcf";
             const day_time = GameRules.GetTimeOfDay();
 
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
@@ -749,10 +730,10 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             GameRules.SetTimeOfDay(0);
 
-            const eclipse_particle = ParticleManager.CreateParticle(fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
-            ParticleManager.SetParticleControl(eclipse_particle, 1, Vector(500, 0, 0));
-            ParticleManager.SetParticleControl(eclipse_particle, 2, unit.handle.GetAbsOrigin());
-            ParticleManager.SetParticleControl(eclipse_particle, 3, unit.handle.GetAbsOrigin());
+            const eclipse_fx = fx_by_unit("particles/units/heroes/hero_luna/luna_eclipse.vpcf", unit)
+                .with_point_value(1, 500)
+                .to_unit_origin(2, unit)
+                .to_unit_origin(3, unit)
 
             const deltas = from_client_array(cast.deltas);
             const beam_targets = deltas.map(delta => ({
@@ -768,13 +749,11 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 random_target.beams_remaining--;
 
                 if (target_unit) {
-                    const particle = ParticleManager.CreateParticle(target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, target_unit.handle);
-
-                    for (const control_point of [ 0, 1, 5 ]) {
-                        ParticleManager.SetParticleControl(particle, control_point, target_unit.handle.GetAbsOrigin());
-                    }
-
-                    ParticleManager.ReleaseParticleIndex(particle);
+                    fx("particles/units/heroes/hero_luna/luna_eclipse_impact.vpcf")
+                        .to_unit_origin(0, target_unit)
+                        .to_unit_origin(1, target_unit)
+                        .to_unit_origin(5, target_unit)
+                        .release();
 
                     unit_emit_sound(target_unit, "Hero_Luna.Eclipse.Target");
                     change_health(main_player, unit, target_unit, target_unit.health - 1, -1);
@@ -813,16 +792,15 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 }
 
                 for (let beams_remaining = cast.missed_beams; beams_remaining > 0; beams_remaining--) {
-                    const position = battle_position_to_world_position_center(cells[RandomInt(0, cells.length - 1)]);
-                    const particle = ParticleManager.CreateParticle(no_target_fx, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
+                    const position = cells[RandomInt(0, cells.length - 1)];
 
-                    for (const control_point of [0, 1, 5]) {
-                        ParticleManager.SetParticleControl(particle, control_point, position);
-                    }
+                    fx("particles/units/heroes/hero_luna/luna_eclipse_impact_notarget.vpcf")
+                        .to_location(0, position)
+                        .to_location(1, position)
+                        .to_location(5, position)
+                        .release();
 
-                    ParticleManager.ReleaseParticleIndex(particle);
-
-                    EmitSoundOnLocationWithCaster(position, "Hero_Luna.Eclipse.NoTarget", unit.handle);
+                    EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(position), "Hero_Luna.Eclipse.NoTarget", unit.handle);
 
                     wait(0.3);
                 }
@@ -830,8 +808,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
-            ParticleManager.DestroyParticle(eclipse_particle, false);
-            ParticleManager.ReleaseParticleIndex(eclipse_particle);
+            eclipse_fx.destroy_and_release(false);
 
             GameRules.SetTimeOfDay(day_time);
 
@@ -856,12 +833,8 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             const unit = find_unit_by_id(effect.unit_id);
 
             if (unit) {
-                const path = "particles/units/heroes/hero_tidehunter/tidehunter_krakenshell_purge.vpcf";
-                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
-
+                fx_by_unit("particles/units/heroes/hero_tidehunter/tidehunter_krakenshell_purge.vpcf", unit).release();
                 unit_emit_sound(unit, "Hero_Tidehunter.KrakenShell");
-
-                ParticleManager.ReleaseParticleIndex(fx);
             }
 
             break;
@@ -872,10 +845,9 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             const unit = find_unit_by_id(health_bonus.target_unit_id);
 
             if (unit) {
-                const path = "particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf";
-                const fx = ParticleManager.CreateParticle(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
-                ParticleManager.SetParticleControl(fx, 1, unit.handle.GetAbsOrigin());
-                ParticleManager.ReleaseParticleIndex(fx);
+                fx_by_unit("particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf", unit)
+                    .to_unit_origin(1, unit)
+                    .release();
 
                 unit_emit_sound(unit, "pudge_ability_flesh_heap");
 
@@ -1013,9 +985,9 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            const fx = ParticleManager.CreateParticle("particles/hero_spawn.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, GameRules.GetGameModeEntity());
-            ParticleManager.SetParticleControl(fx, 0, battle_position_to_world_position_center(delta.at_position));
-            ParticleManager.ReleaseParticleIndex(fx);
+            fx("particles/hero_spawn.vpcf")
+                .to_location(0, delta.at_position)
+                .release();
 
             wait(0.25);
 
@@ -1026,8 +998,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             unit_emit_sound(unit, "hero_spawn");
 
-            const dust = "particles/dev/library/base_dust_hit.vpcf";
-            ParticleManager.ReleaseParticleIndex(ParticleManager.CreateParticle(dust, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle));
+            fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
 
             unit.is_playing_a_delta = true;
 
@@ -1160,12 +1131,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                     unit.level = delta.new_value;
 
                     unit_emit_sound(unit, "hero_level_up");
-
-                    const particle_path = "particles/generic_hero_status/hero_levelup.vpcf";
-                    const fx = ParticleManager.CreateParticle(particle_path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
-
-                    ParticleManager.ReleaseParticleIndex(fx);
-
+                    fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
                     update_player_state_net_table(main_player);
                 }
             }
