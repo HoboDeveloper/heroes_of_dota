@@ -978,21 +978,21 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
 }
 
 function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, new_value: number, value_delta: number) {
-    function number_particle(amount: number, color: Vector) {
-        const fx = ParticleManager.CreateParticle("particles/msg_damage.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, GameRules.GetGameModeEntity());
-        ParticleManager.SetParticleControl(fx, 0, target.handle.GetAbsOrigin());
-        ParticleManager.SetParticleControl(fx, 1, Vector(0, amount, 0));
-        ParticleManager.SetParticleControl(fx, 2, Vector(Math.max(1, amount / 1.5), 1, 0));
-        ParticleManager.SetParticleControl(fx, 3, color);
-        ParticleManager.ReleaseParticleIndex(fx);
+    function number_particle(amount: number, r: number, g: number, b: number) {
+        fx("particles/msg_damage.vpcf")
+            .to_unit_origin(0, target)
+            .with_point_value(1, 0, amount)
+            .with_point_value(2, Math.max(1, amount / 1.5), 1)
+            .with_point_value(3, r, g, b)
+            .release()
     }
 
     if (value_delta > 0) {
-        number_particle(value_delta, Vector(100, 255, 50));
+        number_particle(value_delta,100, 255, 50);
     } else if (value_delta < 0) {
         target.handle.AddNewModifier(target.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
 
-        number_particle(-value_delta, Vector(250, 70, 70));
+        number_particle(-value_delta, 250, 70, 70);
     }
 
     target.health = new_value;

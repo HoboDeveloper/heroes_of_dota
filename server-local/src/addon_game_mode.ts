@@ -5,6 +5,7 @@ require("scheduler");
 require("requests");
 require("calls");
 require("unit_defs");
+require("particles");
 
 function Activate() { main(); }
 function Precache(context: CScriptPrecacheContext) {
