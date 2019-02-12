@@ -7,8 +7,8 @@
     "@types/node": "^10.12.18",
     "path": "^0.12.7",
     "ttypescript": "^1.5.5",
-    "typescript": "^2.9.2",
-    "typescript-to-lua": "^0.14.0"
+    "typescript": "3.3.3",
+    "typescript-to-lua": "^0.15.0"
   },
   "author": "",
   "license": "ISC"
