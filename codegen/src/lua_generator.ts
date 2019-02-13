@@ -1,8 +1,6 @@
 import * as ts from "typescript";
 import * as tstl from "typescript-to-lua";
-import * as path from "path";
-import * as fs from "fs";
-import {LuaLibImportKind} from "typescript-to-lua";
+import {LuaLibImportKind, LuaTarget} from "typescript-to-lua";
 
 export interface Options {
     some?: string;
@@ -11,8 +9,8 @@ export interface Options {
 export default function run_transformer(program: ts.Program, options: Options): ts.TransformerFactory<ts.Node> {
     const transpiler_options: tstl.CompilerOptions = program.getCompilerOptions();
 
-    transpiler_options.luaTarget = "jit";
-    transpiler_options.luaLibImport = "require";
+    transpiler_options.luaTarget = LuaTarget.LuaJIT;
+    transpiler_options.luaLibImport = LuaLibImportKind.Require;
 
     const has_errors =
         program.getGlobalDiagnostics().length > 0 ||
@@ -34,12 +32,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
         transpiler.emitSourceFile(file);
     }
 
-    if (transpiler_options.luaLibImport === LuaLibImportKind.Require || transpiler_options.luaLibImport === LuaLibImportKind.Always) {
-        fs.copyFileSync(
-            path.resolve(__dirname, "../node_modules/typescript-to-lua/dist/lualib/lualib_bundle.lua"),
-            path.join(transpiler_options.outDir, "lualib_bundle.lua")
-        );
-    }
+    transpiler.emitLuaLib();
 
     return context => (node: ts.Node) => {
         if (ts.isBundle(node)) {
