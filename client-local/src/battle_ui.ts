@@ -14,13 +14,20 @@ const control_panel: Control_Panel = {
 
 const battle_cell_size = 128;
 
-type UI_Unit_Data = Shared_Visualizer_Unit_Data & {
+type UI_Unit_Data = {
+    id: number
+    level: number
+
     stat_bar_panel: Panel,
-    health_label: LabelPanel,
-    attack_label: LabelPanel,
     level_ticks: Panel[],
-    current_displayed_health: number,
-    current_displayed_attack_bonus: number
+
+    stat_health: Stat_Indicator
+    stat_mana: Stat_Indicator
+    stat_attack: Stat_Indicator
+    stat_move_points: Stat_Indicator
+    stat_max_move_points: Stat_Indicator
+    stat_max_health: Stat_Indicator
+    stat_max_mana: Stat_Indicator
 }
 
 type UI_Battle = Battle & {
@@ -42,15 +49,22 @@ type Control_Panel = {
 }
 
 type Stat_Indicator = {
+    label: LabelPanel
+    value: number
+    displayed_value: number
+    formatter(unit: Unit, value: number): string
+}
+
+type Hero_Panel_Stat_Indicator = {
     label: LabelPanel;
 }
 
 type Hero_Row = {
     unit_id: number;
     ability_buttons: Hero_Ability_Button[];
-    health: Stat_Indicator;
-    mana: Stat_Indicator;
-    level: Stat_Indicator;
+    health: Hero_Panel_Stat_Indicator;
+    mana: Hero_Panel_Stat_Indicator;
+    level: Hero_Panel_Stat_Indicator;
 }
 
 type Hero_Ability_Button = {
@@ -297,7 +311,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
         update_grid_visuals();
         clear_control_panel();
 
-        $("#health_bar_container").RemoveAndDeleteChildren();
+        $("#stat_bar_container").RemoveAndDeleteChildren();
     }
 }
 
@@ -684,68 +698,125 @@ function end_turn() {
 }
 
 function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
-    const panel = $.CreatePanel("Panel", $("#health_bar_container"), "");
+    const panel = $.CreatePanel("Panel", $("#stat_bar_container"), "");
+    panel.AddClass("unit_stat_bar");
+
     const level_bar = $.CreatePanel("Panel", panel, "level_bar");
-    const health_container = $.CreatePanel("Panel", panel, "health_container");
-    const health_label = $.CreatePanel("Label", health_container, "health_label");
-    const health_icon = $.CreatePanel("Panel", health_container, "health_icon");
+    const [ health, max_health ] = stat_indicator_ui(
+        data.health,
+        data.max_health,
+        "health_container",
+        "health_icon",
+        "health_label",
+        "max_health_label"
+    );
+
+    const [ mana, max_mana ] = stat_indicator_ui(
+        data.mana,
+        data.max_mana,
+        "mana_container",
+        "mana_icon",
+        "mana_label",
+        "max_mana_label"
+    );
+
+    const [ move_points, max_move_points ] = stat_indicator_ui(
+        data.move_points,
+        data.max_move_points,
+        "move_points_container",
+        "move_points_icon",
+        "move_points_label",
+        "max_move_points_label"
+    );
+
     const attack_container = $.CreatePanel("Panel", panel, "attack_container");
     const attack_label = $.CreatePanel("Label", attack_container, "attack_label");
-    const attack_icon = $.CreatePanel("Panel", attack_container, "attack_icon");
+    $.CreatePanel("Panel", attack_container, "attack_icon").AddClass("stat_icon");
+    attack_container.AddClass("container");
+
     const level_ticks: Panel[] = [];
+
+    function stat_indicator(label: LabelPanel, value: number): Stat_Indicator {
+        return {
+            displayed_value: value,
+            value: value,
+            label: label,
+            formatter: (unit, value) => value.toString()
+        }
+    }
+
+    function stat_indicator_ui(value: number, max_value: number, container_id: string, icon_id: string, label_id: string, max_label_id: string) {
+        const container = $.CreatePanel("Panel", panel, container_id);
+        const value_label = $.CreatePanel("Label", container, label_id);
+
+        $.CreatePanel("Label", container, "separator").text = "/";
+
+        const max_value_label = $.CreatePanel("Label", container, max_label_id);
+
+        container.AddClass("container");
+        value_label.AddClass("value_label");
+        max_value_label.AddClass("value_label");
+
+        $.CreatePanel("Panel", container, icon_id).AddClass("stat_icon");
+
+        return [
+            stat_indicator(value_label, value),
+            stat_indicator(max_value_label, max_value)
+        ]
+    }
 
     for (let index = 0; index < max_unit_level; index++) {
         const level_tick = $.CreatePanel("Panel", level_bar, "");
-
         level_tick.AddClass("level_tick");
-
         level_ticks.push(level_tick);
     }
 
-    panel.AddClass("unit_stat_bar");
-
     return {
         id: data.id,
-        health: data.health,
-        current_displayed_health: data.health,
-        current_displayed_attack_bonus: data.attack_bonus,
-        mana: data.mana,
+        stat_health: health,
+        stat_mana: mana,
+        stat_attack: {
+            displayed_value: data.attack_bonus,
+            value: data.attack_bonus,
+            label: attack_label,
+            formatter: (unit, value) => get_unit_attack_value(unit, value).toString()
+        },
+        stat_move_points: move_points,
+        stat_max_move_points: max_move_points,
+        stat_max_health: max_health,
+        stat_max_mana: max_mana,
         level: data.level,
         stat_bar_panel: panel,
-        health_label: health_label,
-        level_ticks: level_ticks,
-        stunned_counter: data.stunned_counter,
-        attack_bonus: data.attack_bonus,
-        attack_label: attack_label
+        level_ticks: level_ticks
     }
 }
 
 function update_unit_stat_bar_data(data: UI_Unit_Data) {
-    if (data.health != data.current_displayed_health) {
-        const which_animation = data.health < data.current_displayed_health ? "animate_damage" : "animate_heal";
+    if (data.stat_health.value != data.stat_health.displayed_value) {
+        const which_animation = data.stat_health.value < data.stat_health.displayed_value ? "animate_damage" : "animate_heal";
 
-        data.health_label.RemoveClass("animate_damage");
-        data.health_label.RemoveClass("animate_heal");
-        data.health_label.AddClass(which_animation);
+        data.stat_health.label.RemoveClass("animate_damage");
+        data.stat_health.label.RemoveClass("animate_heal");
+        data.stat_health.label.AddClass(which_animation);
     }
 
-    data.health_label.text = data.current_displayed_health.toString();
     data.level_ticks.forEach((tick, index) => {
         tick.SetHasClass("active", index < data.level);
     });
 
-    function try_find_associated_unit() {
+    function try_find_and_update_associated_unit() {
         const unit = find_unit_by_id(battle, data.id);
 
         if (unit) {
-            data.attack_label.text = get_unit_attack_value(unit, data.current_displayed_attack_bonus).toString();
+            try_update_stat_bar_display(data, true);
+
             data.stat_bar_panel.SetHasClass("enemy", unit.owner_player_id != this_player_id);
         } else {
-            $.Schedule(0, try_find_associated_unit);
+            $.Schedule(0, try_find_and_update_associated_unit);
         }
     }
 
-    try_find_associated_unit();
+    try_find_and_update_associated_unit();
 }
 
 function dispose_of_unit_stat_bar_data(data: UI_Unit_Data) {
@@ -772,11 +843,14 @@ function process_state_update(state: Player_Net_Table) {
             }
 
             if (existing_data) {
-                // TODO this should be typesafe with a copy function
-                existing_data.health = new_data.health;
-                existing_data.mana = new_data.mana;
                 existing_data.level = new_data.level;
-                existing_data.attack_bonus = new_data.attack_bonus;
+                existing_data.stat_health.value = new_data.health;
+                existing_data.stat_max_health.value = new_data.max_health;
+                existing_data.stat_mana.value = new_data.mana;
+                existing_data.stat_max_mana.value = new_data.max_mana;
+                existing_data.stat_move_points.value = new_data.move_points;
+                existing_data.stat_max_move_points.value = new_data.max_move_points;
+                existing_data.stat_attack.value = new_data.attack_bonus;
 
                 update_unit_stat_bar_data(existing_data);
             } else {
@@ -801,7 +875,7 @@ function process_state_update(state: Player_Net_Table) {
                     const new_data = state.battle.entity_id_to_unit_data[new_entity_id];
 
                     if (new_data.id == old_selected_unit_data.id) {
-                        current_selected_entity = Number(new_entity_id);
+                        set_current_selected_entity(Number(new_entity_id));
 
                         break;
                     }
@@ -855,6 +929,10 @@ function make_battle_snapshot(): Battle_Snapshot {
                 id: unit.id,
                 level: unit[Unit_Field.level],
                 health: unit.health,
+                max_health: unit[Unit_Field.max_health],
+                max_mana: unit[Unit_Field.max_mana],
+                move_points: unit.move_points,
+                max_move_points: unit[Unit_Field.max_move_points],
                 mana: unit.mana,
                 position: unit.position,
                 type: unit.type,
@@ -921,7 +999,7 @@ function get_full_unit_icon_path(type: Unit_Type): string {
 }
 
 function add_spawned_hero_to_control_panel(unit: Unit) {
-    function create_indicator(parent: Panel, id: string, value: number): Stat_Indicator {
+    function create_indicator(parent: Panel, id: string, value: number): Hero_Panel_Stat_Indicator {
         const indicator = $.CreatePanel("Panel", parent, id);
         const label = $.CreatePanel("Label", indicator, "");
 
@@ -959,8 +1037,7 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
             if (entity_data) {
                 const [ id ] = entity_data;
 
-                current_selected_entity = id;
-
+                set_current_selected_entity(id);
                 try_select_unit_ability(unit, ability);
             }
         });
@@ -1063,6 +1140,28 @@ function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
     }
 }
 
+function set_current_selected_entity(new_entity_id: EntityId | undefined, full_stats = false) {
+    if (current_selected_entity) {
+        const unit_data = battle.entity_id_to_unit_data[current_selected_entity];
+
+        if (unit_data) {
+            unit_data.stat_bar_panel.RemoveClass("show_additional_stats");
+            unit_data.stat_bar_panel.RemoveClass("show_full_stats");
+        }
+    }
+
+    current_selected_entity = new_entity_id;
+
+    if (current_selected_entity) {
+        const unit_data = battle.entity_id_to_unit_data[current_selected_entity];
+
+        if (unit_data) {
+            unit_data.stat_bar_panel.AddClass("show_additional_stats");
+            unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
+        }
+    }
+}
+
 function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
     current_hovered_ability = new_ability_id;
 
@@ -1095,29 +1194,29 @@ function get_unit_attack_value(unit: Unit, bonus: number) {
     return base_value + bonus;
 }
 
-function try_update_stat_bar_display(ui_data: UI_Unit_Data) {
-    const unit = find_unit_by_entity_id(battle, current_selected_entity);
-    const is_this_unit_selected = unit ? ui_data.id == unit.id : false;
+function try_update_stat_bar_display(ui_data: UI_Unit_Data, force = false) {
+    const unit = find_unit_by_id(battle, ui_data.id);
 
-    ui_data.stat_bar_panel.SetHasClass("show_additional_stats", is_this_unit_selected);
+    if (!unit) return;
 
-    if (ui_data.health != ui_data.current_displayed_health) {
-        const direction = Math.sign(ui_data.health - ui_data.current_displayed_health);
+    function try_update_stat_indicator(stat_indicator: Stat_Indicator) {
+        if (force) {
+            stat_indicator.label.text = stat_indicator.formatter(unit!, stat_indicator.displayed_value);
+        } else if (stat_indicator.value != stat_indicator.displayed_value) {
+            const direction = Math.sign(stat_indicator.value - stat_indicator.displayed_value);
 
-        ui_data.current_displayed_health += direction;
-        ui_data.health_label.text = ui_data.current_displayed_health.toString();
-    }
-
-    if (ui_data.attack_bonus != ui_data.current_displayed_attack_bonus) {
-        const unit = find_unit_by_id(battle, ui_data.id);
-
-        if (unit) {
-            const direction = Math.sign(ui_data.attack_bonus - ui_data.current_displayed_attack_bonus);
-
-            ui_data.current_displayed_attack_bonus += direction;
-            ui_data.attack_label.text = get_unit_attack_value(unit, ui_data.current_displayed_attack_bonus).toString();
+            stat_indicator.displayed_value += direction;
+            stat_indicator.label.text = stat_indicator.formatter(unit!, stat_indicator.displayed_value);
         }
     }
+
+    try_update_stat_indicator(ui_data.stat_attack);
+    try_update_stat_indicator(ui_data.stat_health);
+    try_update_stat_indicator(ui_data.stat_max_health);
+    try_update_stat_indicator(ui_data.stat_mana);
+    try_update_stat_indicator(ui_data.stat_max_mana);
+    try_update_stat_indicator(ui_data.stat_move_points);
+    try_update_stat_indicator(ui_data.stat_max_move_points);
 }
 
 function update_stat_bar_positions() {
@@ -1204,7 +1303,7 @@ function setup_mouse_filter() {
             return false;
         }
 
-        if (event == "pressed") {
+        if (event == "pressed" || event == "doublepressed") {
             const click_behaviors = GameUI.GetClickBehaviors();
             const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
             const battle_position = world_position_to_battle_position(world_position);
@@ -1310,7 +1409,7 @@ function setup_mouse_filter() {
             }
 
             if (wants_to_select_unit) {
-                current_selected_entity = cursor_entity;
+                set_current_selected_entity(cursor_entity, event == "doublepressed");
 
                 if (cursor_entity) {
                     const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);

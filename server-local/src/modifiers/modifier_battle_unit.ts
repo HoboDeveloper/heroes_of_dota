@@ -15,3 +15,7 @@ class Modifier_Battle_Unit extends CDOTA_Modifier_Lua {
         return -15;
     }
 }
+
+// TODO TSTL BUG
+//@ts-ignore
+Modifier_Battle_Unit = Modifier_Battle_Unit.prototype;

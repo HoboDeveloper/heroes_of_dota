@@ -15,3 +15,7 @@ class Modifier_Tide_Gush extends CDOTA_Modifier_Lua {
         return DOTAModifierAttribute_t.MODIFIER_ATTRIBUTE_MULTIPLE
     }
 }
+
+// TODO TSTL BUG
+//@ts-ignore
+Modifier_Tide_Gush = Modifier_Tide_Gush.prototype;

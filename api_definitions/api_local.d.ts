@@ -6,6 +6,10 @@ type Shared_Visualizer_Unit_Data = {
     level: number
     health: number
     mana: number
+    max_health: number
+    max_mana: number
+    move_points: number
+    max_move_points: number
     attack_bonus: number
     stunned_counter: number
 }

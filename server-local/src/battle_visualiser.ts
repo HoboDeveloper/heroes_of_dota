@@ -174,8 +174,12 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         level: 1,
         health: definition.health,
         mana: definition.mana,
+        max_health: definition.health,
+        max_mana: definition.mana,
         attack_bonus: 0,
-        stunned_counter: 0
+        stunned_counter: 0,
+        move_points: definition.move_points,
+        max_move_points: definition.move_points
     };
 
     battle.units.push(unit);
@@ -1037,6 +1041,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                     if (guard_hit) {
                         log_chat_debug_message(`Failed waiting on MoveToPosition ${world_position.x}/${world_position.y}`);
                     }
+
+                    unit.move_points = unit.move_points - 1;
+
+                    update_player_state_net_table(main_player);
                 }
 
                 unit.is_playing_a_delta = false;
@@ -1102,6 +1110,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.start_turn: {
+            for (const unit of battle.units) {
+                unit.move_points = unit.max_move_points;
+            }
+
             break;
         }
 
@@ -1115,24 +1127,28 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             print("Changing field of", delta.target_unit_id, unit ? unit.handle.GetName() : "none", delta.field, "new value", delta.new_value);
 
             if (unit) {
-                if (delta.field == Unit_Field.state_stunned_counter) {
-                    unit.stunned_counter = delta.new_value;
+                switch (delta.field) {
+                    case Unit_Field.state_stunned_counter: {
+                        unit.stunned_counter = delta.new_value;
 
-                    update_stun_visuals(unit);
-                }
-                
-                if (delta.field == Unit_Field.attack_bonus) {
-                    unit.attack_bonus = delta.new_value;
+                        update_stun_visuals(unit);
+                        break;
+                    }
 
-                    update_player_state_net_table(main_player);
-                }
+                    case Unit_Field.attack_bonus: { unit.attack_bonus = delta.new_value; update_player_state_net_table(main_player); break; }
+                    case Unit_Field.max_health: { unit.max_health = delta.new_value; update_player_state_net_table(main_player); break; }
+                    case Unit_Field.max_mana: { unit.max_mana = delta.new_value; update_player_state_net_table(main_player); break; }
+                    case Unit_Field.max_move_points: { unit.max_move_points = delta.new_value; update_player_state_net_table(main_player); break; }
 
-                if (delta.field == Unit_Field.level) {
-                    unit.level = delta.new_value;
+                    case Unit_Field.level: {
+                        unit.level = delta.new_value;
 
-                    unit_emit_sound(unit, "hero_level_up");
-                    fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
-                    update_player_state_net_table(main_player);
+                        unit_emit_sound(unit, "hero_level_up");
+                        fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+                        update_player_state_net_table(main_player);
+
+                        break;
+                    }
                 }
             }
 
@@ -1255,7 +1271,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         new_unit.level = unit.level;
         new_unit.mana = unit.mana;
         new_unit.stunned_counter = unit.stunned_counter;
-        new_unit.attack_bonus = unit.attack_bonus
+        new_unit.attack_bonus = unit.attack_bonus;
+        new_unit.max_health = unit.max_health;
+        new_unit.max_mana = unit.max_mana;
+        new_unit.move_points = unit.move_points;
+        new_unit.max_move_points = unit.max_move_points;
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;

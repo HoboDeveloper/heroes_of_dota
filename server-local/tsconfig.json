@@ -21,6 +21,6 @@
     "../api_definitions/api_local.d.ts",
     "../api_definitions/abilities.d.ts"
   ],
-  "luaTarget": "jit",
+  "luaTarget": "JIT",
   "luaLibImport": "require"
 }
