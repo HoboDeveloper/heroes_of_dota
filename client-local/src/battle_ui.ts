@@ -4,6 +4,9 @@ let this_player_id: number;
 let battle: UI_Battle;
 let current_targeted_ability: AbilityId | undefined;
 let current_hovered_ability: Ability_Id | undefined;
+let current_hovered_entity: EntityId | undefined;
+let current_hovered_entity_candidate: EntityId | undefined;
+let started_hovering_entity_at: number = 0;
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
 
@@ -531,16 +534,22 @@ function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): Part
 }
 
 function update_grid_visuals() {
-    let selected_unit: Unit | undefined;
+    $.Msg("Update grid visuals");
+
     let selected_entity_path: Cost_Population_Result | undefined;
+    let highlighted_ability = get_current_highlight_ability_id();
+    let highlight_both_ability_and_path = false;
 
-    const highlighted_ability = get_current_highlight_ability_id();
+    const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-    if (current_selected_entity != undefined) {
-        selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
+    if (selected_unit) {
+        selected_entity_path = populate_path_costs(selected_unit.position);
 
-        if (selected_unit) {
-            selected_entity_path = populate_path_costs(selected_unit.position);
+        const hovered_unit = find_unit_by_entity_id(battle, current_hovered_entity);
+
+        if (hovered_unit && hovered_unit != selected_unit) {
+            highlighted_ability = Ability_Id.basic_attack;
+            highlight_both_ability_and_path = true;
         }
     }
 
@@ -559,7 +568,7 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path && highlighted_ability == undefined) {
+        if (selected_unit && selected_entity_path && (highlighted_ability == undefined || highlight_both_ability_and_path)) {
             const cost = selected_entity_path.cell_index_to_cost[index];
 
             if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
@@ -659,7 +668,7 @@ function update_grid_visuals() {
     }
 
     for (const old_particle of battle.outline_particles) {
-        Particles.DestroyParticleEffect(old_particle, true);
+        Particles.DestroyParticleEffect(old_particle, false);
         Particles.ReleaseParticleIndex(old_particle);
     }
 
@@ -1159,6 +1168,8 @@ function set_current_selected_entity(new_entity_id: EntityId | undefined, full_s
             unit_data.stat_bar_panel.AddClass("show_additional_stats");
             unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
         }
+    } else {
+        set_current_targeted_ability(undefined);
     }
 }
 
@@ -1173,7 +1184,9 @@ function update_current_ability_based_on_cursor_state() {
 
     switch (click_behaviors) {
         case CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK: {
-            set_current_targeted_ability(Ability_Id.basic_attack);
+            if (current_selected_entity != undefined) {
+                set_current_targeted_ability(Ability_Id.basic_attack);
+            }
 
             break;
         }
@@ -1252,8 +1265,22 @@ function periodically_update_ui() {
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
 
+    const cursor = GameUI.GetCursorPosition();
+    const cursor_entity = get_entity_under_cursor(cursor);
+
+    if (cursor_entity != current_hovered_entity_candidate) {
+        current_hovered_entity_candidate = cursor_entity;
+        started_hovering_entity_at = Date.now();
+    }
+
+    if (current_hovered_entity_candidate != current_hovered_entity && Date.now() - started_hovering_entity_at > 100) {
+        current_hovered_entity = cursor_entity;
+
+        update_grid_visuals();
+    }
+
     if (current_targeted_ability != undefined) {
-        const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
+        const [ cursor_x, cursor_y ] = cursor;
         const { x, y } = current_targeted_ability_ui.GetPositionWithinWindow();
         const width = current_targeted_ability_ui.actuallayoutwidth;
         const height = current_targeted_ability_ui.actuallayoutheight;
@@ -1281,8 +1308,8 @@ declare const enum Edge {
     right = 3
 }
 
-function get_entity_under_cursor(): EntityId | undefined {
-    const entities_under_cursor = GameUI.FindScreenEntities(GameUI.GetCursorPosition());
+function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefined {
+    const entities_under_cursor = GameUI.FindScreenEntities(cursor);
 
     for (const entity of entities_under_cursor) {
         if (entity.accurateCollision) {
@@ -1305,9 +1332,10 @@ function setup_mouse_filter() {
 
         if (event == "pressed" || event == "doublepressed") {
             const click_behaviors = GameUI.GetClickBehaviors();
-            const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
+            const cursor = GameUI.GetCursorPosition();
+            const world_position = GameUI.GetScreenWorldPosition(cursor);
             const battle_position = world_position_to_battle_position(world_position);
-            const cursor_entity = get_entity_under_cursor();
+            const cursor_entity = get_entity_under_cursor(cursor);
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
             const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
@@ -1571,5 +1599,4 @@ setup_mouse_filter();
 setup_custom_ability_hotkeys();
 periodically_update_ui();
 periodically_update_stat_bar_display();
-periodically_drop_selection_in_battle();
 periodically_request_battle_deltas_when_in_battle();
