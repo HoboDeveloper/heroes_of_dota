@@ -4,9 +4,6 @@ let this_player_id: number;
 let battle: UI_Battle;
 let current_targeted_ability: AbilityId | undefined;
 let current_hovered_ability: Ability_Id | undefined;
-let current_hovered_entity: EntityId | undefined;
-let current_hovered_entity_candidate: EntityId | undefined;
-let started_hovering_entity_at: number = 0;
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
 
@@ -533,25 +530,23 @@ function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): Part
     return particles;
 }
 
+function highlight_outline_temporarily(cell_index_to_highlight: boolean[], color: XYZ, highlight_time: number) {
+    const particles = highlight_outline(cell_index_to_highlight, color);
+
+    $.Schedule(highlight_time, () => {
+        for (const particle of particles) {
+            Particles.DestroyParticleEffect(particle, false);
+            Particles.ReleaseParticleIndex(particle);
+        }
+    });
+}
+
 function update_grid_visuals() {
     $.Msg("Update grid visuals");
 
-    let selected_entity_path: Cost_Population_Result | undefined;
-    let highlighted_ability = get_current_highlight_ability_id();
-    let highlight_both_ability_and_path = false;
-
+    const highlighted_ability = get_current_highlight_ability_id();
     const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
-
-    if (selected_unit) {
-        selected_entity_path = populate_path_costs(selected_unit.position);
-
-        const hovered_unit = find_unit_by_entity_id(battle, current_hovered_entity);
-
-        if (hovered_unit && hovered_unit != selected_unit) {
-            highlighted_ability = Ability_Id.basic_attack;
-            highlight_both_ability_and_path = true;
-        }
-    }
+    const selected_entity_path = selected_unit ? populate_path_costs(selected_unit.position) : undefined;
 
     function color_cell(cell: UI_Cell, color: XYZ, alpha: number) {
         Particles.SetParticleControl(cell.associated_particle, 2, color);
@@ -568,7 +563,7 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path && (highlighted_ability == undefined || highlight_both_ability_and_path)) {
+        if (selected_unit && selected_entity_path && highlighted_ability == undefined) {
             const cost = selected_entity_path.cell_index_to_cost[index];
 
             if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
@@ -922,12 +917,26 @@ function move_order_particle(world_position: XYZ) {
     Particles.ReleaseParticleIndex(particle);
 }
 
-function order_unit_to_move(unit_id: number, move_where: XY) {
-    take_battle_action({
-        type: Action_Type.move,
-        to: move_where,
-        unit_id: unit_id
-    });
+function try_order_unit_to_move(unit: Unit, move_where: XY) {
+    const path = find_grid_path(unit.position, move_where);
+
+    if (path && path.length <= unit.move_points) {
+        take_battle_action({
+            type: Action_Type.move,
+            to: move_where,
+            unit_id: unit.id
+        });
+
+        const cell_index_to_highlight: boolean[] = [];
+
+        for (const point of path) {
+            cell_index_to_highlight[grid_cell_index(battle, point)] = true;
+        }
+
+        highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
+    } else {
+        show_generic_error("Out of move range");
+    }
 }
 
 function make_battle_snapshot(): Battle_Snapshot {
@@ -1265,22 +1274,8 @@ function periodically_update_ui() {
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
 
-    const cursor = GameUI.GetCursorPosition();
-    const cursor_entity = get_entity_under_cursor(cursor);
-
-    if (cursor_entity != current_hovered_entity_candidate) {
-        current_hovered_entity_candidate = cursor_entity;
-        started_hovering_entity_at = Date.now();
-    }
-
-    if (current_hovered_entity_candidate != current_hovered_entity && Date.now() - started_hovering_entity_at > 100) {
-        current_hovered_entity = cursor_entity;
-
-        update_grid_visuals();
-    }
-
     if (current_targeted_ability != undefined) {
-        const [ cursor_x, cursor_y ] = cursor;
+        const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
         const { x, y } = current_targeted_ability_ui.GetPositionWithinWindow();
         const width = current_targeted_ability_ui.actuallayoutwidth;
         const height = current_targeted_ability_ui.actuallayoutheight;
@@ -1322,6 +1317,37 @@ function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefin
     }
 
     return undefined;
+}
+
+function try_attack_target(source: Unit, target: XY, flash_ground_on_error: boolean) {
+    if (source.attack.type == Ability_Type.target_ground) {
+        if (!can_ability_be_cast_at_target_from_source(source.attack.targeting, source.position, target)) {
+            show_ability_error(Ability_Error.invalid_target);
+
+            if (flash_ground_on_error) {
+                const cell_index_to_highlight: boolean[] = [];
+
+                for (const cell of battle.cells) {
+                    const index = grid_cell_index(battle, cell.position);
+
+                    if (can_ability_be_cast_at_target_from_source(source.attack.targeting, source.position, cell.position)) {
+                        cell_index_to_highlight[index] = true;
+                    }
+                }
+
+                highlight_outline_temporarily(cell_index_to_highlight, color_red, 0.2);
+            }
+
+            return;
+        }
+    }
+
+    take_battle_action({
+        type: Action_Type.ground_target_ability,
+        ability_id: source.attack.id,
+        unit_id: source.id,
+        to: target
+    })
 }
 
 function setup_mouse_filter() {
@@ -1460,30 +1486,17 @@ function setup_mouse_filter() {
             if (wants_to_perform_automatic_action) {
                 if (cursor_entity_unit) {
                     if (cursor_entity != current_selected_entity) {
-                        take_battle_action({
-                            type: Action_Type.ground_target_ability,
-                            ability_id: selected_unit.attack.id,
-                            unit_id: selected_unit.id,
-                            to: {
-                                x: cursor_entity_unit.position.x,
-                                y: cursor_entity_unit.position.y
-                            }
-                        })
+                        try_attack_target(selected_unit, cursor_entity_unit.position, true);
                     }
                 } else {
-                    order_unit_to_move(selected_unit.id, battle_position);
+                    try_order_unit_to_move(selected_unit, battle_position);
                     move_order_particle(world_position);
                 }
             } else if (wants_to_move_unconditionally) {
-                order_unit_to_move(selected_unit.id, battle_position);
+                try_order_unit_to_move(selected_unit, battle_position);
                 move_order_particle(world_position);
             } else if (wants_to_attack_unconditionally) {
-                take_battle_action({
-                    type: Action_Type.ground_target_ability,
-                    ability_id: selected_unit.attack.id,
-                    unit_id: selected_unit.id,
-                    to: battle_position
-                })
+                try_attack_target(selected_unit, battle_position, false);
             }
         }
 
@@ -1523,7 +1536,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.dead: return native(20);
         case Ability_Error.no_mana: return native(14);
         case Ability_Error.on_cooldown: return native(15);
-        case Ability_Error.invalid_target: return native(0); // TODO
+        case Ability_Error.invalid_target: return custom("Target is out of range");
         case Ability_Error.not_learned_yet: return native(16);
         case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
         case Ability_Error.stunned: return custom("Stunned");
@@ -1534,6 +1547,10 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
 
 function show_ability_error(error: Ability_Error) {
     GameEvents.SendEventClientSide("dota_hud_error_message", ability_error_to_reason(error));
+}
+
+function show_generic_error(error: string) {
+    GameEvents.SendEventClientSide("dota_hud_error_message", { reason: 80, message: error });
 }
 
 function try_select_unit_ability(unit: Unit, ability: Ability) {
