@@ -13,6 +13,16 @@ const control_panel: Control_Panel = {
 };
 
 const battle_cell_size = 128;
+const hand: Card[] = [];
+
+type Held_Card = {
+    card: Card;
+    offset: XY;
+    returning_to_cursor: boolean;
+    hovered_cell?: XY;
+}
+
+let held_card: Held_Card | undefined = undefined;
 
 type UI_Unit_Data = {
     id: number
@@ -76,6 +86,11 @@ type Hero_Ability_Button = {
 type Cost_Population_Result = {
     cell_index_to_cost: number[];
     cell_index_to_parent_index: number[];
+}
+
+type Card = {
+    panel: Panel;
+    hovered: boolean;
 }
 
 function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Unit | undefined {
@@ -657,6 +672,10 @@ function update_grid_visuals() {
                     }
                 }
             }
+        }
+
+        if (held_card && held_card.hovered_cell && xy_equal(held_card.hovered_cell, cell.position)) {
+            cell_index_to_highlight[index] = true;
         }
 
         color_cell(cell, cell_color, alpha);
@@ -1273,6 +1292,7 @@ function periodically_update_ui() {
 
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
+    update_hand();
 
     if (current_targeted_ability != undefined) {
         const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
@@ -1553,6 +1573,137 @@ function show_generic_error(error: string) {
     GameEvents.SendEventClientSide("dota_hud_error_message", { reason: 80, message: error });
 }
 
+function populate_hand() {
+    $("#hand_ui").Children().map(panel => ({
+        panel: panel,
+        hovered: false
+    })).forEach(card => {
+        hand.push(card);
+
+        card.panel.SetHasClass("in_hand", true);
+
+        card.panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+            card.hovered = true;
+        });
+
+        card.panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
+            card.hovered = false;
+        });
+    })
+}
+
+function update_hand() {
+    // TODO cancel current state (ability hovering etc)
+    // TODO particle from card to world
+    // TODO fix name panel jumping (needs to only be applied for hover in hand)
+
+    const ratio = 1920 / Game.GetScreenWidth();
+    const cursor = GameUI.GetCursorPosition();
+    const [ cursor_x, cursor_y ] = cursor;
+    const cursor_ui_x = cursor_x * ratio;
+    const cursor_ui_y = cursor_y * ratio;
+
+    const base_x = 400;
+    const base_y = 950;
+
+    let index = 0;
+
+    if (held_card && !GameUI.IsMouseDown(0)) {
+        const panel = held_card.card.panel;
+
+        panel.SetHasClass("in_hand", true);
+        panel.SetHasClass("in_preview", false);
+        panel.SetHasClass("in_preview_size", false);
+
+        const should_update_grid_visuals = held_card.hovered_cell;
+
+        held_card = undefined;
+
+        if (should_update_grid_visuals) {
+            update_grid_visuals();
+        }
+    }
+
+    for (const card of hand) {
+        if (held_card && card == held_card.card) {
+            index++;
+            continue;
+        }
+
+        const y = card.hovered ? base_y - 100 : base_y ;
+        card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
+        card.panel.SetHasClass("hovered", card.hovered);
+
+        if (GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
+            held_card = {
+                card: card,
+                offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
+                returning_to_cursor: false
+            };
+
+            card.panel.SetHasClass("in_hand", false);
+        }
+
+        index++;
+    }
+
+    if (held_card) {
+        const panel = held_card.card.panel;
+        const world_position = GameUI.GetScreenWorldPosition(cursor);
+        const battle_position = world_position_to_battle_position(world_position);
+        const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
+
+        if (is_position_valid) {
+            panel.SetHasClass("in_preview", true);
+            panel.SetHasClass("in_preview_size", true);
+            panel.style.position = `${1600}px ${300}px 0`;
+
+            if (held_card.hovered_cell == undefined || !xy_equal(battle_position, held_card.hovered_cell)) {
+                held_card.hovered_cell = battle_position;
+
+                update_grid_visuals();
+            }
+        } else {
+            if (held_card.hovered_cell) {
+                held_card.hovered_cell = undefined;
+                update_grid_visuals();
+            }
+
+            if (panel.BHasClass("in_preview")) {
+                held_card.returning_to_cursor = true;
+                panel.SetHasClass("in_preview", false);
+                panel.SetHasClass("in_preview_size", false);
+            }
+
+            if (held_card.returning_to_cursor) {
+                const pos_x = panel.actualxoffset;
+                const pos_y = panel.actualyoffset;
+                const dir_x = (cursor_x + held_card.offset.x) - pos_x;
+                const dir_y = (cursor_y + held_card.offset.y) - pos_y;
+                const length = Math.sqrt(dir_x * dir_x + dir_y * dir_y);
+
+                if (length >= 10) {
+                    const normal_x = dir_x / length;
+                    const normal_y = dir_y / length;
+
+                    const move_by = length / 6;
+
+                    const new_x = (pos_x + normal_x * move_by) * ratio;
+                    const new_y = (pos_y + normal_y * move_by) * ratio;
+
+                    panel.style.position = `${new_x}px ${new_y}px 0`;
+                } else {
+                    held_card.returning_to_cursor = false;
+                }
+            } else {
+                panel.style.position = `${cursor_ui_x + held_card.offset.x * ratio}px ${cursor_ui_y + held_card.offset.y * ratio}px 0`;
+                panel.SetHasClass("in_preview", false);
+                panel.SetHasClass("in_preview_size", false);
+            }
+        }
+    }
+}
+
 function try_select_unit_ability(unit: Unit, ability: Ability) {
     const ability_use = authorize_ability_use_by_unit(unit, ability.id);
 
@@ -1612,6 +1763,7 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     }
 });
 
+populate_hand();
 setup_mouse_filter();
 setup_custom_ability_hotkeys();
 periodically_update_ui();

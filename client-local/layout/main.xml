@@ -8,6 +8,7 @@
     </scripts>
     <styles>
         <include src="file://{resources}/styles/custom_game/battle.css" />
+        <include src="file://{resources}/styles/custom_game/hand.css" />
     </styles>
     <Panel class="main_panel" hittest="false">
         <Panel id="chat" style="flow-children: down; x: 100px; y: 400px;">
@@ -39,6 +40,94 @@
             </Button>
 
             <Panel id="stat_bar_container" hittest="false"/>
+
+            <Panel id="hand_ui" hittest="false">
+                <Panel class="card">
+                    <Image style="width: 100%; height: 100%;" src="file://{images}/custom_game/heroes/sniper.jpg" scaling="stretch-to-fit-y-preserve-aspect"/>
+                    <Panel id="name_panel">
+                        <Label text="Sniper"/>
+                    </Panel>
+
+                    <Panel id="stat_panel">
+                        <Panel id="health" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="24"/>
+                        </Panel>
+                        <Panel id="attack" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="5"/>
+                        </Panel>
+                        <Panel id="move_points" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="3"/>
+                        </Panel>
+                    </Panel>
+                </Panel>
+                <Panel class="card">
+                    <Image style="width: 100%; height: 100%;" src="file://{images}/custom_game/heroes/luna.jpg" scaling="stretch-to-fit-y-preserve-aspect"/>
+                    <Panel id="name_panel">
+                        <Label text="Luna"/>
+                    </Panel>
+
+                    <Panel id="stat_panel">
+                        <Panel id="health" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="25"/>
+                        </Panel>
+                        <Panel id="attack" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="5"/>
+                        </Panel>
+                        <Panel id="move_points" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="4"/>
+                        </Panel>
+                    </Panel>
+                </Panel>
+                <Panel class="card">
+                    <Image style="width: 100%; height: 100%;" src="file://{images}/custom_game/heroes/pudge.jpg" scaling="stretch-to-fit-y-preserve-aspect"/>
+                    <Panel id="name_panel">
+                        <Label text="Pudge"/>
+                    </Panel>
+
+                    <Panel id="stat_panel">
+                        <Panel id="health" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="35"/>
+                        </Panel>
+                        <Panel id="attack" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="7"/>
+                        </Panel>
+                        <Panel id="move_points" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="2"/>
+                        </Panel>
+                    </Panel>
+                </Panel>
+                <Panel class="card">
+                    <Image style="width: 100%; height: 100%;" src="file://{images}/custom_game/heroes/tide.jpg" scaling="stretch-to-fit-y-preserve-aspect"/>
+                    <Panel id="name_panel">
+                        <Label text="Tidehunter"/>
+                    </Panel>
+
+                    <Panel id="stat_panel">
+                        <Panel id="health" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="35"/>
+                        </Panel>
+                        <Panel id="attack" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="6"/>
+                        </Panel>
+                        <Panel id="move_points" class="stat_container">
+                            <Panel id="icon"/>
+                            <Label id="value" text="3"/>
+                        </Panel>
+                    </Panel>
+                </Panel>
+
+            </Panel>
         </Panel>
 
         <Panel id="global_map_ui">

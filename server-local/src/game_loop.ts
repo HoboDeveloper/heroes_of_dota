@@ -231,9 +231,9 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.players = next_state.participants;
         battle.grid_size = next_state.grid_size;
 
-        const battle_center = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height) * get_battle_cell_size() / 2 as Vector;
+        const camera_look_at = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height - 4) * get_battle_cell_size() / 2 as Vector;
 
-        battle.camera_dummy.SetAbsOrigin(battle_center);
+        battle.camera_dummy.SetAbsOrigin(camera_look_at);
 
         PlayerResource.SetCameraTarget(main_player.player_id, battle.camera_dummy);
     }
@@ -301,7 +301,7 @@ function game_loop() {
     on_player_hero_spawned_async(player_id, entity => player_unit = entity);
 
     while ((authorization = try_authorize_user(player_id, get_dedicated_server_key())) == undefined) wait(3);
-    while ((player_unit == undefined)) wait_one_frame();
+    while (player_unit == undefined) wait_one_frame();
 
     print(`Authorized, hero handle found`);
 

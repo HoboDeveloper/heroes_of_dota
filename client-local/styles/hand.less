@@ -1,0 +1,101 @@
+@import "shared";
+
+#hand_ui {
+  width: 100%;
+  height: 100%;
+
+  .card {
+    transition-property: width, height;
+    transition-duration: 0.1s;
+
+    &:not(:hover) #name_panel {
+      vertical-align: top;
+    }
+
+    #name_panel {
+      width: 100%;
+      height: 30px;
+      background-color: #d3fffd88;
+      vertical-align: bottom;
+      margin-bottom: 40px;
+      box-shadow: rgba(173, 214, 212, 0.33) 0 0 8px 0;
+
+      Label {
+        font-size: 24px;
+        font-family: @font-regular;
+        color: white;
+        text-shadow: 0px 0px 2px 2.0 #333333ff;
+        padding-left: 8px;
+        width: 100%;
+      }
+    }
+
+    #stat_panel {
+      flow-children: right;
+      align: center bottom;
+      padding-left: 8px;
+      padding-right: 8px;
+      border-radius: 6px 6px 0 0;
+      background-color: #000000cc;
+
+      .stat_container {
+        flow-children: right;
+        margin: 2px;
+
+        #icon {
+          background-size: cover;
+          width: 12px;
+          height: 12px;
+          vertical-align: middle;
+        }
+
+        #value {
+          font-family: @font-mono;
+          font-size: 16px;
+          margin-bottom: -3px;
+          color: white;
+          text-align: center;
+        }
+      }
+
+      #attack.stat_container #value { text-shadow: 0px 0px 2px 2.0 #aa0000aa; }
+      #health.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0); }
+      #move_points.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(162, 154, 0); }
+
+      #attack.stat_container #icon { background-image: @icon-attack-damage; }
+      #health.stat_container #icon { background-image: @icon-armor; }
+      #move_points.stat_container #icon { background-image: @icon-move-points; }
+    }
+
+    &.in_hand {
+      transition-property: position;
+      transition-duration: 0.08s;
+      transition-timing-function: cubic-bezier(0.785, 0.385, 0.555, 1.505);
+    }
+
+    &.in_preview {
+      transition-property: position;
+      transition-duration: 0.1s;
+      box-shadow: #76eedd 0 0 8px 0;
+      border: 1px solid #76eedd;
+    }
+
+    &.in_preview_size {
+      width: 200px;
+      height: 300px;
+    }
+
+    width: 150px;
+    height: 225px;
+    border: 1px solid black;
+    background-color: gray;
+    box-shadow: #151515 0 0 8px 0;
+    border-radius: 2px;
+
+    &:hover {
+      box-shadow: #76eedd 0 0 8px 0;
+      border: 1px solid #76eedd;
+      z-index: 10;
+    }
+  }
+}

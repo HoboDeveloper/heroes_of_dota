@@ -737,7 +737,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             const eclipse_fx = fx_by_unit("particles/units/heroes/hero_luna/luna_eclipse.vpcf", unit)
                 .with_point_value(1, 500)
                 .to_unit_origin(2, unit)
-                .to_unit_origin(3, unit)
+                .to_unit_origin(3, unit);
 
             const deltas = from_client_array(cast.deltas);
             const beam_targets = deltas.map(delta => ({
