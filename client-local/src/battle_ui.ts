@@ -293,7 +293,11 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
 
     if (new_state.state == Player_State.in_battle) {
         battle = {
-            players: from_server_array(new_state.battle.participants),
+            players: from_server_array(new_state.battle.participants).map(player => ({
+                id: player.id,
+                name: player.name,
+                hand: from_server_array(player.hand)
+            })),
             units: [],
             delta_head: 0,
             grid_size: xy(new_state.battle.grid_size.width, new_state.battle.grid_size.height),
@@ -1665,7 +1669,7 @@ function update_hand() {
     const cursor_ui_y = cursor_y * ratio;
 
     const base_x = 400;
-    const base_y = 950;
+    const base_y = 957;
 
     let index = 0;
 
@@ -1691,11 +1695,11 @@ function update_hand() {
             continue;
         }
 
-        const y = card.hovered ? base_y - 100 : base_y ;
+        const y = (!held_card && card.hovered) ? base_y - 100 : base_y ;
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
         card.panel.SetHasClass("hovered", card.hovered);
 
-        if (GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
+        if (!held_card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             held_card = {
                 card: card,
                 offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
