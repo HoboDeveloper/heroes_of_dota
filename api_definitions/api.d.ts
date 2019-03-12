@@ -20,7 +20,8 @@ declare const enum Delta_Type {
     modifier_removed = 12,
     set_ability_cooldown_remaining = 13,
     ability_effect_applied = 14,
-    card_drawn = 15
+    draw_card = 15,
+    use_card = 16
 }
 
 declare const enum Action_Type {
@@ -28,7 +29,8 @@ declare const enum Action_Type {
     end_turn = 3,
     ground_target_ability = 4,
     unit_target_ability = 5,
-    use_no_target_ability = 6
+    use_no_target_ability = 6,
+    use_hero_card = 7
 }
 
 declare const enum Unit_Type {
@@ -149,11 +151,21 @@ type Action_No_Target_Ability = {
     unit_id: number
 }
 
+type Action_Use_Hero_Card = {
+    type: Action_Type.use_hero_card
+    card_id: number
+    at: {
+        x: number
+        y: number
+    }
+}
+
 type Turn_Action =
     Action_Move |
     Action_Ground_Target_Ability |
     Action_Unit_Target_Ability |
     Action_No_Target_Ability |
+    Action_Use_Hero_Card |
     Action_End_Turn
 
 type Card_Unknown = {
@@ -178,6 +190,7 @@ type Battle_Player = {
     id: number
     name: string
     hand: Card[]
+    has_used_a_card_this_turn: boolean
 }
 
 type Unit_Field_Change = {
@@ -317,10 +330,16 @@ type Delta_Ability_Effect_Applied<T extends Ability_Effect> = {
     effect: T
 }
 
-type Delta_Card_Drawn = {
-    type: Delta_Type.card_drawn
+type Delta_Draw_Card = {
+    type: Delta_Type.draw_card
     player_id: number
     card: Card
+}
+
+type Delta_Use_Card = {
+    type: Delta_Type.use_card
+    player_id: number
+    card_id: number
 }
 
 type Delta =
@@ -343,7 +362,8 @@ type Delta =
     Delta_Modifier_Removed |
     Delta_Set_Ability_Cooldown_Remaining |
     Delta_Ability_Effect_Applied<Ability_Effect> |
-    Delta_Card_Drawn |
+    Delta_Draw_Card |
+    Delta_Use_Card |
     Delta_Start_Turn |
     Delta_End_Turn
 

@@ -493,15 +493,22 @@ handlers.set("/take_battle_action", body => {
             return;
         }
 
+        const battle_player = battle.players.find(battle_player => battle_player.id == player.id);
+
+        if (!battle_player) {
+            console.error(`Player ${player.id} is in battle, but was not found in the list of players`);
+            return;
+        }
+
         const previous_head = battle.deltas.length;
-        const deltas = try_take_turn_action(battle, player, request.action);
+        const deltas = try_take_turn_action(battle, battle_player, request.action);
 
         if (test_player) {
-            const test_guy = test_player;
+            const test_battle_player = battle.players.find(battle_player => battle_player.id == test_player!.id)!;
 
             if (request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index].id == test_player.id) {
                 setInterval(() => {
-                    try_take_turn_action(battle, test_guy, {
+                    try_take_turn_action(battle, test_battle_player, {
                         type: Action_Type.end_turn
                     })
                 }, 3000);

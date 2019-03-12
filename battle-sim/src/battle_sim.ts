@@ -163,6 +163,10 @@ function find_player_by_id(battle: Battle, id: number): Battle_Player | undefine
     return battle.players.find(player => player.id == id);
 }
 
+function find_player_card_by_id(player: Battle_Player, card_id: number): Card | undefined {
+    return player.hand.find(card => card.id == card_id);
+}
+
 function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | undefined {
     for (const unit of battle.units) {
         for (const modifier of unit.modifiers) {
@@ -522,6 +526,10 @@ function collapse_delta(battle: Battle, delta: Delta) {
         }
 
         case Delta_Type.start_turn: {
+            for (const player of battle.players) {
+                player.has_used_a_card_this_turn = false;
+            }
+
             for (const unit of battle.units) {
                 unit.move_points = unit[Unit_Field.max_move_points];
                 unit.has_taken_an_action_this_turn = false;
@@ -599,11 +607,29 @@ function collapse_delta(battle: Battle, delta: Delta) {
             return ability_effect_to_deltas(delta.effect);
         }
 
-        case Delta_Type.card_drawn: {
+        case Delta_Type.draw_card: {
             const player = find_player_by_id(battle, delta.player_id);
 
             if (player) {
                 player.hand.push(delta.card);
+            }
+
+            break;
+        }
+
+        case Delta_Type.use_card: {
+            const player = find_player_by_id(battle, delta.player_id);
+
+            if (!player) break;
+
+            for (let index = 0; index < player.hand.length; index++) {
+                if (player.hand[index].id == delta.card_id) {
+                    player.hand.slice(index, 1);
+
+                    player.has_used_a_card_this_turn = true;
+
+                    break;
+                }
             }
 
             break;

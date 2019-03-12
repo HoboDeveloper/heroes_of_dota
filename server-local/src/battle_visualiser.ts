@@ -1221,13 +1221,12 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.card_drawn: {
-            const player = array_find(battle.players, player => player.id == delta.player_id);
+        case Delta_Type.draw_card: {
+            break;
+        }
 
-            if (player) {
-
-                update_player_state_net_table(main_player);
-            }
+        case Delta_Type.use_card: {
+            break;
         }
 
         case Delta_Type.set_ability_cooldown_remaining: break;

@@ -478,7 +478,7 @@ function on_target_attacked(battle: Battle_Record, source: Unit, target: Unit, d
     }
 }
 
-function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action: Turn_Action): Delta[] | undefined {
+function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
     function find_valid_unit_for_action(id: number): Unit | undefined {
         const unit = find_unit_by_id(battle, id);
 
@@ -607,6 +607,19 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
             return deltas;
         }
 
+        case Action_Type.use_hero_card: {
+            const card = find_player_card_by_id(player, action.card_id);
+
+            if (!card) return;
+            if (card.type != Card_Type.hero) return;
+            if (player.has_used_a_card_this_turn) return;
+
+            return [
+                use_card(player, card),
+                spawn_unit(battle, player, action.at, card.unit_type)
+            ]
+        }
+
         case Action_Type.end_turn: {
             return [{
                 type: Delta_Type.end_turn
@@ -617,7 +630,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Player, action
     }
 }
 
-function spawn_unit(battle: Battle_Record, owner: Player, at_position: XY, type: Unit_Type) : Delta_Spawn {
+function spawn_unit(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Unit_Type) : Delta_Spawn {
     const id = get_next_unit_id(battle);
 
     return {
@@ -629,15 +642,23 @@ function spawn_unit(battle: Battle_Record, owner: Player, at_position: XY, type:
     };
 }
 
-function draw_hero_card(battle: Battle_Record, player: Player, unit_type: Unit_Type): Delta_Card_Drawn {
+function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type: Unit_Type): Delta_Draw_Card {
     return {
-        type: Delta_Type.card_drawn,
+        type: Delta_Type.draw_card,
         player_id: player.id,
         card: {
             type: Card_Type.hero,
             id: get_next_card_id(battle),
             unit_type: unit_type
         }
+    }
+}
+
+function use_card(player: Battle_Player, card: Card): Delta_Use_Card {
+    return {
+        type: Delta_Type.use_card,
+        player_id: player.id,
+        card_id: card.id
     }
 }
 
@@ -891,7 +912,7 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Delta[]): Delta
     return new_deltas;
 }
 
-export function try_take_turn_action(battle: Battle_Record, player: Player, action: Turn_Action): Delta[] | undefined {
+export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
     if (battle.finished) {
         return;
     }
@@ -940,6 +961,13 @@ export function find_battle_by_id(id: number): Battle_Record | undefined {
 }
 
 export function start_battle(players: Player[]): number {
+    const battle_players: Battle_Player[] = players.map(player => ({
+        id: player.id,
+        name: player.name,
+        hand: [],
+        has_used_a_card_this_turn: false
+    }));
+
     const battle: Battle_Record = {
         id: battle_id_auto_increment++,
         delta_head: 0,
@@ -948,11 +976,7 @@ export function start_battle(players: Player[]): number {
         card_id_auto_increment: 0,
         modifiers: [],
         units: [],
-        players: players.map(player => ({
-            id: player.id,
-            name: player.name,
-            hand: []
-        })),
+        players: battle_players,
         deltas: [],
         cells: [],
         grid_size: xy(12, 12),
@@ -963,16 +987,16 @@ export function start_battle(players: Player[]): number {
     fill_grid(battle);
 
     const spawn_deltas = [
-        draw_hero_card(battle, players[0], Unit_Type.sniper),
-        draw_hero_card(battle, players[0], Unit_Type.pudge),
-        draw_hero_card(battle, players[0], Unit_Type.tidehunter),
-        draw_hero_card(battle, players[0], Unit_Type.luna),
+        draw_hero_card(battle, battle_players[0], Unit_Type.sniper),
+        draw_hero_card(battle, battle_players[0], Unit_Type.pudge),
+        draw_hero_card(battle, battle_players[0], Unit_Type.tidehunter),
+        draw_hero_card(battle, battle_players[0], Unit_Type.luna),
 
         // spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
-        spawn_unit(battle, players[1], xy(4, 10), Unit_Type.sniper),
-        spawn_unit(battle, players[1], xy(6, 10), Unit_Type.pudge),
-        spawn_unit(battle, players[1], xy(8, 10), Unit_Type.tidehunter),
-        spawn_unit(battle, players[1], xy(10, 10), Unit_Type.luna),
+        spawn_unit(battle, battle_players[1], xy(4, 10), Unit_Type.sniper),
+        spawn_unit(battle, battle_players[1], xy(6, 10), Unit_Type.pudge),
+        spawn_unit(battle, battle_players[1], xy(8, 10), Unit_Type.tidehunter),
+        spawn_unit(battle, battle_players[1], xy(10, 10), Unit_Type.luna),
     ];
 
     collapse_deltas(battle, battle.delta_head, spawn_deltas);

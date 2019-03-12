@@ -163,7 +163,7 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             break;
         }
 
-        case Delta_Type.card_drawn: {
+        case Delta_Type.draw_card: {
             if (delta.player_id == this_player_id) {
                 add_card_panel(delta.card);
             }
@@ -296,7 +296,8 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             players: from_server_array(new_state.battle.participants).map(player => ({
                 id: player.id,
                 name: player.name,
-                hand: from_server_array(player.hand)
+                hand: from_server_array(player.hand),
+                has_used_a_card_this_turn: player.has_used_a_card_this_turn
             })),
             units: [],
             delta_head: 0,
