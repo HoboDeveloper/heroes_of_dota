@@ -6,10 +6,11 @@ eval(readFileSync("dist/battle_sim.js", "utf8"));
 let battle_id_auto_increment = 0;
 
 export type Battle_Record = Battle & {
-    id: number,
-    unit_id_auto_increment: number,
-    modifier_id_auto_increment: number,
-    finished: boolean,
+    id: number
+    unit_id_auto_increment: number
+    modifier_id_auto_increment: number
+    card_id_auto_increment: number
+    finished: boolean
     modifiers: Modifier_Data[]
 }
 
@@ -628,12 +629,28 @@ function spawn_unit(battle: Battle_Record, owner: Player, at_position: XY, type:
     };
 }
 
+function draw_hero_card(battle: Battle_Record, player: Player, unit_type: Unit_Type): Delta_Card_Drawn {
+    return {
+        type: Delta_Type.card_drawn,
+        player_id: player.id,
+        card: {
+            type: Card_Type.hero,
+            id: get_next_card_id(battle),
+            unit_type: unit_type
+        }
+    }
+}
+
 function get_next_unit_id(battle: Battle_Record) {
     return battle.unit_id_auto_increment++;
 }
 
 function get_next_modifier_id(battle: Battle_Record) {
     return battle.modifier_id_auto_increment++;
+}
+
+function get_next_card_id(battle: Battle_Record) {
+    return battle.card_id_auto_increment++;
 }
 
 function try_compute_battle_winner(battle: Battle): number | undefined {
@@ -928,11 +945,13 @@ export function start_battle(players: Player[]): number {
         delta_head: 0,
         unit_id_auto_increment: 0,
         modifier_id_auto_increment: 0,
+        card_id_auto_increment: 0,
         modifiers: [],
         units: [],
         players: players.map(player => ({
             id: player.id,
-            name: player.name
+            name: player.name,
+            hand: []
         })),
         deltas: [],
         cells: [],
@@ -944,11 +963,10 @@ export function start_battle(players: Player[]): number {
     fill_grid(battle);
 
     const spawn_deltas = [
-        // spawn_unit(battle, players[0], xy(1, 1), Unit_Type.ursa),
-        spawn_unit(battle, players[0], xy(3, 1), Unit_Type.sniper),
-        spawn_unit(battle, players[0], xy(5, 1), Unit_Type.pudge),
-        spawn_unit(battle, players[0], xy(7, 1), Unit_Type.tidehunter),
-        spawn_unit(battle, players[0], xy(9, 1), Unit_Type.luna),
+        draw_hero_card(battle, players[0], Unit_Type.sniper),
+        draw_hero_card(battle, players[0], Unit_Type.pudge),
+        draw_hero_card(battle, players[0], Unit_Type.tidehunter),
+        draw_hero_card(battle, players[0], Unit_Type.luna),
 
         // spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
         spawn_unit(battle, players[1], xy(4, 10), Unit_Type.sniper),

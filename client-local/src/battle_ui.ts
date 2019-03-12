@@ -13,10 +13,10 @@ const control_panel: Control_Panel = {
 };
 
 const battle_cell_size = 128;
-const hand: Card[] = [];
+const hand: Card_Panel[] = [];
 
 type Held_Card = {
-    card: Card;
+    card: Card_Panel;
     offset: XY;
     returning_to_cursor: boolean;
     hovered_cell?: XY;
@@ -88,9 +88,10 @@ type Cost_Population_Result = {
     cell_index_to_parent_index: number[];
 }
 
-type Card = {
-    panel: Panel;
-    hovered: boolean;
+type Card_Panel = {
+    panel: Panel
+    card: Card
+    hovered: boolean
 }
 
 function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Unit | undefined {
@@ -157,6 +158,14 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
 
             if (unit) {
                 battle.unit_id_to_facing[unit.id] = xy_sub(delta.target_position, unit.position);
+            }
+
+            break;
+        }
+
+        case Delta_Type.card_drawn: {
+            if (delta.player_id == this_player_id) {
+                add_card_panel(delta.card);
             }
 
             break;
@@ -1573,23 +1582,75 @@ function show_generic_error(error: string) {
     GameEvents.SendEventClientSide("dota_hud_error_message", { reason: 80, message: error });
 }
 
-function populate_hand() {
-    $("#hand_ui").Children().map(panel => ({
-        panel: panel,
+function create_card_ui(root: Panel, card: Card) {
+    function create_stat_container(parent: Panel, id: string, value: number) {
+        const stat_container = $.CreatePanel("Panel", parent, id);
+        stat_container.AddClass("stat_container");
+
+        $.CreatePanel("Panel", stat_container, "icon");
+
+        const value_label = $.CreatePanel("Label", stat_container, "value");
+        value_label.text = value.toString();
+    }
+
+    const container = $.CreatePanel("Panel", root, "");
+    container.AddClass("card");
+
+    switch (card.type) {
+        case Card_Type.hero: {
+            const definition = unit_definition_by_type(card.unit_type);
+
+            const art = $.CreatePanel("Image", container, "card_art");
+            art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
+            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_name(card.unit_type)}.jpg`);
+
+            const name_panel = $.CreatePanel("Panel", container, "name_panel");
+            const hero_name = $.CreatePanel("Label", name_panel, "");
+
+            hero_name.text = get_hero_name(card.unit_type);
+
+            const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
+
+            create_stat_container(stat_panel, "health", definition.health);
+            create_stat_container(stat_panel, "attack", (definition.attack as Ability_Basic_Attack).damage);
+            create_stat_container(stat_panel, "move_points", definition.move_points);
+
+            break;
+        }
+
+        case Card_Type.spell: {
+            break;
+        }
+
+        case Card_Type.unknown: {
+            break;
+        }
+
+        default: unreachable(card);
+    }
+
+    return container;
+}
+
+function add_card_panel(card: Card) {
+    const ui = create_card_ui($("#hand_ui"), card);
+    const card_panel: Card_Panel = {
+        panel: ui,
+        card: card,
         hovered: false
-    })).forEach(card => {
-        hand.push(card);
+    };
 
-        card.panel.SetHasClass("in_hand", true);
+    ui.SetHasClass("in_hand", true);
 
-        card.panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
-            card.hovered = true;
-        });
+    ui.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+        card_panel.hovered = true;
+    });
 
-        card.panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
-            card.hovered = false;
-        });
-    })
+    ui.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
+        card_panel.hovered = false;
+    });
+
+    hand.push(card_panel);
 }
 
 function update_hand() {
@@ -1763,7 +1824,6 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     }
 });
 
-populate_hand();
 setup_mouse_filter();
 setup_custom_ability_hotkeys();
 periodically_update_ui();

@@ -159,6 +159,10 @@ function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
     return battle.units.find(unit => unit.id == id);
 }
 
+function find_player_by_id(battle: Battle, id: number): Battle_Player | undefined {
+    return battle.players.find(player => player.id == id);
+}
+
 function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | undefined {
     for (const unit of battle.units) {
         for (const modifier of unit.modifiers) {
@@ -593,6 +597,16 @@ function collapse_delta(battle: Battle, delta: Delta) {
 
         case Delta_Type.ability_effect_applied: {
             return ability_effect_to_deltas(delta.effect);
+        }
+
+        case Delta_Type.card_drawn: {
+            const player = find_player_by_id(battle, delta.player_id);
+
+            if (player) {
+                player.hand.push(delta.card);
+            }
+
+            break;
         }
 
         default: unreachable(delta);
