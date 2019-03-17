@@ -16,13 +16,6 @@ export type Battle_Record = Battle & {
 
 const battles: Battle_Record[] = [];
 
-// This will only work correctly if cells are on the same line
-function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {
-    const delta = xy_sub(to, from);
-
-    return xy(Math.sign(delta.x), Math.sign(delta.y));
-}
-
 function random_int_up_to(upper_bound: number) {
     return Math.floor(Math.random() * upper_bound);
 }

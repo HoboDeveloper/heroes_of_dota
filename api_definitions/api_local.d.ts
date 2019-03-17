@@ -58,6 +58,18 @@ type Debug_Chat_Message_Event = {
 
 type Fast_Forward_Event = Battle_Snapshot
 
+type Grid_Highlight_Basic_Attack_Event = {
+    unit_id: number
+    from: {
+        x: number
+        y: number
+    }
+    to: {
+        x: number
+        y: number
+    }
+}
+
 type Unit_Snapshot = Shared_Visualizer_Unit_Data & {
     owner_id: number
     type: Unit_Type

@@ -532,7 +532,18 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
+    function highlight_grid() {
+        const event: Grid_Highlight_Basic_Attack_Event = {
+            unit_id: unit.id,
+            from: unit.position,
+            to: cast.target_position
+        };
+
+        CustomGameEventManager.Send_ServerToAllClients("grid_highlight_basic_attack", event)
+    }
+
     if (ranged_attack_spec) {
+        highlight_grid();
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
@@ -564,6 +575,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
+        highlight_grid();
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);

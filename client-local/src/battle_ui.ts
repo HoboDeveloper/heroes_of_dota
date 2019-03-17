@@ -1815,6 +1815,35 @@ function update_hand() {
     }
 }
 
+function highlight_grid_for_basic_attack(event: Grid_Highlight_Basic_Attack_Event) {
+    const unit = find_unit_by_id(battle, event.unit_id);
+
+    if (unit) {
+        const attack = unit.attack as Ability_Basic_Attack;
+        const from = event.from;
+        const to = event.to;
+        const direction = direction_normal_between_points(battle, from, to);
+        const outline: boolean[] = [];
+
+        let current_cell = xy(from.x, from.y);
+
+        for (let scanned = 0; scanned < attack.targeting.line_length; scanned++) {
+            current_cell.x += direction.x;
+            current_cell.y += direction.y;
+
+            const cell = grid_cell_at(battle, current_cell);
+
+            if (!cell) {
+                break;
+            }
+
+            outline[grid_cell_index(battle, current_cell)] = true;
+        }
+
+        highlight_outline_temporarily(outline, color_red, 0.75);
+    }
+}
+
 function try_select_unit_ability(unit: Unit, ability: Ability) {
     const ability_use = authorize_ability_use_by_unit(unit, ability.id);
 
@@ -1860,6 +1889,12 @@ function setup_custom_ability_hotkeys() {
     bind_ability_at_index_to_command("AbilityUltimate", 3);
 }
 
+function subscribe_to_custom_event<T extends object>(event_name: string, handler: (data: T) => void) {
+    GameEvents.Subscribe(event_name, event_data => {
+        handler(event_data as T);
+    })
+}
+
 subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     if (current_state != data.state) {
         process_state_transition(current_state, data);
@@ -1879,3 +1914,4 @@ setup_custom_ability_hotkeys();
 periodically_update_ui();
 periodically_update_stat_bar_display();
 periodically_request_battle_deltas_when_in_battle();
+subscribe_to_custom_event<Grid_Highlight_Basic_Attack_Event>("grid_highlight_basic_attack", highlight_grid_for_basic_attack);

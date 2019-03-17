@@ -136,6 +136,13 @@ function grid_cell_neighbors(battle: Battle, at: XY): Array<Cell | undefined> {
     ];
 }
 
+// This will only work correctly if cells are on the same line
+function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {
+    const delta = xy_sub(to, from);
+
+    return xy(Math.sign(delta.x), Math.sign(delta.y));
+}
+
 function manhattan(from: XY, to: XY) {
     return Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 }
