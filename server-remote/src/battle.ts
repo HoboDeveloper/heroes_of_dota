@@ -12,6 +12,7 @@ export type Battle_Record = Battle & {
     card_id_auto_increment: number
     finished: boolean
     modifiers: Modifier_Data[]
+    turn_index: number
 }
 
 const battles: Battle_Record[] = [];
@@ -671,7 +672,11 @@ function get_next_card_id(battle: Battle_Record) {
     return battle.card_id_auto_increment++;
 }
 
-function try_compute_battle_winner(battle: Battle): number | undefined {
+function try_compute_battle_winner(battle: Battle_Record): number | undefined {
+    if (battle.turn_index < 5) {
+        return undefined;
+    }
+
     let last_alive_unit_player_id: number | undefined = undefined;
 
     for (const unit of battle.units) {
@@ -869,6 +874,8 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Delta[]): Delta
             }
 
             case Delta_Type.end_turn: {
+                battle.turn_index++;
+
                 for (const unit of battle.units) {
                     if (unit.dead) continue;
 
@@ -972,6 +979,7 @@ export function start_battle(players: Player[]): number {
     const battle: Battle_Record = {
         id: battle_id_auto_increment++,
         delta_head: 0,
+        turn_index: 0,
         unit_id_auto_increment: 0,
         modifier_id_auto_increment: 0,
         card_id_auto_increment: 0,
