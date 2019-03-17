@@ -358,6 +358,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
 
         update_grid_visuals();
         clear_control_panel();
+        clear_hand_state();
 
         $("#stat_bar_container").RemoveAndDeleteChildren();
     }
@@ -1019,6 +1020,12 @@ function clear_control_panel() {
     $("#hero_rows").RemoveAndDeleteChildren();
 
     control_panel.hero_rows = [];
+}
+
+function clear_hand_state() {
+    $("#hand_ui").RemoveAndDeleteChildren();
+    hand.length = 0;
+    held_card = undefined;
 }
 
 function get_ability_icon(ability_id: Ability_Id): string {
