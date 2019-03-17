@@ -1418,6 +1418,12 @@ function setup_mouse_filter() {
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
             const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
+            if (button == MouseButton.LEFT && current_selected_entity == undefined && cursor_entity == null) {
+                const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
+                Particles.SetParticleControl(particle, 0, world_position);
+                Particles.ReleaseParticleIndex(particle);
+            }
+
             if (current_selected_entity != undefined && current_targeted_ability != undefined) {
                 const wants_to_use_ability =
                     button == MouseButton.LEFT;
