@@ -642,6 +642,10 @@ function collapse_delta(battle: Battle, delta: Delta) {
             break;
         }
 
+        case Delta_Type.game_over: {
+            break;
+        }
+
         default: unreachable(delta);
     }
 }

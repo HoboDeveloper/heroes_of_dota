@@ -382,17 +382,21 @@ function game_loop() {
             }
 
             case Player_State.in_battle: {
-                const target_head = get_battle_remote_head();
+                while (!battle.is_over) {
+                    const target_head = get_battle_remote_head();
 
-                for (; battle.delta_head < target_head; battle.delta_head++) {
-                    const delta = battle.deltas[battle.delta_head];
+                    for (; battle.delta_head < target_head; battle.delta_head++) {
+                        const delta = battle.deltas[battle.delta_head];
 
-                    if (!delta) break;
+                        if (!delta) break;
 
-                    print(`Playing delta ${battle.delta_head}`);
+                        print(`Playing delta ${battle.delta_head}`);
 
-                    play_delta(main_player, delta, battle.delta_head);
-                    update_player_state_net_table(main_player);
+                        play_delta(main_player, delta, battle.delta_head);
+                        update_player_state_net_table(main_player);
+                    }
+
+                    wait_one_frame();
                 }
 
                 break;

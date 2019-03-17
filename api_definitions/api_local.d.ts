@@ -70,6 +70,10 @@ type Grid_Highlight_Basic_Attack_Event = {
     }
 }
 
+type Game_Over_Event = {
+    winner_player_id: number
+}
+
 type Unit_Snapshot = Shared_Visualizer_Unit_Data & {
     owner_id: number
     type: Unit_Type

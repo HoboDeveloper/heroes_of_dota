@@ -14,6 +14,7 @@ type Battle = {
         width: number,
         height: number
     };
+    is_over: boolean
     camera_dummy: CDOTA_BaseNPC;
     modifier_id_to_modifier_data: { [modifier_id: number]: Modifier_Data }
 }
@@ -1245,6 +1246,20 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
         case Delta_Type.set_ability_cooldown_remaining: break;
 
+        case Delta_Type.game_over: {
+            const event: Game_Over_Event = {
+                winner_player_id: delta.winner_player_id
+            };
+
+            CustomGameEventManager.Send_ServerToAllClients("show_game_over_screen", event);
+
+            wait(5);
+
+            battle.is_over = true;
+
+            break;
+        }
+
         default: unreachable(delta);
     }
 }
@@ -1273,6 +1288,7 @@ function load_battle_data() {
             width: 0,
             height: 0
         },
+        is_over: false,
         camera_dummy: camera_entity,
         modifier_id_to_modifier_data: {}
     };

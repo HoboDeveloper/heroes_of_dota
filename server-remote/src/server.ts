@@ -319,10 +319,12 @@ export function report_battle_over(battle: Battle, winner_player_id: number) {
 
         if (player) {
             player.state = Player_State.on_global_map;
+
+            if (player.id == winner_player_id) {
+                submit_chat_message(player, `Battle over! ${player.name} wins`);
+            }
         }
     }
-
-    console.log("Battle over! Winning player is", winner_player_id);
 }
 
 handlers.set("/get_player_state", body => {
@@ -625,6 +627,23 @@ handlers.set("/battle_cheat", body => {
                 }
 
                 break;
+            }
+
+            case "killall": {
+                for (const unit of battle.units) {
+                    if (!unit.dead) {
+                        const delta: Delta_Health_Change = {
+                            type: Delta_Type.health_change,
+                            source_ability_id: Ability_Id.basic_attack,
+                            source_unit_id: request.selected_unit_id,
+                            target_unit_id: request.selected_unit_id,
+                            new_value: 0,
+                            value_delta: -unit.health
+                        };
+
+                        submit_battle_deltas(battle, [ delta ]);
+                    }
+                }
             }
         }
 

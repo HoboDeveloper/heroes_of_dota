@@ -21,7 +21,8 @@ declare const enum Delta_Type {
     set_ability_cooldown_remaining = 13,
     ability_effect_applied = 14,
     draw_card = 15,
-    use_card = 16
+    use_card = 16,
+    game_over = 17
 }
 
 declare const enum Action_Type {
@@ -342,6 +343,11 @@ type Delta_Use_Card = {
     card_id: number
 }
 
+type Delta_Game_Over = {
+    type: Delta_Type.game_over
+    winner_player_id: number
+}
+
 type Delta =
     Delta_Health_Change |
     Delta_Mana_Change |
@@ -365,7 +371,8 @@ type Delta =
     Delta_Draw_Card |
     Delta_Use_Card |
     Delta_Start_Turn |
-    Delta_End_Turn
+    Delta_End_Turn |
+    Delta_Game_Over
 
 type Movement_History_Entry = {
     order_x: number

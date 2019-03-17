@@ -672,7 +672,7 @@ function get_next_card_id(battle: Battle_Record) {
     return battle.card_id_auto_increment++;
 }
 
-function try_compute_battle_winner(battle: Battle_Record): number | undefined {
+function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
     if (battle.turn_index < 5) {
         return undefined;
     }
@@ -930,9 +930,14 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
     const collapsed_anything = submit_battle_deltas(battle, new_deltas);
 
     if (collapsed_anything) {
-        const possible_winner = try_compute_battle_winner(battle);
+        const possible_winner = try_compute_battle_winner_player_id(battle);
 
         if (possible_winner != undefined) {
+            submit_battle_deltas(battle, [{
+                type: Delta_Type.game_over,
+                winner_player_id: possible_winner
+            }]);
+
             battle.finished = true;
 
             report_battle_over(battle, possible_winner);
