@@ -263,11 +263,11 @@ function take_battle_action(action: Turn_Action, success_callback?: () => void) 
     };
 
     remote_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", request, response => {
-        receive_battle_deltas(response.previous_head, response.deltas);
-
         if (success_callback) {
             success_callback();
         }
+
+        receive_battle_deltas(response.previous_head, response.deltas);
     });
 }
 
