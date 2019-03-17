@@ -192,6 +192,12 @@ type Battle_Player = {
     name: string
     hand: Card[]
     has_used_a_card_this_turn: boolean
+    deployment_zone: {
+        min_x: number
+        min_y: number
+        max_x: number
+        max_y: number
+    }
 }
 
 type Unit_Field_Change = {

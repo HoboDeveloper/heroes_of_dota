@@ -538,10 +538,6 @@ handlers.set("/battle_cheat", body => {
 
         if (!battle) return;
 
-        const unit = find_unit_by_id(battle, request.selected_unit_id);
-
-        if (!unit) return;
-
         function refresh_unit(battle: Battle_Record, unit: Unit) {
             const deltas: Delta[] = [
                 {
@@ -596,6 +592,10 @@ handlers.set("/battle_cheat", body => {
             }
 
             case "lvl": {
+                const unit = find_unit_by_id(battle, request.selected_unit_id);
+
+                if (!unit) break;
+
                 const new_lvl = parseInt(parts[1]);
                 const delta = new_lvl - unit[Unit_Field.level];
 
@@ -614,6 +614,10 @@ handlers.set("/battle_cheat", body => {
             }
 
             case "ref": {
+                const unit = find_unit_by_id(battle, request.selected_unit_id);
+
+                if (!unit) break;
+
                 refresh_unit(battle, unit);
 
                 break;

@@ -20,6 +20,7 @@ type Held_Card = {
     offset: XY;
     returning_to_cursor: boolean;
     hovered_cell?: XY;
+    zone_highlight_particles: ParticleId[];
 }
 
 let held_card: Held_Card | undefined = undefined;
@@ -316,7 +317,8 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
                 id: player.id,
                 name: player.name,
                 hand: from_server_array(player.hand),
-                has_used_a_card_this_turn: player.has_used_a_card_this_turn
+                has_used_a_card_this_turn: player.has_used_a_card_this_turn,
+                deployment_zone: player.deployment_zone
             })),
             units: [],
             delta_head: 0,
@@ -1025,6 +1027,20 @@ function clear_control_panel() {
 function clear_hand_state() {
     $("#hand_ui").RemoveAndDeleteChildren();
     hand.length = 0;
+
+    clear_held_card();
+}
+
+function clear_held_card() {
+    if (held_card) {
+        for (const particle of held_card.zone_highlight_particles) {
+            Particles.DestroyParticleEffect(particle, false);
+            Particles.ReleaseParticleIndex(particle);
+        }
+
+        held_card.zone_highlight_particles = [];
+    }
+
     held_card = undefined;
 }
 
@@ -1728,7 +1744,7 @@ function update_hand() {
                         const card_panel = hand[index];
 
                         if (held_card && held_card.card_panel == card_panel) {
-                            held_card = undefined;
+                            clear_held_card();
                         }
 
                         hand.splice(index, 1);
@@ -1744,7 +1760,7 @@ function update_hand() {
 
             // TODO failure callback
         } else {
-            held_card = undefined;
+            clear_held_card();
         }
     }
 
@@ -1759,13 +1775,33 @@ function update_hand() {
         card.panel.SetHasClass("hovered", card.hovered);
 
         if (!held_card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
-            held_card = {
-                card_panel: card,
-                offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
-                returning_to_cursor: false
-            };
+            const player = find_player_by_id(battle, this_player_id);
 
-            card.panel.SetHasClass("in_hand", false);
+            if (player) {
+                const zone = player.deployment_zone;
+                const outline: boolean[] = [];
+
+                for (let x = zone.min_x; x < zone.max_x; x++) {
+                    for (let y = zone.min_y; y < zone.max_y; y++) {
+                        const index = grid_cell_index_raw(battle, x, y);
+
+                        if (index != undefined) {
+                            outline[index] = true;
+                        }
+                    }
+                }
+
+                const particles = highlight_outline(outline, color_yellow);
+
+                held_card = {
+                    card_panel: card,
+                    offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
+                    returning_to_cursor: false,
+                    zone_highlight_particles: particles
+                };
+
+                card.panel.SetHasClass("in_hand", false);
+            }
         }
 
         index++;

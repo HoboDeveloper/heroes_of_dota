@@ -59,13 +59,11 @@ function hack_into_game_chat() {
                 } else {
                     const unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-                    if (unit) {
-                        remote_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
-                            access_token: get_access_token(),
-                            cheat: text.substring(1),
-                            selected_unit_id: unit.id
-                        }, response => response);
-                    }
+                    remote_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
+                        access_token: get_access_token(),
+                        cheat: text.substring(1),
+                        selected_unit_id: unit ? unit.id : -1
+                    }, response => response);
                 }
             } else if (text.length > 0) {
                 remote_request<Submit_Chat_Message_Request, Submit_Chat_Message_Response>("/submit_chat_message", {

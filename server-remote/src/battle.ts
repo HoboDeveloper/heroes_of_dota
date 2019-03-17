@@ -612,6 +612,15 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             if (!cell || cell.occupied) return;
 
+            const zone = player.deployment_zone;
+            const is_in_zone =
+                action.at.x >= zone.min_x &&
+                action.at.y >= zone.min_y &&
+                action.at.x <  zone.max_x &&
+                action.at.y <  zone.max_y;
+
+            if (!is_in_zone) return;
+
             return [
                 use_card(player, card),
                 spawn_unit(battle, player, action.at, card.unit_type)
@@ -974,11 +983,29 @@ export function find_battle_by_id(id: number): Battle_Record | undefined {
 }
 
 export function start_battle(players: Player[]): number {
+    const grid_size = xy(12, 12);
+    const deployment_zone_height = 3;
+
+    const bottom_player_zone = {
+        min_x: 0,
+        min_y: 0,
+        max_x: grid_size.x,
+        max_y: deployment_zone_height
+    };
+
+    const top_player_zone = {
+        min_x: 0,
+        min_y: grid_size.y - deployment_zone_height,
+        max_x: grid_size.x,
+        max_y: grid_size.y
+    };
+
     const battle_players: Battle_Player[] = players.map(player => ({
         id: player.id,
         name: player.name,
         hand: [],
-        has_used_a_card_this_turn: false
+        has_used_a_card_this_turn: false,
+        deployment_zone: player == players[0] ? bottom_player_zone : top_player_zone
     }));
 
     const battle: Battle_Record = {
