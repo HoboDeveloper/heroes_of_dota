@@ -993,11 +993,10 @@ export function start_battle(players: Player[]): number {
         draw_hero_card(battle, battle_players[0], Unit_Type.tidehunter),
         draw_hero_card(battle, battle_players[0], Unit_Type.luna),
 
-        // spawn_unit(battle, players[1], xy(2, 7), Unit_Type.ursa),
-        spawn_unit(battle, battle_players[1], xy(4, 10), Unit_Type.sniper),
-        spawn_unit(battle, battle_players[1], xy(6, 10), Unit_Type.pudge),
-        spawn_unit(battle, battle_players[1], xy(8, 10), Unit_Type.tidehunter),
-        spawn_unit(battle, battle_players[1], xy(10, 10), Unit_Type.luna),
+        draw_hero_card(battle, battle_players[1], Unit_Type.sniper),
+        draw_hero_card(battle, battle_players[1], Unit_Type.pudge),
+        draw_hero_card(battle, battle_players[1], Unit_Type.tidehunter),
+        draw_hero_card(battle, battle_players[1], Unit_Type.luna)
     ];
 
     collapse_deltas(battle, battle.delta_head, spawn_deltas);
