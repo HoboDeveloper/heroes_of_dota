@@ -16,7 +16,7 @@ const battle_cell_size = 128;
 const hand: Card_Panel[] = [];
 
 type Held_Card = {
-    card: Card_Panel;
+    card_panel: Card_Panel;
     offset: XY;
     returning_to_cursor: boolean;
     hovered_cell?: XY;
@@ -163,6 +163,21 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             break;
         }
 
+        case Delta_Type.use_card: {
+            if (delta.player_id == this_player_id) {
+                const card_index = hand.findIndex(card => card.card.id == delta.card_id);
+
+                if (card_index != undefined) {
+                    const card = hand[card_index];
+                    card.panel.DeleteAsync(0);
+
+                    hand.splice(card_index, 1);
+                }
+            }
+
+            break;
+        }
+
         case Delta_Type.draw_card: {
             if (delta.player_id == this_player_id) {
                 add_card_panel(delta.card);
@@ -241,7 +256,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     }
 }
 
-function take_battle_action(action: Turn_Action) {
+function take_battle_action(action: Turn_Action, success_callback?: () => void) {
     const request = {
         access_token: get_access_token(),
         action: action
@@ -249,6 +264,10 @@ function take_battle_action(action: Turn_Action) {
 
     remote_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", request, response => {
         receive_battle_deltas(response.previous_head, response.deltas);
+
+        if (success_callback) {
+            success_callback();
+        }
     });
 }
 
@@ -1675,23 +1694,49 @@ function update_hand() {
     let index = 0;
 
     if (held_card && !GameUI.IsMouseDown(0)) {
-        const panel = held_card.card.panel;
+        const panel = held_card.card_panel.panel;
 
         panel.SetHasClass("in_hand", true);
         panel.SetHasClass("in_preview", false);
         panel.SetHasClass("in_preview_size", false);
 
-        const should_update_grid_visuals = held_card.hovered_cell;
+        const hovered_cell = held_card.hovered_cell;
 
-        held_card = undefined;
+        if (hovered_cell) {
+            const card = held_card.card_panel.card;
 
-        if (should_update_grid_visuals) {
-            update_grid_visuals();
+            take_battle_action({
+                type: Action_Type.use_hero_card,
+                at: hovered_cell,
+                card_id: held_card.card_panel.card.id
+            }, () => {
+                for (let index = 0; index < hand.length; index++) {
+                    if (hand[index].card.id == card.id) {
+                        const card_panel = hand[index];
+
+                        if (held_card && held_card.card_panel == card_panel) {
+                            held_card = undefined;
+                        }
+
+                        hand.splice(index, 1);
+
+                        card_panel.panel.AddClass("disappearing_transition");
+                        card_panel.panel.AddClass("disappearing");
+                        card_panel.panel.DeleteAsync(0.4);
+
+                        break;
+                    }
+                }
+            });
+
+            // TODO failure callback
+        } else {
+            held_card = undefined;
         }
     }
 
     for (const card of hand) {
-        if (held_card && card == held_card.card) {
+        if (held_card && card == held_card.card_panel) {
             index++;
             continue;
         }
@@ -1702,7 +1747,7 @@ function update_hand() {
 
         if (!held_card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             held_card = {
-                card: card,
+                card_panel: card,
                 offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
                 returning_to_cursor: false
             };
@@ -1714,7 +1759,7 @@ function update_hand() {
     }
 
     if (held_card) {
-        const panel = held_card.card.panel;
+        const panel = held_card.card_panel.panel;
         const world_position = GameUI.GetScreenWorldPosition(cursor);
         const battle_position = world_position_to_battle_position(world_position);
         const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;

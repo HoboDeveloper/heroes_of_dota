@@ -74,6 +74,19 @@ if (!Array.prototype.find) {
     };
 }
 
+if (!Array.prototype.findIndex) {
+    // @ts-ignore
+    Array.prototype.findIndex = function <T>(predicate: (element: T) => boolean): number | undefined {
+        for (let index = 0; index < this.length; index++) {
+            if (predicate(this[index])) {
+                return index;
+            }
+        }
+
+        return undefined;
+    };
+}
+
 function from_server_array<T>(array: Array<T>): Array<T> {
     const result: Array<T> = [];
 

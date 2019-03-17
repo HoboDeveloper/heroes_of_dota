@@ -1002,6 +1002,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             unit_emit_sound(unit, "hero_spawn");
 
+            unit.handle.AddNewModifier(unit.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
+
             fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
 
             unit.is_playing_a_delta = true;

@@ -614,6 +614,10 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (card.type != Card_Type.hero) return;
             if (player.has_used_a_card_this_turn) return;
 
+            const cell = grid_cell_at(battle, action.at);
+
+            if (!cell || cell.occupied) return;
+
             return [
                 use_card(player, card),
                 spawn_unit(battle, player, action.at, card.unit_type)
@@ -933,6 +937,10 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
 
             report_battle_over(battle, possible_winner);
         }
+    }
+
+    if (!collapsed_anything) {
+        return;
     }
 
     return get_battle_deltas_after(battle, initial_head);

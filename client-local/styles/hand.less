@@ -94,6 +94,17 @@
       height: 300px;
     }
 
+    &.disappearing {
+      transform: scaleX(1.5) scaleY(1.5);
+      opacity: 0;
+    }
+
+    &.disappearing_transition {
+      transition-property: transform, opacity;
+      transition-duration: 0.15s;
+      transition-timing-function: ease-out;
+    }
+
     width: 150px;
     height: 225px;
     border: 1px solid black;

@@ -624,7 +624,7 @@ function collapse_delta(battle: Battle, delta: Delta) {
 
             for (let index = 0; index < player.hand.length; index++) {
                 if (player.hand[index].id == delta.card_id) {
-                    player.hand.slice(index, 1);
+                    player.hand.splice(index, 1);
 
                     player.has_used_a_card_this_turn = true;
 
