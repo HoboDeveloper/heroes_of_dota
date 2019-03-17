@@ -215,7 +215,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.delta_paths = [];
         battle.players = [];
         battle.units = [];
-
+        battle.is_over = false;
 
         PlayerResource.SetCameraTarget(main_player.player_id, main_player.hero_unit);
         wait_one_frame();
