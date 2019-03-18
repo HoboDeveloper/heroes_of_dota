@@ -389,6 +389,7 @@ type Movement_History_Entry = {
 
 type Query_Deltas_Request = {
     access_token: string
+    battle_id: number
     since_delta: number
 }
 
@@ -484,6 +485,7 @@ type Player_State_On_Global_Map_Data = {
 }
 
 type Player_State_In_Battle_Data = {
+    battle_id: number
     state: Player_State.in_battle
     grid_size: {
         width: number

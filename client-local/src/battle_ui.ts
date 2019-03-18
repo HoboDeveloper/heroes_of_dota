@@ -42,6 +42,7 @@ type UI_Unit_Data = {
 }
 
 type UI_Battle = Battle & {
+    id: number
     world_origin: XY;
     entity_id_to_unit_data: { [entity_id: number]: UI_Unit_Data },
     unit_id_to_facing: { [unit_id: number]: XY };
@@ -282,6 +283,7 @@ function periodically_request_battle_deltas_when_in_battle() {
     const head_before = battle.delta_head;
     const request: Query_Deltas_Request = {
         access_token: get_access_token(),
+        battle_id: battle.id,
         since_delta: head_before
     };
 
@@ -313,6 +315,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
 
     if (new_state.state == Player_State.in_battle) {
         battle = {
+            id: new_state.battle.id,
             players: from_server_array(new_state.battle.participants).map(player => ({
                 id: player.id,
                 name: player.name,

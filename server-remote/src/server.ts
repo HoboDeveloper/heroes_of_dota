@@ -24,7 +24,6 @@ const enum Result_Type {
 
 const enum Right {
     submit_battle_action,
-    query_battle_actions,
     log_in_with_character,
     attack_a_character,
     participate_in_a_battle,
@@ -222,6 +221,7 @@ function player_to_player_state_object(player: Player): Player_State_Data {
 
             return {
                 state: player.state,
+                battle_id: player.current_battle_id,
                 participants: battle.players,
                 grid_size: {
                     width: battle.grid_size.x,
@@ -269,11 +269,6 @@ function can_player(player: Player, right: Right) {
         case Right.submit_battle_action: {
             return player.state == Player_State.in_battle;
         }
-
-        case Right.query_battle_actions: {
-            return player.state == Player_State.in_battle;
-        }
-
     }
 
     return unreachable(right);
@@ -462,14 +457,10 @@ handlers.set("/trusted/attack_player", body => {
 handlers.set("/query_battle_deltas", body => {
     const request = JSON.parse(body) as Query_Deltas_Request;
     const result = try_do_with_player<Query_Deltas_Response>(request.access_token, player => {
-        if (!can_player(player, Right.query_battle_actions)) {
-            return;
-        }
-
-        const battle = find_battle_by_id(player.current_battle_id);
+        const battle = find_battle_by_id(request.battle_id);
 
         if (!battle) {
-            console.error(`Player ${player.id} is in battle, but battle was not found`);
+            console.error(`Battle #${request.battle_id} was not found`);
             return;
         }
 

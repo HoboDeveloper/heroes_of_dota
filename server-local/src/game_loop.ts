@@ -112,6 +112,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                 id: main_player.remote_id,
                 token: main_player.token,
                 battle: {
+                    id: battle.id,
                     participants: battle.players,
                     world_origin: {
                         x: battle.world_origin.x,
@@ -225,6 +226,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
     if (next_state.state == Player_State.in_battle) {
         print("Battle started");
 
+        battle.id = next_state.battle_id;
         battle.delta_head = 0;
         battle.units = [];
         battle.deltas = [];

@@ -4,6 +4,7 @@ type XY = {
 }
 
 type Battle = {
+    id: number,
     players: Battle_Player[],
     deltas: Delta[];
     delta_paths: Move_Delta_Paths;
@@ -1278,6 +1279,7 @@ function load_battle_data() {
     ) as CDOTA_BaseNPC;
 
     battle = {
+        id: -1,
         deltas: [],
         players: [],
         delta_paths: {},

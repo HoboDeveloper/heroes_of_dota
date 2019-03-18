@@ -30,6 +30,7 @@ type Player_Net_Table_On_Global_Map = Player_Net_Table_Base & {
 type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
     state: Player_State.in_battle
     battle: {
+        id: number
         participants: Battle_Player[]
         world_origin: {
             x: number
