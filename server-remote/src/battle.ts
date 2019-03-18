@@ -17,11 +17,17 @@ export type Battle_Record = Battle & {
 
 const battles: Battle_Record[] = [];
 
-function random_int_up_to(upper_bound: number) {
+export function random_int_range(lower_bound: number, upper_bound: number) {
+    const range = upper_bound - lower_bound;
+
+    return lower_bound + Math.floor(Math.random() * range);
+}
+
+export function random_int_up_to(upper_bound: number) {
     return Math.floor(Math.random() * upper_bound);
 }
 
-function random_in_array<T>(array: T[], length = array.length): T | undefined {
+export function random_in_array<T>(array: T[], length = array.length): T | undefined {
     if (length == 0) return;
 
     return array[random_int_up_to(length)];

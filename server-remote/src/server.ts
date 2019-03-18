@@ -3,7 +3,7 @@ import {randomBytes} from "crypto"
 import {
     Battle_Record,
     find_battle_by_id,
-    get_battle_deltas_after,
+    get_battle_deltas_after, random_in_array, random_int_range,
     start_battle,
     submit_battle_deltas,
     try_take_turn_action
@@ -322,6 +322,42 @@ export function report_battle_over(battle: Battle, winner_player_id: number) {
     }
 }
 
+function take_ai_action(battle: Battle_Record, ai: Battle_Player) {
+    function act(action: Turn_Action) {
+        try_take_turn_action(battle, ai, action);
+    }
+
+    if (ai.hand.length > 0) {
+        const random_hero_card = random_in_array(ai.hand.filter(card => card.type == Card_Type.hero));
+
+        if (random_hero_card) {
+            let random_unoccupied_position: XY;
+
+            while (true) {
+                const x = random_int_range(ai.deployment_zone.min_x, ai.deployment_zone.max_x);
+                const y = random_int_range(ai.deployment_zone.min_y, ai.deployment_zone.max_y);
+                const cell = grid_cell_at_raw(battle, x, y);
+
+                if (cell && !cell.occupied) {
+                    random_unoccupied_position = cell.position;
+
+                    break;
+                }
+            }
+
+            act({
+                type: Action_Type.use_hero_card,
+                card_id: random_hero_card.id,
+                at: random_unoccupied_position
+            })
+        }
+    }
+
+    act({
+        type: Action_Type.end_turn
+    })
+}
+
 handlers.set("/get_player_state", body => {
     const request = JSON.parse(body) as Get_Player_State_Request;
     const player_state = try_do_with_player(request.access_token, player_to_player_state_object);
@@ -495,16 +531,13 @@ handlers.set("/take_battle_action", body => {
 
         const previous_head = battle.deltas.length;
         const deltas = try_take_turn_action(battle, battle_player, request.action);
+        const ai = test_player;
 
-        if (test_player) {
-            const test_battle_player = battle.players.find(battle_player => battle_player.id == test_player!.id)!;
+        if (ai) {
+            const battle_ai = battle.players.find(battle_player => battle_player.id == ai.id);
 
-            if (request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index].id == test_player.id) {
-                setInterval(() => {
-                    try_take_turn_action(battle, test_battle_player, {
-                        type: Action_Type.end_turn
-                    })
-                }, 3000);
+            if (battle_ai && request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index].id == ai.id) {
+                setInterval(() => take_ai_action(battle, battle_ai), 1000);
             }
         }
 
