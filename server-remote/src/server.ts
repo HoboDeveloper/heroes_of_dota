@@ -663,8 +663,8 @@ handlers.set("/battle_cheat", body => {
                         const delta: Delta_Health_Change = {
                             type: Delta_Type.health_change,
                             source_ability_id: Ability_Id.basic_attack,
-                            source_unit_id: request.selected_unit_id,
-                            target_unit_id: request.selected_unit_id,
+                            source_unit_id: unit.id,
+                            target_unit_id: unit.id,
                             new_value: 0,
                             value_delta: -unit.health
                         };

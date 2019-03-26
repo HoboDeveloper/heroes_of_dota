@@ -52,6 +52,13 @@ type Modifier_Data_Field_Change = Modifier_Data_Base & {
 
 type Modifier_Data = Modifier_Data_Field_Change;
 
+type Aura = {
+    source: Unit
+    active_modifier_ids: number[]
+    field: Unit_Field
+    change: number
+}
+
 type Scan_Result_Hit = {
     hit: true,
     unit: Unit
@@ -895,20 +902,22 @@ function process_collapsed_deltas(battle: Battle_Record, deltas: Delta[]): Delta
                     if (unit.dead) continue;
 
                     for (const modifier of unit.modifiers) {
-                        if (modifier.duration_remaining == 0) {
-                            new_deltas.push({
-                                type: Delta_Type.modifier_removed,
-                                modifier_id: modifier.id
-                            });
+                        if (!modifier.permanent) {
+                            if (modifier.duration_remaining == 0) {
+                                new_deltas.push({
+                                    type: Delta_Type.modifier_removed,
+                                    modifier_id: modifier.id
+                                });
 
-                            for (let index = 0; index < battle.modifiers.length; index++) {
-                                const modifier_data = battle.modifiers[index];
+                                for (let index = 0; index < battle.modifiers.length; index++) {
+                                    const modifier_data = battle.modifiers[index];
 
-                                if (modifier_data.id == modifier.id) {
-                                    push_modifier_removed_deltas(battle, modifier_data, new_deltas);
+                                    if (modifier_data.id == modifier.id) {
+                                        push_modifier_removed_deltas(battle, modifier_data, new_deltas);
 
-                                    battle.modifiers.splice(index, 1);
-                                    index--;
+                                        battle.modifiers.splice(index, 1);
+                                        index--;
+                                    }
                                 }
                             }
                         }

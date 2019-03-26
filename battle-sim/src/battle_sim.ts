@@ -61,12 +61,22 @@ type Unit = {
     modifiers: Modifier[]
 }
 
-type Modifier = {
+type Modifier_Base = {
     id: number
     source: Unit
     source_ability: Ability_Id
+}
+
+type Permanent_Modifier = Modifier_Base & {
+    permanent: true
+}
+
+type Expiring_Modifier = Modifier_Base & {
+    permanent: false
     duration_remaining: number
 }
+
+type Modifier = Permanent_Modifier | Expiring_Modifier;
 
 type Ability_Passive = Ability_Definition_Passive;
 
@@ -307,8 +317,10 @@ function pass_turn_to_next_player(battle: Battle) {
             }
 
             for (const modifier of unit.modifiers) {
-                if (modifier.duration_remaining > 0) {
-                    modifier.duration_remaining--;
+                if (!modifier.permanent) {
+                    if (modifier.duration_remaining > 0) {
+                        modifier.duration_remaining--;
+                    }
                 }
             }
         }
@@ -432,6 +444,10 @@ function ability_effect_to_deltas(effect: Ability_Effect): Delta[] | undefined {
 
         default: unreachable(effect);
     }
+}
+
+function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
+
 }
 
 function collapse_delta(battle: Battle, delta: Delta) {
@@ -576,7 +592,24 @@ function collapse_delta(battle: Battle, delta: Delta) {
                     id: delta.modifier_id,
                     source: source,
                     source_ability: delta.effect.ability_id,
+                    permanent: false,
                     duration_remaining: delta.duration
+                });
+            }
+
+            break;
+        }
+
+        case Delta_Type.permanent_modifier_applied: {
+            const unit = find_unit_by_id(battle, delta.target_unit_id);
+            const source = find_unit_by_id(battle, delta.source_unit_id);
+
+            if (unit && source) {
+                unit.modifiers.push({
+                    id: delta.modifier_id,
+                    source: source,
+                    source_ability: delta.effect.ability_id,
+                    permanent: true
                 });
             }
 

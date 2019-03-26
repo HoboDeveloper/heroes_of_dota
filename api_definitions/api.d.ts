@@ -18,11 +18,12 @@ declare const enum Delta_Type {
     unit_field_change = 10,
     modifier_appled = 11,
     modifier_removed = 12,
-    set_ability_cooldown_remaining = 13,
-    ability_effect_applied = 14,
-    draw_card = 15,
-    use_card = 16,
-    game_over = 17
+    permanent_modifier_applied = 13,
+    set_ability_cooldown_remaining = 14,
+    ability_effect_applied = 15,
+    draw_card = 16,
+    use_card = 17,
+    game_over = 18
 }
 
 declare const enum Action_Type {
@@ -320,6 +321,14 @@ type Delta_Modifier_Applied<T extends Ability_Effect> = {
     duration: number
 }
 
+type Delta_Permanent_Modifier_Applied<T extends Ability_Effect> = {
+    type: Delta_Type.permanent_modifier_applied
+    modifier_id: number
+    effect: T
+    target_unit_id: number
+    source_unit_id: number
+}
+
 type Delta_Modifier_Removed = {
     type: Delta_Type.modifier_removed
     modifier_id: number
@@ -371,6 +380,7 @@ type Delta =
     Delta_Armor_Change |
     Delta_State_Stunned_Counter_Change |
     Delta_Modifier_Applied<Ability_Effect> |
+    Delta_Permanent_Modifier_Applied<Ability_Effect> |
     Delta_Modifier_Removed |
     Delta_Set_Ability_Cooldown_Remaining |
     Delta_Ability_Effect_Applied<Ability_Effect> |

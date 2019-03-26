@@ -346,18 +346,17 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     chain.release();
 }
 
-function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Tide_Ravage) {
-    unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_Ability_Tide_Ravage) {
+    caster.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
     wait(0.1);
 
-    unit_emit_sound(unit, "Ability.Ravage");
-    shake_screen(unit.position, Shake.strong);
+    unit_emit_sound(caster, "Ability.Ravage");
+    shake_screen(caster.position, Shake.strong);
 
-    const fx = fx_by_unit("particles/tide_ravage/tide_ravage.vpcf", unit);
+    const fx = fx_by_unit("particles/tide_ravage/tide_ravage.vpcf", caster);
     const particle_delay = 0.1;
-    const deltas_by_distance: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[][] = [];
-    const deltas = from_client_array(cast.deltas);
+    const deltas_by_distance: Ravage_Target[][] = [];
 
     for (let distance = 1; distance <= 5; distance++) {
         fx.with_point_value(distance, distance * battle_cell_size * 0.85);
@@ -365,16 +364,16 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
 
     fx.release();
 
-    for (const delta of deltas) {
-        const target = find_unit_by_id(delta.target_unit_id);
+    for (const target_data of from_client_array(cast.targets)) {
+        const target = find_unit_by_id(target_data.unit_id);
 
         if (!target) {
-            log_chat_debug_message(`Target with id ${delta.target_unit_id} not found`);
+            log_chat_debug_message(`Target with id ${target_data.unit_id} not found`);
             continue;
         }
 
         const from = target.position;
-        const to = unit.position;
+        const to = target.position;
         const manhattan_distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 
         let by_distance = deltas_by_distance[manhattan_distance];
@@ -384,7 +383,7 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
             deltas_by_distance[manhattan_distance] = by_distance;
         }
 
-        by_distance.push(delta);
+        by_distance.push(target_data);
     }
 
     function toss_target_up(target: Battle_Unit) {
@@ -420,15 +419,12 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
 
         if (!by_distance) continue;
 
-        for (const delta of by_distance) {
-            const effect = delta.effect;
-
-            const [damage, stun] = from_client_tuple(effect.deltas);
-            const target = find_unit_by_id(damage.target_unit_id);
+        for (const target_data of by_distance) {
+            const target = find_unit_by_id(target_data.unit_id);
 
             if (!target) {
-                log_chat_debug_message(`Unit with id ${damage.target_unit_id} not found`);
-                return;
+                log_chat_debug_message(`Target with id ${target_data.unit_id} not found`);
+                continue;
             }
 
             const delta_id = delta_id_counter++;
@@ -443,14 +439,14 @@ function tide_ravage(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ab
                 delta_completion_status[delta_id] = true;
             });
 
-            play_delta(main_player, damage);
-            play_delta(main_player, stun);
+            change_health(main_player, caster, target, target_data.damage_dealt);
+            change_field(main_player, target, Unit_Field.state_stunned_counter, target_data.stun_counter);
         }
 
         wait(particle_delay);
     }
 
-    unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+    caster.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
     wait_until(() => delta_completion_status.every(value => value));
 }
@@ -632,8 +628,8 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
         case Ability_Id.pudge_dismember: {
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
 
-            play_delta(main_player, cast.damage_delta);
-            play_delta(main_player, cast.heal_delta);
+            change_health(main_player, unit, target, cast.damage_dealt);
+            change_health(main_player, unit, unit, cast.health_restored);
 
             break;
         }
@@ -646,13 +642,8 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
             unit_emit_sound(unit, "Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
-
-            const modifier_delta = cast.delta;
-            const [damage] = from_client_tuple(modifier_delta.effect.deltas);
-
-            apply_and_record_modifier(target, modifier_delta.modifier_id, "Modifier_Tide_Gush");
-
-            play_delta(main_player, damage);
+            apply_and_record_modifier(target, cast.modifier_id, "Modifier_Tide_Gush");
+            change_health(main_player, unit, target, cast.damage_dealt);
 
             break;
         }
@@ -670,7 +661,7 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 
             shake_screen(target.position, Shake.medium);
             unit_emit_sound(unit, "Hero_Luna.LucentBeam.Target");
-            play_delta(main_player, cast.delta);
+            change_health(main_player, unit, target, cast.damage_dealt);
 
             break;
         }
@@ -718,9 +709,12 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            for (const delta of from_client_array(cast.deltas)) {
-                for (const effect of from_client_tuple(delta.effect.deltas)) {
-                    play_delta(main_player, effect);
+            for (const effect of from_client_array(cast.effects)) {
+                const target = find_unit_by_id(effect.unit_id);
+
+                if (target) {
+                    change_health(main_player, unit, target, effect.damage_dealt);
+                    change_field(main_player, unit, Unit_Field.attack_bonus, effect.attack_change);
                 }
             }
 
@@ -753,10 +747,9 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 .to_unit_origin(2, unit)
                 .to_unit_origin(3, unit);
 
-            const deltas = from_client_array(cast.deltas);
-            const beam_targets = deltas.map(delta => ({
+            const beam_targets = from_client_array(cast.targets).map(delta => ({
                 delta: delta,
-                beams_remaining: -delta.value_delta
+                beams_remaining: -delta.damage_dealt.value_delta
             }));
 
             while (beam_targets.length > 0) {
@@ -774,7 +767,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                         .release();
 
                     unit_emit_sound(target_unit, "Hero_Luna.Eclipse.Target");
-                    change_health(main_player, unit, target_unit, target_unit.health - 1, -1);
+                    change_health(main_player, unit, target_unit, { new_value: target_unit.health - 1, value_delta: -1 });
                     shake_screen(target_unit.position, Shake.weak);
                 }
 
@@ -877,9 +870,8 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
         }
 
         case Ability_Id.luna_moon_glaive: {
-            const delta = effect.delta;
-            const source = find_unit_by_id(delta.source_unit_id);
-            const target = find_unit_by_id(delta.target_unit_id);
+            const source = find_unit_by_id(effect.source_unit_id);
+            const target = find_unit_by_id(effect.target_unit_id);
             const original_target = find_unit_by_id(effect.original_target_id);
 
             if (source && target && original_target) {
@@ -890,7 +882,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
                     unit_emit_sound(target, "Hero_Luna.MoonGlaive.Impact");
                 }
 
-                play_delta(main_player, delta);
+                change_health(main_player, source, target, effect.damage_dealt);
             }
 
             break;
@@ -967,7 +959,7 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
     return sequence_duration - time_passed;
 }
 
-function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, new_value: number, value_delta: number) {
+function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, change: Value_Change) {
     function number_particle(amount: number, r: number, g: number, b: number) {
         fx("particles/msg_damage.vpcf")
             .to_unit_origin(0, target)
@@ -977,6 +969,8 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
             .release()
     }
 
+    const value_delta = change.value_delta;
+
     if (value_delta > 0) {
         number_particle(value_delta,100, 255, 50);
     } else if (value_delta < 0) {
@@ -985,16 +979,44 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
         number_particle(-value_delta, 250, 70, 70);
     }
 
-    target.health = new_value;
+    target.health = change.new_value;
 
     update_player_state_net_table(main_player);
 
-    if (new_value == 0) {
+    if (change.new_value == 0) {
         if (source.owner_remote_id == target.owner_remote_id) {
             try_play_sound_for_unit(source, get_unit_deny_voice_line);
         }
 
         target.handle.ForceKill(false);
+    }
+}
+
+function change_field(main_player: Main_Player, unit: Battle_Unit, field: Unit_Field, change: Value_Change) {
+    const new_value = change.new_value;
+
+    switch (field) {
+        case Unit_Field.state_stunned_counter: {
+            unit.stunned_counter = new_value;
+
+            update_stun_visuals(unit);
+            break;
+        }
+
+        case Unit_Field.attack_bonus: { unit.attack_bonus = new_value; update_player_state_net_table(main_player); break; }
+        case Unit_Field.max_health: { unit.max_health = new_value; update_player_state_net_table(main_player); break; }
+        case Unit_Field.max_mana: { unit.max_mana = new_value; update_player_state_net_table(main_player); break; }
+        case Unit_Field.max_move_points: { unit.max_move_points = new_value; update_player_state_net_table(main_player); break; }
+
+        case Unit_Field.level: {
+            unit.level = new_value;
+
+            unit_emit_sound(unit, "hero_level_up");
+            fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+            update_player_state_net_table(main_player);
+
+            break;
+        }
     }
 }
 
@@ -1143,29 +1165,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             print("Changing field of", delta.target_unit_id, unit ? unit.handle.GetName() : "none", delta.field, "new value", delta.new_value);
 
             if (unit) {
-                switch (delta.field) {
-                    case Unit_Field.state_stunned_counter: {
-                        unit.stunned_counter = delta.new_value;
-
-                        update_stun_visuals(unit);
-                        break;
-                    }
-
-                    case Unit_Field.attack_bonus: { unit.attack_bonus = delta.new_value; update_player_state_net_table(main_player); break; }
-                    case Unit_Field.max_health: { unit.max_health = delta.new_value; update_player_state_net_table(main_player); break; }
-                    case Unit_Field.max_mana: { unit.max_mana = delta.new_value; update_player_state_net_table(main_player); break; }
-                    case Unit_Field.max_move_points: { unit.max_move_points = delta.new_value; update_player_state_net_table(main_player); break; }
-
-                    case Unit_Field.level: {
-                        unit.level = delta.new_value;
-
-                        unit_emit_sound(unit, "hero_level_up");
-                        fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
-                        update_player_state_net_table(main_player);
-
-                        break;
-                    }
-                }
+                change_field(main_player, unit, delta.field, delta); // TODO use Value_Change
             }
 
             break;
@@ -1194,12 +1194,13 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const target = find_unit_by_id(delta.target_unit_id);
 
             if (source && target) {
-                change_health(main_player, source, target, delta.new_value, delta.value_delta);
+                change_health(main_player, source, target, delta); // TODO use Value_Change
             }
 
             break;
         }
 
+        case Delta_Type.permanent_modifier_applied:
         case Delta_Type.modifier_appled: {
             const source = find_unit_by_id(delta.source_unit_id);
             const target = find_unit_by_id(delta.target_unit_id);

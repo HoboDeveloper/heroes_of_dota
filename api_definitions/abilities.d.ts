@@ -130,10 +130,7 @@ type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive
 
 type Ability_Effect =
     Ability_Effect_Pudge_Flesh_Heap |
-    Ability_Effect_Tide_Gush |
-    Ability_Effect_Tide_Anchor_Smash |
     Ability_Effect_Tide_Kraken_Shell_Trigger |
-    Ability_Effect_Tide_Ravage |
     Ability_Effect_Luna_Moon_Glaive |
     Ability_Effect_Luna_Lunar_Blessing
 
@@ -190,30 +187,34 @@ type Ability_Effect_Pudge_Flesh_Heap = {
     deltas: [ Delta_Max_Health_Change, Delta_Health_Change ]
 }
 
+type Value_Change = {
+    new_value: number
+    value_delta: number
+}
+
 type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_dismember
-    heal_delta: Delta_Health_Change
-    damage_delta: Delta_Health_Change
+    health_restored: Value_Change
+    damage_dealt: Value_Change
 }
 
 type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
-    delta: Delta_Modifier_Applied<Ability_Effect_Tide_Gush>
-}
-
-type Ability_Effect_Tide_Gush = {
-    ability_id: Ability_Id.tide_gush
-    deltas: [Delta_Health_Change, Delta_Max_Move_Points_Change]
+    modifier_id: number
+    duration: number
+    damage_dealt: Value_Change
+    move_points_change: Value_Change
 }
 
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
-    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Anchor_Smash>[]
-}
-
-type Ability_Effect_Tide_Anchor_Smash = {
-    ability_id: Ability_Id.tide_anchor_smash
-    deltas: [Delta_Health_Change, Delta_Attack_Bonus_Change]
+    duration: number
+    effects: {
+        unit_id: number
+        modifier_id: number
+        attack_change: Value_Change
+        damage_dealt: Value_Change
+    }[]
 }
 
 type Ability_Effect_Tide_Kraken_Shell_Trigger = {
@@ -221,25 +222,29 @@ type Ability_Effect_Tide_Kraken_Shell_Trigger = {
     unit_id: number
 }
 
-type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
-    ability_id: Ability_Id.tide_ravage
-    deltas: Delta_Modifier_Applied<Ability_Effect_Tide_Ravage>[]
+type Ravage_Target = {
+    unit_id: number
+    modifier_id: number
+    damage_dealt: Value_Change
+    stun_counter: Value_Change
 }
 
-type Ability_Effect_Tide_Ravage = {
+type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
-    deltas: [Delta_Health_Change, Delta_State_Stunned_Counter_Change]
+    targets: Ravage_Target[]
 }
 
 type Delta_Ability_Luna_Lucent_Beam = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.luna_lucent_beam,
-    delta: Delta_Health_Change
+    damage_dealt: Value_Change
 }
 
 type Ability_Effect_Luna_Moon_Glaive = {
     ability_id: Ability_Id.luna_moon_glaive
-    delta: Delta_Health_Change
+    source_unit_id: number
+    target_unit_id: number
     original_target_id: number
+    damage_dealt: Value_Change
 }
 
 type Ability_Effect_Luna_Lunar_Blessing = {
@@ -249,6 +254,9 @@ type Ability_Effect_Luna_Lunar_Blessing = {
 
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
-    deltas: Delta_Health_Change[]
     missed_beams: number
+    targets: {
+        target_unit_id: number
+        damage_dealt: Value_Change
+    }[]
 }
