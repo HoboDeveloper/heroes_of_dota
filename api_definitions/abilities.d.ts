@@ -149,22 +149,28 @@ type Delta_Use_No_Target_Ability =
     Delta_Ability_Tide_Ravage |
     Delta_Ability_Luna_Eclipse
 
-type Delta_Ability_Basic_Attack_Deltas_Hit = {
+type Basic_Attack_Hit = {
     hit: true
-    delta: Delta_Health_Change
+    target_unit_id: number
+    damage_dealt: Value_Change
 }
 
 type Delta_Ability_Basic_Attack = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.basic_attack
-    result: Delta_Ability_Basic_Attack_Deltas_Hit | Delta_Ability_Line_Ability_Miss
+    result: Basic_Attack_Hit | Line_Ability_Miss
 }
 
-type Delta_Ability_Pudge_Hook_Deltas_Hit = {
+type Pudge_Hook_Hit = {
     hit: true
-    deltas: [ Delta_Health_Change, Delta_Force_Move ]
+    target_unit_id: number
+    damage_dealt: Value_Change
+    move_target_to: {
+        x: number
+        y: number
+    }
 }
 
-type Delta_Ability_Line_Ability_Miss = {
+type Line_Ability_Miss = {
     hit: false
     final_point: {
         x: number
@@ -174,17 +180,22 @@ type Delta_Ability_Line_Ability_Miss = {
 
 type Delta_Ability_Pudge_Hook = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_hook
-    result: Delta_Ability_Pudge_Hook_Deltas_Hit | Delta_Ability_Line_Ability_Miss
+    result: Pudge_Hook_Hit | Line_Ability_Miss
 }
 
 type Delta_Ability_Pudge_Rot = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_rot
-    deltas: Delta_Health_Change[]
+    targets: {
+        target_unit_id: number
+        damage_dealt: Value_Change
+    }[]
 }
 
 type Ability_Effect_Pudge_Flesh_Heap = {
+    unit_id: number
     ability_id: Ability_Id.pudge_flesh_heap
-    deltas: [ Delta_Max_Health_Change, Delta_Health_Change ]
+    health_change: Value_Change
+    max_health_change: Value_Change
 }
 
 type Value_Change = {
@@ -209,8 +220,8 @@ type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
     duration: number
-    effects: {
-        unit_id: number
+    targets: {
+        target_unit_id: number
         modifier_id: number
         attack_change: Value_Change
         damage_dealt: Value_Change
@@ -223,7 +234,7 @@ type Ability_Effect_Tide_Kraken_Shell_Trigger = {
 }
 
 type Ravage_Target = {
-    unit_id: number
+    target_unit_id: number
     modifier_id: number
     damage_dealt: Value_Change
     stun_counter: Value_Change
@@ -231,6 +242,7 @@ type Ravage_Target = {
 
 type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
+    duration: number
     targets: Ravage_Target[]
 }
 

@@ -222,9 +222,7 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
 }
 
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ability_Pudge_Hook) {
-    function is_hook_hit(
-        cast: Delta_Ability_Pudge_Hook_Deltas_Hit | Delta_Ability_Line_Ability_Miss
-    ): cast is Delta_Ability_Pudge_Hook_Deltas_Hit {
+    function is_hook_hit(cast: Pudge_Hook_Hit | Line_Ability_Miss): cast is Pudge_Hook_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
@@ -237,8 +235,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     let travel_target: XY;
 
     if (is_hook_hit(cast.result)) {
-        const [damage] = from_client_tuple(cast.result.deltas);
-        const target = find_unit_by_id(damage.target_unit_id);
+        const target = find_unit_by_id(cast.result.target_unit_id);
 
         if (!target) {
             log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
@@ -275,8 +272,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
         .to_unit_custom_origin(7, pudge);
 
     if (is_hook_hit(cast.result)) {
-        const [damage, move] = from_client_tuple(cast.result.deltas);
-        const target = find_unit_by_id(damage.target_unit_id);
+        const target = find_unit_by_id(cast.result.target_unit_id);
 
         if (!target) {
             log_chat_debug_message("Error, Pudge DAMAGE TARGET not found");
@@ -284,7 +280,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
         }
 
         wait(time_to_travel);
-        play_delta(main_player, damage);
+        change_health(main_player, pudge, target, cast.result.damage_dealt);
 
         pudge.handle.StopSound(chain_sound);
 
@@ -293,30 +289,23 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
 
         target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
 
-        const move_target = find_unit_by_id(move.unit_id);
-
-        if (!move_target) {
-            log_chat_debug_message("Error, Pudge MOVE TARGET not found");
-            return;
-        }
-
         fx("particles/units/heroes/hero_pudge/pudge_meathook_impact.vpcf")
-            .to_unit_attach_point(0, move_target, "attach_hitloc")
+            .to_unit_attach_point(0, target, "attach_hitloc")
             .release();
 
-        chain.to_unit_attach_point(1, move_target, "attach_hitloc", move_target.handle.GetOrigin() + hook_offset as Vector);
+        chain.to_unit_attach_point(1, target, "attach_hitloc", target.handle.GetOrigin() + hook_offset as Vector);
 
         const travel_start_time = GameRules.GetGameTime();
-        const target_world_position = battle_position_to_world_position_center(move.to_position);
-        const travel_position_start = move_target.handle.GetAbsOrigin();
-        const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), move_target.handle);
+        const target_world_position = battle_position_to_world_position_center(cast.result.move_target_to);
+        const travel_position_start = target.handle.GetAbsOrigin();
+        const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), target.handle);
 
         while (true) {
             const now = GameRules.GetGameTime();
             const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
             const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vector;
 
-            move_target.handle.SetAbsOrigin(travel_position);
+            target.handle.SetAbsOrigin(travel_position);
 
             if (now >= travel_start_time + time_to_travel) {
                 break;
@@ -328,7 +317,7 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
         target.handle.StopSound(chain_sound);
         target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
 
-        move_target.position = move.to_position;
+        target.position = cast.result.move_target_to;
     } else {
         wait(time_to_travel);
 
@@ -365,10 +354,10 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
     fx.release();
 
     for (const target_data of from_client_array(cast.targets)) {
-        const target = find_unit_by_id(target_data.unit_id);
+        const target = find_unit_by_id(target_data.target_unit_id);
 
         if (!target) {
-            log_chat_debug_message(`Target with id ${target_data.unit_id} not found`);
+            log_chat_debug_message(`Target with id ${target_data.target_unit_id} not found`);
             continue;
         }
 
@@ -420,10 +409,10 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
         if (!by_distance) continue;
 
         for (const target_data of by_distance) {
-            const target = find_unit_by_id(target_data.unit_id);
+            const target = find_unit_by_id(target_data.target_unit_id);
 
             if (!target) {
-                log_chat_debug_message(`Target with id ${target_data.unit_id} not found`);
+                log_chat_debug_message(`Target with id ${target_data.target_unit_id} not found`);
                 continue;
             }
 
@@ -524,9 +513,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
 
     const ranged_attack_spec = get_ranged_attack_spec(unit.type);
 
-    function is_attack_hit(
-        cast: Delta_Ability_Basic_Attack_Deltas_Hit | Delta_Ability_Line_Ability_Miss
-    ): cast is Delta_Ability_Basic_Attack_Deltas_Hit {
+    function is_attack_hit(cast: Basic_Attack_Hit | Line_Ability_Miss): cast is Basic_Attack_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
@@ -554,16 +541,15 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         }
 
         if (is_attack_hit(cast.result)) {
-            const delta = cast.result.delta;
-            const target_unit = find_unit_by_id(delta.target_unit_id);
+            const target_unit = find_unit_by_id(cast.result.target_unit_id);
 
             if (!target_unit) {
-                log_chat_debug_message(`Error: unit ${delta.target_unit_id} not found`);
+                log_chat_debug_message(`Error: unit ${cast.result.target_unit_id} not found`);
                 return;
             }
 
             tracking_projectile_to_unit(unit, target_unit, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
-            play_delta(main_player, delta);
+            change_health(main_player, unit, target_unit, cast.result.damage_dealt);
             try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target_unit);
 
             if (ranged_attack_spec.shake_on_impact) {
@@ -581,7 +567,12 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
         if (is_attack_hit(cast.result)) {
-            play_delta(main_player, cast.result.delta);
+            const target_unit = find_unit_by_id(cast.result.target_unit_id);
+
+            if (target_unit) {
+                change_health(main_player, unit, target_unit, cast.result.damage_dealt);
+            }
+
             shake_screen(target, Shake.weak);
             try_play_sound_for_unit(unit, get_unit_attack_sound);
         }
@@ -684,8 +675,12 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            for (const delta of from_client_array(cast.deltas)) {
-                play_delta(main_player, delta);
+            for (const target_data of from_client_array(cast.targets)) {
+                const target = find_unit_by_id(target_data.target_unit_id);
+
+                if (target) {
+                    change_health(main_player, unit, target, target_data.damage_dealt);
+                }
             }
 
             wait(1.0);
@@ -709,8 +704,8 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             wait(0.2);
 
-            for (const effect of from_client_array(cast.effects)) {
-                const target = find_unit_by_id(effect.unit_id);
+            for (const effect of from_client_array(cast.targets)) {
+                const target = find_unit_by_id(effect.target_unit_id);
 
                 if (target) {
                     change_health(main_player, unit, target, effect.damage_dealt);
@@ -852,8 +847,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
         }
 
         case Ability_Id.pudge_flesh_heap: {
-            const [ health_bonus, heal ] = from_client_tuple(effect.deltas);
-            const unit = find_unit_by_id(health_bonus.target_unit_id);
+            const unit = find_unit_by_id(effect.unit_id);
 
             if (unit) {
                 fx_by_unit("particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf", unit)
@@ -862,8 +856,8 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
 
                 unit_emit_sound(unit, "pudge_ability_flesh_heap");
 
-                play_delta(main_player, health_bonus);
-                play_delta(main_player, heal);
+                change_field(main_player, unit, Unit_Field.max_health, effect.max_health_change);
+                change_health(main_player, unit, unit, effect.health_change);
             }
 
             break;
@@ -894,9 +888,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             break;
         }
 
-        default: {
-            log_chat_debug_message(`Error no ability effect for ability ${effect.ability_id} found`);
-        }
+        default: unreachable(effect);
     }
 }
 

@@ -216,20 +216,14 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
             break;
         }
 
-        const flat_deltas = flatten_deltas([ delta ]);
+        update_related_visual_data_from_delta(delta, delta_paths);
+        collapse_delta(battle, delta);
 
-        // $.Msg(flat_deltas);
+        if (delta.type == Delta_Type.unit_spawn) {
+            const spawned_unit = find_unit_by_id(battle, delta.unit_id);
 
-        for (let flat_delta of flat_deltas) {
-            update_related_visual_data_from_delta(flat_delta, delta_paths);
-            collapse_delta(battle, flat_delta);
-
-            if (flat_delta.type == Delta_Type.unit_spawn) {
-                const spawned_unit = find_unit_by_id(battle, flat_delta.unit_id);
-
-                if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
-                    add_spawned_hero_to_control_panel(spawned_unit);
-                }
+            if (spawned_unit && spawned_unit.owner_player_id == this_player_id) {
+                add_spawned_hero_to_control_panel(spawned_unit);
             }
         }
     }

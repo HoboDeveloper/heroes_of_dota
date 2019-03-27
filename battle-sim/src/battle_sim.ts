@@ -327,59 +327,22 @@ function pass_turn_to_next_player(battle: Battle) {
     }
 }
 
-function flatten_deltas(deltas: Delta[]): Delta[] {
-    const flattened: Delta[] = [];
-
-    for (const delta of deltas) {
-        flattened.push(delta);
-
-        switch (delta.type) {
-            case Delta_Type.use_ground_target_ability:
-            case Delta_Type.use_unit_target_ability:
-            case Delta_Type.use_no_target_ability: {
-                const cast_deltas = cast_to_deltas(delta);
-
-                if (cast_deltas) {
-                    flattened.push(...cast_deltas);
-                }
-
-                break;
-            }
-
-            case Delta_Type.ability_effect_applied:
-            case Delta_Type.modifier_appled: {
-                const effect_deltas = ability_effect_to_deltas(delta.effect);
-
-                if (effect_deltas) {
-                    flattened.push(...effect_deltas);
-                }
-
-                break;
-            }
-        }
-    }
-
-    return flattened;
-}
-
 function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Delta[]): Delta[] {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
 
-    const flattened = flatten_deltas(deltas);
-
-    for (let flattened_delta of flattened) {
-        if (!flattened_delta) {
+    for (const delta of deltas) {
+        if (!delta) {
             break;
         }
 
-        collapse_delta(battle, flattened_delta);
+        collapse_delta(battle, delta);
     }
 
     battle.delta_head += deltas.length;
 
-    return flattened;
+    return deltas;
 }
 
 function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefined {
@@ -416,41 +379,175 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
-function cast_to_deltas(cast: Delta_Unit_Target_Ability | Delta_Ground_Target_Ability | Delta_Use_No_Target_Ability): Delta[] | undefined {
+function change_health(battle: Battle, source: Unit, target: Unit, change: Value_Change) {
+    target.health = change.new_value;
+
+    if (change.new_value == 0) {
+        grid_cell_at_unchecked(battle, target.position).occupied = false;
+
+        target.dead = true;
+    }
+}
+
+function change_field(target: Unit, field: Unit_Field, change: Value_Change) {
+    target[field] = change.new_value;
+
+    switch (field) {
+        case Unit_Field.max_move_points: target.move_points = Math.min(target.move_points, change.new_value); break;
+        case Unit_Field.max_health: target.health = Math.min(target.health, change.new_value); break;
+        case Unit_Field.max_mana: target.mana = Math.min(target.mana, change.new_value); break;
+    }
+}
+
+function apply_modifier(source: Unit, target: Unit, modifier_id: number, ability_id: Ability_Id, duration: number) {
+    target.modifiers.push({
+        id: modifier_id,
+        source: source,
+        source_ability: ability_id,
+        permanent: false,
+        duration_remaining: duration
+    });
+}
+
+function collapse_ability_effect(battle: Battle, ability_effect: Ability_Effect) {
+    switch (ability_effect.ability_id) {
+        case Ability_Id.pudge_flesh_heap: {
+            break;
+        }
+
+        case Ability_Id.luna_lunar_blessing: {
+            break;
+        }
+
+        case Ability_Id.luna_moon_glaive: {
+            break;
+        }
+
+        case Ability_Id.tide_kraken_shell: {
+            break;
+        }
+
+        default: unreachable(ability_effect);
+    }
+}
+
+function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: Unit, cast: Delta_Unit_Target_Ability) {
     switch (cast.ability_id) {
-        case Ability_Id.basic_attack: if (cast.result.hit) return [ cast.result.delta ]; else return;
-        case Ability_Id.pudge_hook: if (cast.result.hit) return cast.result.deltas; else return;
-        case Ability_Id.pudge_rot: return cast.deltas;
-        case Ability_Id.pudge_dismember: return [ cast.damage_delta, cast.heal_delta ];
-        case Ability_Id.tide_gush: return flatten_deltas([ cast.delta ]);
-        case Ability_Id.tide_anchor_smash: return flatten_deltas(cast.deltas); // TODO we need a recursive flattener
-        case Ability_Id.tide_ravage: return flatten_deltas(cast.deltas);
-        case Ability_Id.luna_lucent_beam: return [ cast.delta ];
-        case Ability_Id.luna_eclipse: return cast.deltas;
+        case Ability_Id.pudge_dismember: {
+            change_health(battle, source, source, cast.health_restored);
+            change_health(battle, source, target, cast.damage_dealt);
+
+            break;
+        }
+
+        case Ability_Id.luna_lucent_beam: {
+            change_health(battle, source, target, cast.damage_dealt);
+
+            break;
+        }
+
+        case Ability_Id.tide_gush: {
+            change_health(battle, source, target, cast.damage_dealt);
+            change_field(target, Unit_Field.max_move_points, cast.move_points_change);
+            apply_modifier(source, target, cast.modifier_id, cast.ability_id, cast.duration);
+
+            break;
+        }
 
         default: unreachable(cast);
     }
 }
 
-function ability_effect_to_deltas(effect: Ability_Effect): Delta[] | undefined {
-    switch (effect.ability_id) {
-        case Ability_Id.pudge_flesh_heap: return effect.deltas;
-        case Ability_Id.tide_gush: return flatten_deltas(effect.deltas);
-        case Ability_Id.tide_anchor_smash: return flatten_deltas(effect.deltas); // TODO we need a recursive flattener
-        case Ability_Id.tide_ravage: return flatten_deltas(effect.deltas);
-        case Ability_Id.tide_kraken_shell: return [];
-        case Ability_Id.luna_moon_glaive: return [ effect.delta ];
-        case Ability_Id.luna_lunar_blessing: return [ effect.delta ];
+function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delta_Use_No_Target_Ability) {
+    switch (cast.ability_id) {
+        case Ability_Id.tide_ravage: {
+            for (const effect of cast.targets) {
+                const target = find_unit_by_id(battle, effect.target_unit_id);
 
-        default: unreachable(effect);
+                if (target) {
+                    change_health(battle, source, target, effect.damage_dealt);
+                    change_field(target, Unit_Field.state_stunned_counter, effect.stun_counter);
+                    apply_modifier(source, target, effect.modifier_id, cast.ability_id, cast.duration);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.luna_eclipse: {
+            for (const effect of cast.targets) {
+                const target = find_unit_by_id(battle, effect.target_unit_id);
+
+                if (target) {
+                    change_health(battle, source, target, effect.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.tide_anchor_smash: {
+            for (const effect of cast.targets) {
+                const target = find_unit_by_id(battle, effect.target_unit_id);
+
+                if (target) {
+                    change_health(battle, source, target, effect.damage_dealt);
+                    change_field(target, Unit_Field.attack_bonus, effect.attack_change);
+                    apply_modifier(source, target, effect.modifier_id, cast.ability_id, cast.duration);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.pudge_rot: {
+            for (const effect of cast.targets) {
+                const target = find_unit_by_id(battle, effect.target_unit_id);
+
+                if (target) {
+                    change_health(battle, source, target, effect.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        default: unreachable(cast);
     }
 }
 
-function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
+function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Cell, cast: Delta_Ground_Target_Ability) {
+    switch (cast.ability_id) {
+        case Ability_Id.basic_attack: {
+            if (cast.result.hit) {
+                const target = find_unit_by_id(battle, cast.result.target_unit_id);
 
+                if (target) {
+                    change_health(battle, source, target, cast.result.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.pudge_hook: {
+            if (cast.result.hit) {
+                const target = find_unit_by_id(battle, cast.result.target_unit_id);
+
+                if (target) {
+                    move_unit(battle, target, cast.result.move_target_to);
+                    change_health(battle, source, target, cast.result.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        default: unreachable(cast);
+    }
 }
 
-function collapse_delta(battle: Battle, delta: Delta) {
+function collapse_delta(battle: Battle, delta: Delta): void {
     switch (delta.type) {
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
@@ -495,16 +592,11 @@ function collapse_delta(battle: Battle, delta: Delta) {
         }
 
         case Delta_Type.health_change: {
+            const source = find_unit_by_id(battle, delta.source_unit_id);
             const target = find_unit_by_id(battle, delta.target_unit_id);
 
-            if (target) {
-                target.health = delta.new_value;
-
-                if (delta.new_value == 0) {
-                    grid_cell_at_unchecked(battle, target.position).occupied = false;
-
-                    target.dead = true;
-                }
+            if (source && target) {
+                change_health(battle, source, target, delta);
             }
 
             break;
@@ -532,6 +624,36 @@ function collapse_delta(battle: Battle, delta: Delta) {
 
                 if (ability && ability.type != Ability_Type.passive) {
                     ability.cooldown_remaining = ability.cooldown;
+                }
+
+                switch (delta.type) {
+                    case Delta_Type.use_no_target_ability: {
+                        collapse_no_target_ability_use(battle, unit, delta);
+
+                        break;
+                    }
+
+                    case Delta_Type.use_unit_target_ability: {
+                        const target = find_unit_by_id(battle, delta.target_unit_id);
+
+                        if (target) {
+                            collapse_unit_target_ability_use(battle, unit, target, delta);
+                        }
+
+                        break;
+                    }
+
+                    case Delta_Type.use_ground_target_ability: {
+                        const target = grid_cell_at(battle, delta.target_position);
+
+                        if (target) {
+                            collapse_ground_target_ability_use(battle, unit, target, delta);
+                        }
+
+                        break;
+                    }
+
+                    default: unreachable(delta);
                 }
             }
 
@@ -571,13 +693,7 @@ function collapse_delta(battle: Battle, delta: Delta) {
             const unit = find_unit_by_id(battle, delta.target_unit_id);
 
             if (unit) {
-                unit[delta.field] = delta.new_value;
-
-                switch (delta.field) {
-                    case Unit_Field.max_move_points: unit.move_points = Math.min(unit.move_points, delta.new_value); break;
-                    case Unit_Field.max_health: unit.health = Math.min(unit.health, delta.new_value); break;
-                    case Unit_Field.max_mana: unit.mana = Math.min(unit.mana, delta.new_value); break;
-                }
+                change_field(unit, delta.field, delta); // TODO use Value_Change
             }
 
             break;
@@ -644,7 +760,9 @@ function collapse_delta(battle: Battle, delta: Delta) {
         }
 
         case Delta_Type.ability_effect_applied: {
-            return ability_effect_to_deltas(delta.effect);
+            collapse_ability_effect(battle, delta.effect);
+
+            break;
         }
 
         case Delta_Type.draw_card: {
