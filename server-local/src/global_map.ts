@@ -112,7 +112,9 @@ function update_player_from_movement_history(player: Player) {
     // player.hero_unit.SetBaseMoveSpeed(295 + (movement_history_length - closest_entry_index) * 20);
 
     if (closest_entry) {
-        player.hero_unit.MoveToPosition(Vector(closest_entry.order_x, closest_entry.order_y));
+        if (minimum_distance > 0) {
+            player.hero_unit.MoveToPosition(Vector(closest_entry.order_x, closest_entry.order_y));
+        }
     } else if (player.movement_history.length > 0) {
         const last_entry = player.movement_history[player.movement_history.length - 1];
 
