@@ -482,6 +482,10 @@ handlers.set("/trusted/attack_player", body => {
             return;
         }
 
+        if (!can_player(other_player, Right.participate_in_a_battle)) {
+            return;
+        }
+
         initiate_battle_between_players(player, other_player);
 
         return player_to_player_state_object(player);
