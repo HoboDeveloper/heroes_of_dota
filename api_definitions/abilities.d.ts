@@ -47,6 +47,7 @@ type Ability_Pudge_Dismember = Ability_Definition_Active_Base & {
     id: Ability_Id.pudge_dismember
     type: Ability_Type.target_unit
     targeting: Ability_Targeting_Unit_In_Manhattan_Distance
+    damage: number
 }
 
 type Ability_Tide_Gush = Ability_Definition_Active_Base & {
@@ -261,7 +262,10 @@ type Ability_Effect_Luna_Moon_Glaive = {
 
 type Ability_Effect_Luna_Lunar_Blessing = {
     ability_id: Ability_Id.luna_lunar_blessing
-    delta: Delta_Attack_Bonus_Change
+    modifier_id: number
+    source_unit_id: number
+    target_unit_id: number
+    damage_bonus: Value_Change
 }
 
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {

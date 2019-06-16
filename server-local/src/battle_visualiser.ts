@@ -361,7 +361,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
             continue;
         }
 
-        const from = target.position;
+        const from = caster.position;
         const to = target.position;
         const manhattan_distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 
@@ -883,7 +883,11 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
         }
 
         case Ability_Id.luna_lunar_blessing: {
-            play_delta(main_player, effect.delta);
+            const unit = find_unit_by_id(effect.target_unit_id);
+
+            if (unit) {
+                change_field(main_player, unit, Unit_Field.attack_bonus, effect.damage_bonus);
+            }
 
             break;
         }

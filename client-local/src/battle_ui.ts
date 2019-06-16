@@ -324,10 +324,13 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             deltas: [],
             world_origin: new_state.battle.world_origin,
             cells: [],
+            modifiers: [],
             cell_index_to_unit: [],
             entity_id_to_unit_data: {},
             unit_id_to_facing: {},
-            outline_particles: []
+            outline_particles: [],
+            change_health: change_health_default,
+            change_field: change_field_default
         };
 
         const particle_bottom_left_origin: XYZ = [

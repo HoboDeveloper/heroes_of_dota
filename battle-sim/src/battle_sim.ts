@@ -24,13 +24,16 @@ type Ability_Authorization_Error = {
 type Ability_Authorization = Ability_Authorization_Ok | Ability_Authorization_Error;
 
 type Battle = {
-    delta_head: number;
-    units: Unit[];
-    players: Battle_Player[];
-    deltas: Delta[];
-    turning_player_index: number;
-    cells: Cell[];
-    grid_size: XY;
+    delta_head: number
+    units: Unit[]
+    players: Battle_Player[]
+    deltas: Delta[]
+    turning_player_index: number
+    cells: Cell[]
+    grid_size: XY
+    modifiers: Modifier_Data[]
+    change_health: (battle: Battle, source: Unit, target: Unit, change: Value_Change) => boolean
+    change_field: (battle: Battle, target: Unit, field: Unit_Field, change: Value_Change, tie_to_modifier_id?: number) => void
 }
 
 type Cell = {
@@ -85,6 +88,22 @@ type Ability_Active = Ability_Definition_Active & {
 }
 
 type Ability = Ability_Passive | Ability_Active;
+
+declare const enum Modifier_Data_Type {
+    field_change = 0
+}
+
+type Modifier_Data_Base = {
+    id: number
+}
+
+type Modifier_Data_Field_Change = Modifier_Data_Base & {
+    type: Modifier_Data_Type.field_change
+    field: Unit_Field,
+    change: Value_Change
+}
+
+type Modifier_Data = Modifier_Data_Field_Change;
 
 type XY = {
     x: number;
@@ -192,6 +211,15 @@ function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | u
             }
         }
     }
+}
+
+function register_field_change_modifier(battle: Battle, modifier_id: number, field: Unit_Field, change: Value_Change) {
+    battle.modifiers.push({
+        id: modifier_id,
+        type: Modifier_Data_Type.field_change,
+        field: field,
+        change: change
+    });
 }
 
 // TODO replace with a more efficient A* implementation
@@ -327,7 +355,7 @@ function pass_turn_to_next_player(battle: Battle) {
     }
 }
 
-function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Delta[]): Delta[] {
+function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Delta[]) {
     for (let index = 0; index < deltas.length; index++) {
         battle.deltas[head_before_merge + index] = deltas[index];
     }
@@ -341,8 +369,6 @@ function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Delt
     }
 
     battle.delta_head += deltas.length;
-
-    return deltas;
 }
 
 function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefined {
@@ -379,17 +405,25 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
-function change_health(battle: Battle, source: Unit, target: Unit, change: Value_Change) {
+function change_health_default(battle: Battle, source: Unit, target: Unit, change: Value_Change): boolean {
     target.health = change.new_value;
 
-    if (change.new_value == 0) {
+    if (!target.dead && change.new_value == 0) {
         grid_cell_at_unchecked(battle, target.position).occupied = false;
 
         target.dead = true;
+
+        return true;
     }
+
+    return false;
 }
 
-function change_field(target: Unit, field: Unit_Field, change: Value_Change) {
+function change_health(battle: Battle, source: Unit, target: Unit, change: Value_Change) {
+    return battle.change_health(battle, source, target, change);
+}
+
+function change_field_default(battle: Battle, target: Unit, field: Unit_Field, change: Value_Change, tie_to_modifier_id?: number) {
     target[field] = change.new_value;
 
     switch (field) {
@@ -397,29 +431,67 @@ function change_field(target: Unit, field: Unit_Field, change: Value_Change) {
         case Unit_Field.max_health: target.health = Math.min(target.health, change.new_value); break;
         case Unit_Field.max_mana: target.mana = Math.min(target.mana, change.new_value); break;
     }
+
+    if (tie_to_modifier_id != undefined) {
+        register_field_change_modifier(battle, tie_to_modifier_id, field, change);
+    }
 }
 
-function apply_modifier(source: Unit, target: Unit, modifier_id: number, ability_id: Ability_Id, duration: number) {
-    target.modifiers.push({
-        id: modifier_id,
-        source: source,
-        source_ability: ability_id,
-        permanent: false,
-        duration_remaining: duration
-    });
+function change_field(battle: Battle, target: Unit, field: Unit_Field, change: Value_Change, tie_to_modifier_id?: number) {
+    battle.change_field(battle, target, field, change, tie_to_modifier_id);
 }
 
-function collapse_ability_effect(battle: Battle, ability_effect: Ability_Effect) {
-    switch (ability_effect.ability_id) {
+function apply_modifier(source: Unit, target: Unit, modifier_id: number, ability_id: Ability_Id, duration?: number) {
+    if (duration) {
+        target.modifiers.push({
+            id: modifier_id,
+            source: source,
+            source_ability: ability_id,
+            permanent: false,
+            duration_remaining: duration
+        });
+    } else {
+        target.modifiers.push({
+            id: modifier_id,
+            source: source,
+            source_ability: ability_id,
+            permanent: true
+        });
+    }
+}
+
+function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
+    switch (effect.ability_id) {
         case Ability_Id.pudge_flesh_heap: {
+            const unit = find_unit_by_id(battle, effect.unit_id);
+
+            if (unit) {
+                change_field(battle, unit, Unit_Field.max_health, effect.max_health_change);
+                change_health(battle, unit, unit, effect.health_change);
+            }
             break;
         }
 
         case Ability_Id.luna_lunar_blessing: {
+            const source = find_unit_by_id(battle, effect.source_unit_id);
+            const target = find_unit_by_id(battle, effect.target_unit_id);
+
+            if (source && target) {
+                apply_modifier(source, target, effect.modifier_id, effect.ability_id);
+                change_field(battle, target, Unit_Field.attack_bonus, effect.damage_bonus, effect.modifier_id);
+            }
+
             break;
         }
 
         case Ability_Id.luna_moon_glaive: {
+            const source = find_unit_by_id(battle, effect.source_unit_id);
+            const target = find_unit_by_id(battle, effect.target_unit_id);
+
+            if (source && target) {
+                change_health(battle, source, target, effect.damage_dealt);
+            }
+
             break;
         }
 
@@ -427,7 +499,7 @@ function collapse_ability_effect(battle: Battle, ability_effect: Ability_Effect)
             break;
         }
 
-        default: unreachable(ability_effect);
+        default: unreachable(effect);
     }
 }
 
@@ -448,7 +520,7 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 
         case Ability_Id.tide_gush: {
             change_health(battle, source, target, cast.damage_dealt);
-            change_field(target, Unit_Field.max_move_points, cast.move_points_change);
+            change_field(battle, target, Unit_Field.max_move_points, cast.move_points_change, cast.modifier_id);
             apply_modifier(source, target, cast.modifier_id, cast.ability_id, cast.duration);
 
             break;
@@ -466,7 +538,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, effect.damage_dealt);
-                    change_field(target, Unit_Field.state_stunned_counter, effect.stun_counter);
+                    change_field(battle, target, Unit_Field.state_stunned_counter, effect.stun_counter, effect.modifier_id);
                     apply_modifier(source, target, effect.modifier_id, cast.ability_id, cast.duration);
                 }
             }
@@ -492,7 +564,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, effect.damage_dealt);
-                    change_field(target, Unit_Field.attack_bonus, effect.attack_change);
+                    change_field(battle, target, Unit_Field.attack_bonus, effect.attack_change, effect.modifier_id);
                     apply_modifier(source, target, effect.modifier_id, cast.ability_id, cast.duration);
                 }
             }
@@ -693,7 +765,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             const unit = find_unit_by_id(battle, delta.target_unit_id);
 
             if (unit) {
-                change_field(unit, delta.field, delta); // TODO use Value_Change
+                change_field(battle, unit, delta.field, delta); // TODO use Value_Change
             }
 
             break;
@@ -740,6 +812,27 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 const index = unit.modifiers.indexOf(modifier);
 
                 unit.modifiers.splice(index, 1);
+
+                for (let modifier_data of battle.modifiers) {
+                    if (modifier_data.id == modifier.id) {
+
+                        switch (modifier_data.type) {
+                            case Modifier_Data_Type.field_change: {
+                                change_field(battle, unit, modifier_data.field, {
+                                    new_value: unit[modifier_data.field] - modifier_data.change.value_delta,
+                                    value_delta: -modifier_data.change.value_delta
+                                });
+
+                                break;
+                            }
+
+                            default: unreachable(modifier_data.type);
+                        }
+
+                        battle.modifiers.splice(index, 1);
+                        break;
+                    }
+                }
             }
 
             break;

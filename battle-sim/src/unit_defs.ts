@@ -100,7 +100,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 4,
                         targeting: target_unit_in_manhattan_distance(1),
                         cooldown: 2,
-                        mana_cost: 4
+                        mana_cost: 4,
+                        damage: 14
                     })
                 ]
             }
