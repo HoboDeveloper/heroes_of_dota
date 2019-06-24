@@ -188,6 +188,17 @@ type Card_Spell = {
 
 type Card = Card_Unknown | Card_Hero | Card_Spell;
 
+type Battle_Participant_Info = {
+    id: number
+    name: string
+    deployment_zone: {
+        min_x: number
+        min_y: number
+        max_x: number
+        max_y: number
+    }
+}
+
 type Battle_Player = {
     id: number
     name: string
@@ -451,6 +462,7 @@ type Query_Players_Movement_Request = {
 
 type Player_Movement_Data = {
     id: number
+    player_name: string // TODO might want to move id:name connection into a separate request
     movement_history: Movement_History_Entry[]
     current_location: {
         x: number
@@ -495,13 +507,13 @@ type Player_State_On_Global_Map_Data = {
 }
 
 type Player_State_In_Battle_Data = {
-    battle_id: number
     state: Player_State.in_battle
+    battle_id: number
     grid_size: {
         width: number
         height: number
     }
-    participants: Battle_Player[]
+    participants: Battle_Participant_Info[]
 }
 
 type Player_State_Data = Player_State_Not_Logged_In_Data | Player_State_On_Global_Map_Data | Player_State_In_Battle_Data

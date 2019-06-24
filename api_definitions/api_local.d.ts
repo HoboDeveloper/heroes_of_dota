@@ -31,7 +31,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
     state: Player_State.in_battle
     battle: {
         id: number
-        participants: Battle_Player[]
+        participants: Battle_Participant_Info[]
         world_origin: {
             x: number
             y: number

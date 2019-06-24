@@ -213,6 +213,27 @@ function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | u
     }
 }
 
+function make_battle(participants: Battle_Participant_Info[], grid_width: number, grid_height: number): Battle {
+    return {
+        delta_head: 0,
+        turning_player_index: 0,
+        units: [],
+        cells: [],
+        players: participants.map(participant => ({
+            id: participant.id,
+            name: participant.name,
+            deployment_zone: participant.deployment_zone,
+            has_used_a_card_this_turn: false,
+            hand: []
+        })),
+        deltas: [],
+        modifiers: [],
+        grid_size: xy(grid_width, grid_height),
+        change_field: change_field_default,
+        change_health: change_health_default
+    }
+}
+
 function register_field_change_modifier(battle: Battle, modifier_id: number, field: Unit_Field, change: Value_Change) {
     battle.modifiers.push({
         id: modifier_id,

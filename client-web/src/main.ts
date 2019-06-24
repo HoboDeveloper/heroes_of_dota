@@ -1,0 +1,726 @@
+type Mouse_State = {
+    clicked: boolean
+    x: number
+    y: number
+};
+
+type Game_Base = {
+    ctx: CanvasRenderingContext2D
+    canvas_width: number
+    canvas_height: number
+    access_token: string
+    requested_player_state_at: number
+    mouse: Mouse_State
+    player_id: number
+}
+
+type Game_Not_Logged_In = Game_Base & {
+    state: Player_State.not_logged_in
+}
+
+type Game_On_Global_Map = Game_Base & {
+    state: Player_State.on_global_map
+    nearby_players: Player[]
+    refreshed_nearby_players_at: number
+}
+
+type Game_In_Battle = Game_Base & {
+    state: Player_State.in_battle
+    battle: Battle
+    battle_id: number
+    requested_battle_deltas_at: number
+    selection: Selection_State
+}
+
+type Game = Game_In_Battle | Game_On_Global_Map | Game_Not_Logged_In;
+
+declare const enum Selection_Type {
+    none = 0,
+    card = 1,
+    unit = 2
+}
+
+type No_Selection = {
+    type: Selection_Type.none
+}
+
+type Card_Selection = {
+    type: Selection_Type.card
+    card_id: number
+}
+
+type Unit_Selection = {
+    type: Selection_Type.unit
+    unit_id: number
+}
+
+type Selection_State = No_Selection | Card_Selection | Unit_Selection;
+
+declare const enum Button_State {
+    default = 0,
+    hovered = 1,
+    clicked = 2
+}
+
+type Player = {
+    id: number
+    name: string
+}
+
+type Image_Resource = {
+    img: HTMLImageElement
+    loaded: boolean
+}
+
+let game: Game;
+
+const image_cache: Map<string, Image_Resource> = new Map();
+
+function image_from_url(url: string): Image_Resource {
+    const resource = image_cache.get(url);
+
+    if (resource) {
+        return resource;
+    }
+
+    const new_resource: Image_Resource = {
+        img: new Image(),
+        loaded: false
+    };
+
+    new_resource.img.src = url;
+    new_resource.img.onload = () => new_resource.loaded = true;
+
+    image_cache.set(url, new_resource);
+
+    return new_resource;
+}
+
+async function api_request<Request, Response>(path: string, data: Request): Promise<Response> {
+    const response = await fetch("http://127.0.0.1:3638" + path, {
+        method: "POST",
+        mode: "cors",
+        cache: "no-cache",
+        credentials: "same-origin",
+        redirect: "follow",
+        referrer: "no-referrer",
+        body: JSON.stringify(data),
+    });
+
+    return await response.json() as Response;
+}
+
+async function take_battle_action(game: Game_In_Battle, action: Turn_Action) {
+    const request = {
+        access_token: game.access_token,
+        action: action
+    };
+
+    const response = await api_request<Take_Battle_Action_Request, Take_Battle_Action_Response>("/take_battle_action", request);
+
+    receive_battle_deltas(game.battle, response.previous_head, response.deltas);
+}
+
+function contains(x: number, y: number, sx: number, sy: number, width: number, height: number) {
+    return x >= sx && y >= sy && x < sx + width && y < sy + height;
+}
+
+function on_player_clicked(state: Game, player: Player) {
+    api_request<Attack_Player_Request, Attack_Player_Response>("/trusted/attack_player", {
+        dedicated_server_key: "",
+        access_token: state.access_token,
+        target_player_id: player.id
+    });
+}
+
+function button_behavior(top_left_x: number, top_left_y: number, width: number, height: number): Button_State {
+    const hovered = contains(game.mouse.x, game.mouse.y, top_left_x, top_left_y, width, height);
+
+    if (hovered) {
+        if (game.mouse.clicked) {
+            return Button_State.clicked;
+        } else {
+            return Button_State.hovered;
+        }
+    }
+
+    return Button_State.default;
+}
+
+function button(text: string, top_left_x: number, top_left_y: number, font_size_px: number, padding: number): boolean {
+    const ctx = game.ctx;
+
+    ctx.font = `${font_size_px}px Open Sans`;
+
+    const text_width = ctx.measureText(text).width;
+    const button_width = padding + text_width + padding;
+    const button_height = padding + font_size_px + padding;
+
+    const state = button_behavior(top_left_x, top_left_y, button_width, button_height);
+
+    ctx.fillStyle = state == Button_State.hovered ? "#a4c7c2" : "#d0d0d0";
+    ctx.fillRect(top_left_x, top_left_y, button_width, button_height);
+
+    ctx.fillStyle = "black";
+    ctx.fillText(text, top_left_x + padding, top_left_y + padding + font_size_px / 2);
+
+    return state == Button_State.clicked;
+}
+
+function draw_player_list(game: Game_On_Global_Map) {
+    const font_size_px = 18;
+    const padding = 8;
+    const margin = 4;
+
+    let height_offset = 0;
+
+    for (const player of game.nearby_players) {
+        const top_left_x = 30, top_left_y = 70 + height_offset;
+
+        if (button(player.name, top_left_x, top_left_y, font_size_px, padding)) {
+            on_player_clicked(game, player);
+        }
+
+        height_offset += margin + padding + font_size_px + padding + margin;
+    }
+}
+
+function player_state_to_string(player_state: Player_State) {
+    switch (player_state) {
+        case Player_State.in_battle: return "in battle";
+        case Player_State.on_global_map: return "on global map";
+        case Player_State.not_logged_in: return "not logged in";
+    }
+}
+
+function draw_header(game: Game) {
+    const ctx = game.ctx;
+    const font_size_px = 20;
+
+    ctx.font = `${font_size_px}px Open Sans`;
+    ctx.fillStyle = "black";
+    ctx.fillText(player_state_to_string(game.state), 30, 30);
+}
+
+async function check_and_try_refresh_nearby_players(game: Game_On_Global_Map, time: number) {
+    if (time - game.refreshed_nearby_players_at < 1000) {
+        return;
+    }
+
+    game.refreshed_nearby_players_at = time;
+
+    const response = await api_request<Query_Players_Movement_Request, Query_Players_Movement_Response>("/trusted/query_players_movement", {
+        dedicated_server_key: "",
+        access_token: game.access_token
+    });
+
+    game.nearby_players = response.map(player => {
+        return {
+            id: player.id,
+            name: player.player_name
+        }
+    });
+}
+
+async function check_and_try_request_player_state(state: Game, time: number) {
+    if (time - state.requested_player_state_at < 1000) {
+        return
+    }
+
+    state.requested_player_state_at = time;
+
+    const player_data = await api_request<Get_Player_State_Request, Player_State_Data>("/get_player_state", {
+        access_token: state.access_token
+    });
+
+    if (player_data.state != game.state) {
+        game = game_from_state(player_data, game);
+    }
+}
+
+async function check_and_try_request_battle_deltas(game: Game_In_Battle, time: number) {
+    if (time - game.requested_battle_deltas_at < 1000) {
+        return;
+    }
+
+    const head_before = game.battle.delta_head;
+    const request: Query_Deltas_Request = {
+        access_token: game.access_token,
+        battle_id: game.battle_id,
+        since_delta: head_before
+    };
+
+    game.requested_battle_deltas_at = time;
+
+    const response = await api_request<Query_Deltas_Request, Query_Deltas_Response>("/query_battle_deltas", request);
+
+    receive_battle_deltas(game.battle, head_before, response.deltas);
+}
+
+function receive_battle_deltas(battle: Battle, head_before_merge: number, deltas: Delta[]) {
+    if (deltas.length == 0) {
+        return;
+    }
+
+    console.log(`Received ${deltas.length} new deltas`);
+
+    for (let index = 0; index < deltas.length; index++) {
+        battle.deltas[head_before_merge + index] = deltas[index];
+    }
+
+    for (; battle.delta_head < battle.deltas.length; battle.delta_head++) {
+        const delta = battle.deltas[battle.delta_head];
+
+        if (!delta) {
+            break;
+        }
+
+        collapse_delta(battle, delta);
+    }
+}
+
+function on_cell_clicked(game: Game_In_Battle, player: Battle_Player, x: number, y: number) {
+    switch (game.selection.type) {
+        case Selection_Type.card: {
+            const zone = player.deployment_zone;
+
+            if (x < zone.max_x && x >= zone.min_x && y < zone.max_y && y >= zone.min_y) {
+                take_battle_action(game, {
+                    type: Action_Type.use_hero_card,
+                    at: { x: x, y: y },
+                    card_id: game.selection.card_id
+                })
+            }
+
+            break;
+        }
+
+        case Selection_Type.none: {
+            const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
+
+            if (unit_at) {
+                game.selection = {
+                    type: Selection_Type.unit,
+                    unit_id: unit_at.id
+                }
+            }
+
+            break;
+        }
+
+        case Selection_Type.unit: {
+            const selected_unit = find_unit_by_id(game.battle, game.selection.unit_id);
+            const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
+
+            if (!selected_unit) {
+                break;
+            }
+
+            if (unit_at) {
+                if (selected_unit.attack.type == Ability_Type.target_ground) {
+                    if (can_ability_be_cast_at_target_from_source(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
+                        take_battle_action(game, {
+                            type: Action_Type.ground_target_ability,
+                            unit_id: selected_unit.id,
+                            ability_id: selected_unit.attack.id,
+                            to: xy(x, y)
+                        });
+                    }
+                }
+            } else {
+                const [can_go] = can_find_path(game.battle, selected_unit.position, xy(x, y), selected_unit.move_points);
+
+                if (can_go) {
+                    take_battle_action(game, {
+                        type: Action_Type.move,
+                        unit_id: selected_unit.id,
+                        to: xy(x, y)
+                    });
+                }
+            }
+
+            break;
+        }
+    }
+}
+
+function get_hero_name(type: Unit_Type): string {
+    switch (type) {
+        case Unit_Type.sniper: return "sniper";
+        case Unit_Type.pudge: return "pudge";
+        case Unit_Type.ursa: return "ursa";
+        case Unit_Type.tidehunter: return "tidehunter";
+        case Unit_Type.luna: return "luna";
+
+        default: return unreachable(type);
+    }
+}
+
+function draw_grid(game: Game_In_Battle, player: Battle_Player) {
+    const ctx = game.ctx;
+
+    const top_left_x = 120;
+    const top_left_y = 120;
+
+    const cell_size = 36;
+
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+    ctx.translate(top_left_x, top_left_y);
+    ctx.beginPath();
+
+    for (let x = 0; x <= game.battle.grid_size.x; x++) {
+        ctx.moveTo(x * cell_size, 0);
+        ctx.lineTo(x * cell_size, game.battle.grid_size.y * cell_size);
+    }
+
+    for (let y = 0; y <= game.battle.grid_size.y; y++) {
+        ctx.moveTo(0, y * cell_size);
+        ctx.lineTo(game.battle.grid_size.x * cell_size, y * cell_size);
+    }
+
+    ctx.stroke();
+
+    if (game.selection.type == Selection_Type.card) {
+        const zone = player.deployment_zone;
+
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(
+            zone.min_x * cell_size,
+            zone.min_y * cell_size,
+            (zone.max_x - zone.min_x) * cell_size,
+            (zone.max_y - zone.min_y) * cell_size
+        );
+    }
+
+    for (let x = 0; x < game.battle.grid_size.x; x++) {
+        for (let y = 0; y < game.battle.grid_size.y; y++) {
+            const state = button_behavior(top_left_x + x * cell_size, top_left_y + y * cell_size, cell_size, cell_size);
+
+            if (state == Button_State.hovered) {
+                ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+                ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+            } else if (state == Button_State.clicked) {
+                on_cell_clicked(game, player, x, y);
+            }
+        }
+    }
+
+    ctx.fillStyle = "black";
+
+    const icon_size = cell_size * 0.75;
+    const icon_offset = (cell_size - icon_size) / 2;
+
+    for (const unit of game.battle.units) {
+        const xy = unit.position;
+
+        if (game.selection.type == Selection_Type.unit) {
+            if (game.selection.unit_id == unit.id) {
+                ctx.strokeStyle = "green";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
+
+                const min_x = Math.max(0, xy.x - unit.move_points);
+                const min_y = Math.max(0, xy.y - unit.move_points);
+                const max_x = Math.max(game.battle.grid_size.x, xy.x + unit.move_points);
+                const max_y = Math.max(game.battle.grid_size.y, xy.y + unit.move_points);
+
+                for (let x = min_x; x < max_x; x++) {
+                    for (let y = min_y; y < max_y; y++) {
+                        const [can_go] = can_find_path(game.battle, xy, { x: x, y: y }, unit.move_points);
+
+                        if (can_go) {
+                            ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
+                            ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+                        }
+                    }
+                }
+
+            }
+        }
+
+        const ally = unit.owner_player_id == game.player_id;
+
+        if (ally) {
+            if (unit.has_taken_an_action_this_turn) {
+                ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+            } else {
+                ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+            }
+        } else {
+            ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+        }
+
+        ctx.fillRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
+
+        const image = image_from_url(`http://cdn.dota2.com/apps/dota2/images/heroes/${get_hero_name(unit.type)}_icon.png`);
+
+        if (image.loaded) {
+            ctx.drawImage(
+                image.img,
+                0, 0,
+                image.img.width, image.img.height,
+                xy.x * cell_size + icon_offset,
+                xy.y * cell_size + icon_offset,
+                icon_size,
+                icon_size
+            );
+        }
+
+        const text = unit.health.toString();
+        const shadow_color = ally ? "rgb(17, 162, 0)" : "#aa0000aa";
+
+        ctx.font = "12px Open Sans";
+        ctx.strokeStyle = shadow_color;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = shadow_color;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.shadowBlur = 4;
+        ctx.strokeText(text, xy.x * cell_size, xy.y * cell_size);
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(text, xy.x * cell_size, xy.y * cell_size);
+    }
+
+    ctx.translate(-top_left_x, -top_left_y);
+}
+
+function do_one_frame(time: number) {
+    const ctx = game.ctx;
+
+    ctx.clearRect(0, 0, game.canvas_width, game.canvas_height);
+    ctx.textBaseline = "middle";
+
+    draw_header(game);
+
+    switch (game.state) {
+        case Player_State.on_global_map: {
+            draw_player_list(game);
+
+            check_and_try_refresh_nearby_players(game, time);
+
+            break;
+        }
+
+        case Player_State.in_battle: {
+            const this_player = game.battle.players.find(player => player.id == game.player_id);
+
+            if (!this_player) {
+                break;
+            }
+
+            draw_grid(game, this_player);
+
+            if (button("End turn", 30, 120, 18, 6)) {
+                take_battle_action(game, {
+                    type: Action_Type.end_turn
+                });
+
+                game.selection = {
+                    type: Selection_Type.none
+                }
+            }
+
+            for (let index = 0; index < this_player.hand.length; index++) {
+                const card = this_player.hand[index];
+
+                const top_left_x = 30;
+                const top_left_y = 180 + index * 34;
+
+                if (button(`Card ${card.id}`, top_left_x, top_left_y, 18, 6)) {
+                    game.selection = {
+                        type: Selection_Type.card,
+                        card_id: card.id
+                    }
+                }
+
+                if (game.selection.type == Selection_Type.card && game.selection.card_id == card.id) {
+                    ctx.strokeStyle = "green";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(top_left_x, top_left_y);
+                    ctx.lineTo(top_left_x, top_left_y + 30);
+                    ctx.stroke();
+                }
+            }
+
+            check_and_try_request_battle_deltas(game, time);
+
+            break;
+        }
+
+        case Player_State.not_logged_in: {
+            break;
+        }
+    }
+
+    check_and_try_request_player_state(game, time);
+
+    game.mouse.clicked = false;
+}
+
+function start_animation_frame_loop(time: number) {
+    requestAnimationFrame(time => start_animation_frame_loop(time));
+
+    do_one_frame(time);
+}
+
+function fix_canvas_dpi_scale(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
+    const width = canvas.width;
+    const height = canvas.height;
+
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const backingStoreRatio = 1; //context.backingStorePixelRatio || 1
+    const ratio = devicePixelRatio / backingStoreRatio;
+
+    if (devicePixelRatio !== backingStoreRatio) {
+        canvas.width = width * ratio;
+        canvas.height = height * ratio;
+
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+    } else {
+        canvas.width = width;
+        canvas.height = height;
+        canvas.style.width = '';
+        canvas.style.height = '';
+    }
+
+    context.scale(ratio, ratio);
+}
+
+function game_from_state(player_state: Player_State_Data, game_base: Game_Base): Game {
+    switch (player_state.state) {
+        case Player_State.in_battle: {
+            const battle = make_battle(player_state.participants, player_state.grid_size.width, player_state.grid_size.height);
+
+            fill_grid(battle);
+
+            return {
+                ...game_base,
+                state: player_state.state,
+                requested_battle_deltas_at: 0,
+                battle: battle,
+                battle_id: player_state.battle_id,
+                selection: { type: Selection_Type.none }
+            };
+        }
+
+        case Player_State.on_global_map: {
+            return {
+                ...game_base,
+                state: player_state.state,
+                nearby_players: [],
+                refreshed_nearby_players_at: 0
+            };
+        }
+
+        case Player_State.not_logged_in: {
+            return {
+                ...game_base,
+                state: player_state.state
+            };
+        }
+    }
+}
+
+async function start_game() {
+    const canvas_element = document.getElementById("canvas");
+
+    if (!canvas_element) {
+        throw "Canvas not found";
+    }
+
+    const canvas = (canvas_element as HTMLCanvasElement);
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+        throw "Unable to create draw context";
+    }
+
+    fix_canvas_dpi_scale(canvas, context);
+
+    const auth = await api_request<Authorize_Steam_User_Request, Authorize_Steam_User_Response>("/trusted/try_authorize_steam_user", {
+        dedicated_server_key: "",
+        steam_id: "3637",
+        steam_user_name: "Mister Guy"
+    });
+
+    const player_state = await api_request<Get_Player_State_Request, Player_State_Data>("/get_player_state", {
+        access_token: auth.token
+    });
+
+    if (player_state.state == Player_State.not_logged_in) {
+        const characters = await api_request<Get_Player_Characters_Request, Get_Player_Characters_Response>("/get_player_characters", {
+            access_token: auth.token
+        });
+
+        let selected_character = characters[0];
+
+        if (!selected_character) {
+            selected_character = await api_request<Create_New_Character_Request, Create_New_Character_Response>("/create_new_character", {
+                access_token: auth.token
+            });
+        }
+
+        await api_request<Login_With_Character_Request, Login_With_Character_Response>("/login_with_character", {
+            access_token: auth.token,
+            character_id: selected_character.id
+        });
+    }
+
+    game = game_from_state(player_state, {
+        canvas_width: canvas.width,
+        canvas_height: canvas.height,
+        ctx: context,
+        access_token: auth.token,
+        requested_player_state_at: 0,
+        mouse: {
+            x: 0,
+            y: 0,
+            clicked: false
+        },
+        player_id: auth.id
+    });
+
+    const cursor_position_on_canvas = (event: MouseEvent) => {
+        const transform = context.getTransform().inverse();
+
+        const rect = canvas.getBoundingClientRect();
+        const scale_x = canvas.width / rect.width;
+        const scale_y = canvas.height / rect.height;
+
+        return transform.transformPoint({
+            x: (event.clientX - rect.left) * scale_x,
+            y: (event.clientY - rect.top) * scale_y
+        });
+    };
+
+    canvas.addEventListener("mousedown", event => {
+        if (event.button == 0) {
+            const real_position = cursor_position_on_canvas(event);
+
+            game.mouse = {
+                clicked: true,
+                x: real_position.x,
+                y: real_position.y
+            };
+        } else if (game.state == Player_State.in_battle) {
+            game.selection = { type: Selection_Type.none };
+        }
+    });
+
+    canvas.addEventListener("mousemove", event => {
+        const real_position = cursor_position_on_canvas(event);
+
+        game.mouse.x = real_position.x;
+        game.mouse.y = real_position.y;
+    });
+
+    canvas.addEventListener("contextmenu", event => event.preventDefault());
+
+    start_animation_frame_loop(0);
+}

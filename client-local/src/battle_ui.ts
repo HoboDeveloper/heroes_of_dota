@@ -308,23 +308,13 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
     }
 
     if (new_state.state == Player_State.in_battle) {
+        const new_data = new_state.battle;
+
         battle = {
-            id: new_state.battle.id,
-            players: from_server_array(new_state.battle.participants).map(player => ({
-                id: player.id,
-                name: player.name,
-                hand: from_server_array(player.hand),
-                has_used_a_card_this_turn: player.has_used_a_card_this_turn,
-                deployment_zone: player.deployment_zone
-            })),
-            units: [],
-            delta_head: 0,
-            grid_size: xy(new_state.battle.grid_size.width, new_state.battle.grid_size.height),
-            turning_player_index: 0,
-            deltas: [],
-            world_origin: new_state.battle.world_origin,
+            ...make_battle(from_server_array(new_data.participants), new_data.grid_size.width, new_data.grid_size.height),
+            id: new_data.id,
+            world_origin: new_data.world_origin,
             cells: [],
-            modifiers: [],
             cell_index_to_unit: [],
             entity_id_to_unit_data: {},
             unit_id_to_facing: {},

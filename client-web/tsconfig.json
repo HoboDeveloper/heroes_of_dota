@@ -1,0 +1,17 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "target": "es6",
+    "rootDir": "src",
+    "outDir": "dist",
+    "noImplicitAny": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true
+  },
+  "include": [
+    "**/*.ts",
+    "../api_definitions/api.d.ts",
+    "../api_definitions/abilities.d.ts",
+    "../battle-sim/dist/battle_sim.d.ts"
+  ]
+}

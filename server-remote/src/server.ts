@@ -27,7 +27,8 @@ const enum Right {
     log_in_with_character,
     attack_a_character,
     participate_in_a_battle,
-    submit_movement
+    submit_movement,
+    submit_chat_messages
 }
 
 export interface Player {
@@ -222,7 +223,11 @@ function player_to_player_state_object(player: Player): Player_State_Data {
             return {
                 state: player.state,
                 battle_id: player.current_battle_id,
-                participants: battle.players,
+                participants: battle.players.map(player => ({
+                    id: player.id,
+                    name: player.name,
+                    deployment_zone: player.deployment_zone
+                })),
                 grid_size: {
                     width: battle.grid_size.x,
                     height: battle.grid_size.y
@@ -268,6 +273,10 @@ function can_player(player: Player, right: Right) {
 
         case Right.submit_battle_action: {
             return player.state == Player_State.in_battle;
+        }
+
+        case Right.submit_chat_messages: {
+            return player.state != Player_State.not_logged_in;
         }
     }
 
@@ -410,7 +419,7 @@ handlers.set("/trusted/submit_player_movement", body => {
 
     const ok = try_do_with_player(request.access_token, player => {
         if (!can_player(player, Right.submit_movement)) {
-            return undefined;
+            return;
         }
 
         player.current_location = xy(request.current_location.x, request.current_location.y);
@@ -446,19 +455,32 @@ handlers.set("/trusted/query_players_movement", body => {
     }
 
     const player_locations = try_do_with_player<Query_Players_Movement_Response>(request.access_token, requesting_player => {
-        return players.filter(player => player != requesting_player).map(player => ({
-            id: player.id,
-            movement_history: player.movement_history.map(entry => ({
-                order_x: entry.order_x,
-                order_y: entry.order_y,
-                location_x: entry.location_x,
-                location_y: entry.location_y
-            })),
-            current_location: {
-                x: player.current_location.x,
-                y: player.current_location.y
+        if (!can_player(requesting_player, Right.submit_movement)) {
+            return;
+        }
+
+        const result: Player_Movement_Data[] = [];
+
+        for (const player of players) {
+            if (player != requesting_player && can_player(player, Right.submit_movement)) {
+                result.push({
+                    id: player.id,
+                    player_name: player.name,
+                    movement_history: player.movement_history.map(entry => ({
+                        order_x: entry.order_x,
+                        order_y: entry.order_y,
+                        location_x: entry.location_x,
+                        location_y: entry.location_y
+                    })),
+                    current_location: {
+                        x: player.current_location.x,
+                        y: player.current_location.y
+                    }
+                });
             }
-        }))
+        }
+
+        return result;
     });
 
     return action_on_player_to_result(player_locations);
@@ -541,7 +563,7 @@ handlers.set("/take_battle_action", body => {
             const battle_ai = battle.players.find(battle_player => battle_player.id == ai.id);
 
             if (battle_ai && request.action.type == Action_Type.end_turn && battle.players[battle.turning_player_index].id == ai.id) {
-                setInterval(() => take_ai_action(battle, battle_ai), 1000);
+                setTimeout(() => take_ai_action(battle, battle_ai), 1000);
             }
         }
 
@@ -688,6 +710,10 @@ handlers.set("/battle_cheat", body => {
 handlers.set("/submit_chat_message", body => {
     const request = JSON.parse(body) as Submit_Chat_Message_Request;
     const result = try_do_with_player<Submit_Chat_Message_Response>(request.access_token, player => {
+        if (!can_player(player, Right.submit_chat_messages)) {
+            return;
+        }
+
         // TODO validate message size
 
         submit_chat_message(player, request.message);
@@ -709,6 +735,12 @@ handlers.set("/pull_chat_messages", body => {
     });
 
     return action_on_player_to_result(result);
+});
+
+handlers.set("/", body => {
+    return make_ok_json({
+        status: "ok"
+    });
 });
 
 type Request_Result = Result_Ok | Result_Error;
@@ -751,6 +783,7 @@ function handle_request(url: string, data: string): Request_Result {
 export function start_server(with_test_player: boolean) {
     if (with_test_player) {
         test_player = make_new_player("Test guy");
+        test_player.state = Player_State.on_global_map;
         test_player.movement_history = [{
             location_x: 0,
             location_y: 0,
@@ -785,19 +818,31 @@ export function start_server(with_test_player: boolean) {
         });
 
         req.on("end", () => {
+            const headers: Record<string, string> = {
+                "Access-Control-Allow-Origin": "*"
+            };
+
+            if (req.method == "OPTIONS") {
+                res.writeHead(200, headers);
+                res.end();
+                return;
+            }
+
             const handle_start = performance.now();
             const result = handle_request(url, body);
             const handle_time = performance.now() - handle_start;
 
             switch (result.type) {
                 case Result_Type.ok: {
-                    res.writeHead(200, { "Content-Type": "text/json" });
+                    headers["Content-Type"] = "text/json";
+
+                    res.writeHead(200, headers);
                     res.end(result.content);
                     break;
                 }
 
                 case Result_Type.error: {
-                    res.writeHead(result.code);
+                    res.writeHead(result.code, headers);
                     res.end();
                     break;
                 }

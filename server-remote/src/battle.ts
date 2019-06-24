@@ -898,28 +898,19 @@ export function start_battle(players: Player[]): number {
         max_y: grid_size.y
     };
 
-    const battle_players: Battle_Player[] = players.map(player => ({
+    const battle_players: Battle_Participant_Info[] = players.map(player => ({
         id: player.id,
         name: player.name,
-        hand: [],
-        has_used_a_card_this_turn: false,
         deployment_zone: player == players[0] ? bottom_player_zone : top_player_zone
     }));
 
     const battle: Battle_Record = {
+        ...make_battle(battle_players, 12, 12),
         id: battle_id_auto_increment++,
-        delta_head: 0,
         turn_index: 0,
         unit_id_auto_increment: 0,
         modifier_id_auto_increment: 0,
         card_id_auto_increment: 0,
-        modifiers: [],
-        units: [],
-        players: battle_players,
-        deltas: [],
-        cells: [],
-        grid_size: xy(12, 12),
-        turning_player_index: 0,
         finished: false,
         kills_this_delta: [],
         change_health: server_change_health,
@@ -929,15 +920,15 @@ export function start_battle(players: Player[]): number {
     fill_grid(battle);
 
     const spawn_deltas = [
-        draw_hero_card(battle, battle_players[0], Unit_Type.sniper),
-        draw_hero_card(battle, battle_players[0], Unit_Type.pudge),
-        draw_hero_card(battle, battle_players[0], Unit_Type.tidehunter),
-        draw_hero_card(battle, battle_players[0], Unit_Type.luna),
+        draw_hero_card(battle, battle.players[0], Unit_Type.sniper),
+        draw_hero_card(battle, battle.players[0], Unit_Type.pudge),
+        draw_hero_card(battle, battle.players[0], Unit_Type.tidehunter),
+        draw_hero_card(battle, battle.players[0], Unit_Type.luna),
 
-        draw_hero_card(battle, battle_players[1], Unit_Type.sniper),
-        draw_hero_card(battle, battle_players[1], Unit_Type.pudge),
-        draw_hero_card(battle, battle_players[1], Unit_Type.tidehunter),
-        draw_hero_card(battle, battle_players[1], Unit_Type.luna)
+        draw_hero_card(battle, battle.players[1], Unit_Type.sniper),
+        draw_hero_card(battle, battle.players[1], Unit_Type.pudge),
+        draw_hero_card(battle, battle.players[1], Unit_Type.tidehunter),
+        draw_hero_card(battle, battle.players[1], Unit_Type.luna)
     ];
 
     collapse_deltas(battle, battle.delta_head, spawn_deltas);

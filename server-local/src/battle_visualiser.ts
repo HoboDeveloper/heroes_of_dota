@@ -5,7 +5,7 @@ type XY = {
 
 type Battle = {
     id: number,
-    players: Battle_Player[],
+    players: Battle_Participant_Info[],
     deltas: Delta[];
     delta_paths: Move_Delta_Paths;
     delta_head: number;
