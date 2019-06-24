@@ -289,7 +289,7 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
-function can_ability_be_cast_at_target_from_source(targeting: Ability_Targeting, from: XY, at: XY): boolean {
+function ability_targeting_fits(targeting: Ability_Targeting, from: XY, at: XY): boolean {
     switch (targeting.type) {
         case Ability_Targeting_Type.line: {
             if (xy_equal(from, at)) return false;

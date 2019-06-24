@@ -502,7 +502,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             const target = find_unit_by_id(battle, action.target_id);
 
             if (!target) return;
-            if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, target.position)) return;
+            if (!ability_targeting_fits(actors.ability.targeting, actors.unit.position, target.position)) return;
 
             const cast = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
 
@@ -523,7 +523,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             const cell = grid_cell_at(battle, action.to);
 
             if (!cell) return;
-            if (!can_ability_be_cast_at_target_from_source(actors.ability.targeting, actors.unit.position, action.to)) return;
+            if (!ability_targeting_fits(actors.ability.targeting, actors.unit.position, action.to)) return;
 
             const cast = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
 

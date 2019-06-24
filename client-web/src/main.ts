@@ -1,5 +1,6 @@
 type Mouse_State = {
     clicked: boolean
+    button: number
     x: number
     y: number
 };
@@ -12,6 +13,7 @@ type Game_Base = {
     requested_player_state_at: number
     mouse: Mouse_State
     player_id: number
+    any_button_clicked_this_frame: boolean
 }
 
 type Game_Not_Logged_In = Game_Base & {
@@ -37,7 +39,8 @@ type Game = Game_In_Battle | Game_On_Global_Map | Game_Not_Logged_In;
 declare const enum Selection_Type {
     none = 0,
     card = 1,
-    unit = 2
+    unit = 2,
+    ability = 3
 }
 
 type No_Selection = {
@@ -54,7 +57,13 @@ type Unit_Selection = {
     unit_id: number
 }
 
-type Selection_State = No_Selection | Card_Selection | Unit_Selection;
+type Ability_Selection = {
+    type: Selection_Type.ability
+    unit_id: number
+    ability_id: Ability_Id
+}
+
+type Selection_State = No_Selection | Card_Selection | Unit_Selection | Ability_Selection;
 
 declare const enum Button_State {
     default = 0,
@@ -75,6 +84,9 @@ type Image_Resource = {
 let game: Game;
 
 const image_cache: Map<string, Image_Resource> = new Map();
+const cell_size = 36;
+const grid_top_left_x = 120;
+const grid_top_left_y = 120;
 
 function image_from_url(url: string): Image_Resource {
     const resource = image_cache.get(url);
@@ -137,7 +149,9 @@ function button_behavior(top_left_x: number, top_left_y: number, width: number, 
     const hovered = contains(game.mouse.x, game.mouse.y, top_left_x, top_left_y, width, height);
 
     if (hovered) {
-        if (game.mouse.clicked) {
+        if (was_button_clicked(0)) {
+            game.any_button_clicked_this_frame = true;
+
             return Button_State.clicked;
         } else {
             return Button_State.hovered;
@@ -147,7 +161,7 @@ function button_behavior(top_left_x: number, top_left_y: number, width: number, 
     return Button_State.default;
 }
 
-function button(text: string, top_left_x: number, top_left_y: number, font_size_px: number, padding: number): boolean {
+function do_button(text: string, top_left_x: number, top_left_y: number, font_size_px: number, padding: number): Button_State {
     const ctx = game.ctx;
 
     ctx.font = `${font_size_px}px Open Sans`;
@@ -164,7 +178,11 @@ function button(text: string, top_left_x: number, top_left_y: number, font_size_
     ctx.fillStyle = "black";
     ctx.fillText(text, top_left_x + padding, top_left_y + padding + font_size_px / 2);
 
-    return state == Button_State.clicked;
+    return state;
+}
+
+function button(text: string, top_left_x: number, top_left_y: number, font_size_px: number, padding: number): boolean {
+    return do_button(text, top_left_x, top_left_y, font_size_px, padding) == Button_State.clicked;
 }
 
 function draw_player_list(game: Game_On_Global_Map) {
@@ -191,6 +209,14 @@ function player_state_to_string(player_state: Player_State) {
         case Player_State.on_global_map: return "on global map";
         case Player_State.not_logged_in: return "not logged in";
     }
+}
+
+function drop_selection(game: Game_In_Battle) {
+    game.selection = { type: Selection_Type.none };
+}
+
+function was_button_clicked(button: number) {
+    return game.mouse.button == button && game.mouse.clicked;
 }
 
 function draw_header(game: Game) {
@@ -279,7 +305,7 @@ function receive_battle_deltas(battle: Battle, head_before_merge: number, deltas
     }
 }
 
-function on_cell_clicked(game: Game_In_Battle, player: Battle_Player, x: number, y: number) {
+function on_cell_right_clicked(game: Game_In_Battle, player: Battle_Player, x: number, y: number) {
     switch (game.selection.type) {
         case Selection_Type.card: {
             const zone = player.deployment_zone;
@@ -287,22 +313,9 @@ function on_cell_clicked(game: Game_In_Battle, player: Battle_Player, x: number,
             if (x < zone.max_x && x >= zone.min_x && y < zone.max_y && y >= zone.min_y) {
                 take_battle_action(game, {
                     type: Action_Type.use_hero_card,
-                    at: { x: x, y: y },
+                    at: {x: x, y: y},
                     card_id: game.selection.card_id
                 })
-            }
-
-            break;
-        }
-
-        case Selection_Type.none: {
-            const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
-
-            if (unit_at) {
-                game.selection = {
-                    type: Selection_Type.unit,
-                    unit_id: unit_at.id
-                }
             }
 
             break;
@@ -318,7 +331,7 @@ function on_cell_clicked(game: Game_In_Battle, player: Battle_Player, x: number,
 
             if (unit_at) {
                 if (selected_unit.attack.type == Ability_Type.target_ground) {
-                    if (can_ability_be_cast_at_target_from_source(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
+                    if (ability_targeting_fits(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
                         take_battle_action(game, {
                             type: Action_Type.ground_target_ability,
                             unit_id: selected_unit.id,
@@ -344,6 +357,67 @@ function on_cell_clicked(game: Game_In_Battle, player: Battle_Player, x: number,
     }
 }
 
+function is_unit_selection(selection: Selection_State): selection is (Unit_Selection | Ability_Selection) {
+    return selection.type == Selection_Type.unit || selection.type == Selection_Type.ability;
+}
+
+function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number, y: number) {
+    const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
+
+    if (game.selection.type == Selection_Type.ability) {
+        const selected_id = game.selection.unit_id;
+        const ability_id = game.selection.ability_id;
+        const selected = game.battle.units.find(unit => unit.id == selected_id);
+
+        if (selected) {
+            const ability = selected.abilities.find(ability => ability.id == ability_id);
+
+            if (ability && (ability.type == Ability_Type.target_unit || ability.type == Ability_Type.target_ground)) {
+                const can_be_cast = ability_targeting_fits(ability.targeting, selected.position, xy(x, y));
+
+                if (ability.type == Ability_Type.target_unit && unit_at && can_be_cast) {
+                    take_battle_action(game, {
+                        type: Action_Type.unit_target_ability,
+                        ability_id: ability.id,
+                        unit_id: selected.id,
+                        target_id: unit_at.id
+                    });
+
+                    game.selection = {
+                        type: Selection_Type.unit,
+                        unit_id: selected_id
+                    };
+                }
+
+                if (ability.type == Ability_Type.target_ground && can_be_cast) {
+                    take_battle_action(game, {
+                        type: Action_Type.ground_target_ability,
+                        ability_id: ability.id,
+                        unit_id: selected.id,
+                        to: xy(x, y)
+                    });
+
+                    game.selection = {
+                        type: Selection_Type.unit,
+                        unit_id: selected_id
+                    };
+                }
+
+                return;
+            }
+        }
+    }
+
+    if (unit_at) {
+        game.selection = {
+            type: Selection_Type.unit,
+            unit_id: unit_at.id
+        }
+    } else {
+        drop_selection(game);
+    }
+}
+
 function get_hero_name(type: Unit_Type): string {
     switch (type) {
         case Unit_Type.sniper: return "sniper";
@@ -356,27 +430,54 @@ function get_hero_name(type: Unit_Type): string {
     }
 }
 
-function draw_grid(game: Game_In_Battle, player: Battle_Player) {
+function highlight_cells_unit_can_go_to(battle: Battle, unit: Unit) {
+    const xy = unit.position;
+    const min_x = Math.max(0, xy.x - unit.move_points);
+    const min_y = Math.max(0, xy.y - unit.move_points);
+    const max_x = Math.max(battle.grid_size.x, xy.x + unit.move_points);
+    const max_y = Math.max(battle.grid_size.y, xy.y + unit.move_points);
+
+    for (let x = min_x; x < max_x; x++) {
+        for (let y = min_y; y < max_y; y++) {
+            const [can_go] = can_find_path(battle, xy, {x: x, y: y}, unit.move_points);
+
+            if (can_go) {
+                game.ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
+                game.ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+            }
+        }
+    }
+}
+
+function highlight_cells_for_ability(battle: Battle, unit: Unit, ability: Ability_Active) {
+    for (let x = 0; x < battle.grid_size.x; x++) {
+        for (let y = 0; y < battle.grid_size.y; y++) {
+            if (ability_targeting_fits(ability.targeting, unit.position, xy(x, y))) {
+                game.ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
+                game.ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+            }
+        }
+    }
+}
+
+function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupied: boolean) {
     const ctx = game.ctx;
 
-    const top_left_x = 120;
-    const top_left_y = 120;
-
-    const cell_size = 36;
+    const grid_size = game.battle.grid_size;
 
     ctx.strokeStyle = "black";
     ctx.lineWidth = 2;
-    ctx.translate(top_left_x, top_left_y);
+    ctx.translate(grid_top_left_x, grid_top_left_y);
     ctx.beginPath();
 
-    for (let x = 0; x <= game.battle.grid_size.x; x++) {
+    for (let x = 0; x <= grid_size.x; x++) {
         ctx.moveTo(x * cell_size, 0);
-        ctx.lineTo(x * cell_size, game.battle.grid_size.y * cell_size);
+        ctx.lineTo(x * cell_size, grid_size.y * cell_size);
     }
 
-    for (let y = 0; y <= game.battle.grid_size.y; y++) {
+    for (let y = 0; y <= grid_size.y; y++) {
         ctx.moveTo(0, y * cell_size);
-        ctx.lineTo(game.battle.grid_size.x * cell_size, y * cell_size);
+        ctx.lineTo(grid_size.x * cell_size, y * cell_size);
     }
 
     ctx.stroke();
@@ -394,15 +495,30 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player) {
         );
     }
 
-    for (let x = 0; x < game.battle.grid_size.x; x++) {
-        for (let y = 0; y < game.battle.grid_size.y; y++) {
-            const state = button_behavior(top_left_x + x * cell_size, top_left_y + y * cell_size, cell_size, cell_size);
+    for (let x = 0; x < grid_size.x; x++) {
+        for (let y = 0; y < grid_size.y; y++) {
+            const hovered = contains(
+                game.mouse.x,
+                game.mouse.y,
+                grid_top_left_x + x * cell_size,
+                grid_top_left_y + y * cell_size,
+                cell_size,
+                cell_size
+            );
 
-            if (state == Button_State.hovered) {
-                ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
-                ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
-            } else if (state == Button_State.clicked) {
-                on_cell_clicked(game, player, x, y);
+            if (hovered) {
+                if (was_button_clicked(0)) {
+                    on_cell_selected(game, player, x, y);
+
+                    game.any_button_clicked_this_frame = true;
+                } else if (was_button_clicked(2)) {
+                    on_cell_right_clicked(game, player, x, y);
+
+                    game.any_button_clicked_this_frame = true;
+                } else {
+                    ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+                    ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+                }
             }
         }
     }
@@ -415,28 +531,24 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player) {
     for (const unit of game.battle.units) {
         const xy = unit.position;
 
-        if (game.selection.type == Selection_Type.unit) {
-            if (game.selection.unit_id == unit.id) {
-                ctx.strokeStyle = "green";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
+        if (is_unit_selection(game.selection) && game.selection.unit_id == unit.id) {
+            ctx.strokeStyle = "green";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
 
-                const min_x = Math.max(0, xy.x - unit.move_points);
-                const min_y = Math.max(0, xy.y - unit.move_points);
-                const max_x = Math.max(game.battle.grid_size.x, xy.x + unit.move_points);
-                const max_y = Math.max(game.battle.grid_size.y, xy.y + unit.move_points);
+            if (!highlight_occupied) {
+                if (game.selection.type == Selection_Type.ability) {
+                    const ability_id = game.selection.ability_id;
+                    const ability = unit.abilities.find(ability => ability.id == ability_id);
 
-                for (let x = min_x; x < max_x; x++) {
-                    for (let y = min_y; y < max_y; y++) {
-                        const [can_go] = can_find_path(game.battle, xy, { x: x, y: y }, unit.move_points);
-
-                        if (can_go) {
-                            ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
-                            ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
-                        }
+                    if (ability && ability.type != Ability_Type.passive) {
+                        highlight_cells_for_ability(game.battle, unit, ability);
+                    }
+                } else {
+                    if (!unit.has_taken_an_action_this_turn) {
+                        highlight_cells_unit_can_go_to(game.battle, unit);
                     }
                 }
-
             }
         }
 
@@ -485,7 +597,85 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player) {
         ctx.fillText(text, xy.x * cell_size, xy.y * cell_size);
     }
 
-    ctx.translate(-top_left_x, -top_left_y);
+    ctx.translate(-grid_top_left_x, -grid_top_left_y);
+}
+
+function draw_card_list(game: Game_In_Battle, player: Battle_Player) {
+    for (let index = 0; index < player.hand.length; index++) {
+        const card = player.hand[index];
+
+        const top_left_x = 30;
+        const top_left_y = 180 + index * 34;
+
+        if (button(`Card ${card.id}`, top_left_x, top_left_y, 18, 6)) {
+            game.selection = {
+                type: Selection_Type.card,
+                card_id: card.id
+            }
+        }
+
+        if (game.selection.type == Selection_Type.card && game.selection.card_id == card.id) {
+            const ctx = game.ctx;
+
+            ctx.strokeStyle = "green";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(top_left_x, top_left_y);
+            ctx.lineTo(top_left_x, top_left_y + 30);
+            ctx.stroke();
+        }
+    }
+}
+
+function draw_ability_list(game: Game_In_Battle, unit: Unit): boolean {
+    const top_left_x = 120 + game.battle.grid_size.x * cell_size + 30;
+
+    let ability_highlighted = false;
+
+    for (let index = 0; index < unit.abilities.length; index++) {
+        const ability = unit.abilities[index];
+        const needs_targeting = ability.type == Ability_Type.target_ground || ability.type == Ability_Type.target_unit;
+        const top_left_y = 120 + index * 34;
+
+        const state = do_button(`Ability ${ability.id}`, top_left_x, top_left_y, 18, 6);
+
+        if (state == Button_State.clicked) {
+            if (needs_targeting) {
+                game.selection = {
+                    type: Selection_Type.ability,
+                    unit_id: unit.id,
+                    ability_id: ability.id
+                }
+            } else if (ability.type == Ability_Type.no_target) {
+                take_battle_action(game, {
+                    type: Action_Type.use_no_target_ability,
+                    unit_id: unit.id,
+                    ability_id: ability.id
+                });
+            }
+        } else if (state == Button_State.hovered) {
+            if (ability.type != Ability_Type.passive) {
+                game.ctx.translate(grid_top_left_x, grid_top_left_y);
+                highlight_cells_for_ability(game.battle, unit, ability);
+                game.ctx.translate(-grid_top_left_x, -grid_top_left_y);
+
+                ability_highlighted = true;
+            }
+        }
+
+        if (game.selection.type == Selection_Type.ability && game.selection.ability_id == ability.id) {
+            const ctx = game.ctx;
+
+            ctx.strokeStyle = "green";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(top_left_x, top_left_y);
+            ctx.lineTo(top_left_x, top_left_y + 30);
+            ctx.stroke();
+        }
+    }
+
+    return ability_highlighted;
 }
 
 function do_one_frame(time: number) {
@@ -512,39 +702,33 @@ function do_one_frame(time: number) {
                 break;
             }
 
-            draw_grid(game, this_player);
+            let ability_was_highlighted = false;
+
+            if (is_unit_selection(game.selection)) {
+                const selected_id = game.selection.unit_id;
+                const selected_unit = game.battle.units.find(unit => unit.id == selected_id);
+
+                if (selected_unit) {
+                    if (draw_ability_list(game, selected_unit)) {
+                        ability_was_highlighted = true;
+                    }
+                }
+            }
+
+            draw_grid(game, this_player, ability_was_highlighted);
 
             if (button("End turn", 30, 120, 18, 6)) {
                 take_battle_action(game, {
                     type: Action_Type.end_turn
                 });
 
-                game.selection = {
-                    type: Selection_Type.none
-                }
+                drop_selection(game);
             }
 
-            for (let index = 0; index < this_player.hand.length; index++) {
-                const card = this_player.hand[index];
+            draw_card_list(game, this_player);
 
-                const top_left_x = 30;
-                const top_left_y = 180 + index * 34;
-
-                if (button(`Card ${card.id}`, top_left_x, top_left_y, 18, 6)) {
-                    game.selection = {
-                        type: Selection_Type.card,
-                        card_id: card.id
-                    }
-                }
-
-                if (game.selection.type == Selection_Type.card && game.selection.card_id == card.id) {
-                    ctx.strokeStyle = "green";
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(top_left_x, top_left_y);
-                    ctx.lineTo(top_left_x, top_left_y + 30);
-                    ctx.stroke();
-                }
+            if (was_button_clicked(0) && !game.any_button_clicked_this_frame) {
+                drop_selection(game);
             }
 
             check_and_try_request_battle_deltas(game, time);
@@ -560,6 +744,7 @@ function do_one_frame(time: number) {
     check_and_try_request_player_state(game, time);
 
     game.mouse.clicked = false;
+    game.any_button_clicked_this_frame = false;
 }
 
 function start_animation_frame_loop(time: number) {
@@ -678,9 +863,11 @@ async function start_game() {
         ctx: context,
         access_token: auth.token,
         requested_player_state_at: 0,
+        any_button_clicked_this_frame: false,
         mouse: {
             x: 0,
             y: 0,
+            button: 0,
             clicked: false
         },
         player_id: auth.id
@@ -700,17 +887,14 @@ async function start_game() {
     };
 
     canvas.addEventListener("mousedown", event => {
-        if (event.button == 0) {
-            const real_position = cursor_position_on_canvas(event);
+        const real_position = cursor_position_on_canvas(event);
 
-            game.mouse = {
-                clicked: true,
-                x: real_position.x,
-                y: real_position.y
-            };
-        } else if (game.state == Player_State.in_battle) {
-            game.selection = { type: Selection_Type.none };
-        }
+        game.mouse = {
+            clicked: true,
+            x: real_position.x,
+            y: real_position.y,
+            button: event.button
+        };
     });
 
     canvas.addEventListener("mousemove", event => {

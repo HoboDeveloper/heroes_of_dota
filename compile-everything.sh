@@ -13,6 +13,7 @@ popd
 ./replicate-battle-sim.sh
 
 pushd codegen
+npx ttsc -p ../client-web/tsconfig.json
 npx ttsc -p ../client-local/tsconfig.json
 npx ttsc -p ../server-remote/tsconfig.json
 npx ttsc -p ../server-local/tsconfig.json

@@ -642,21 +642,19 @@ function update_grid_visuals() {
         if (selected_unit && highlighted_ability != undefined) {
             const ability = find_unit_ability(selected_unit, highlighted_ability);
 
-            if (ability) {
-                switch (ability.type) {
-                    case Ability_Type.target_ground: {
-                        if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+            if (ability && ability.type != Ability_Type.passive) {
+                if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                    switch (ability.type) {
+                        case Ability_Type.target_ground: {
                             alpha = 20;
                             cell_color = color_red;
 
                             cell_index_to_highlight[index] = true;
+
+                            break;
                         }
 
-                        break;
-                    }
-
-                    case Ability_Type.target_unit: {
-                        if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, cell.position)) {
+                        case Ability_Type.target_unit: {
                             if (unit_in_cell) {
                                 alpha = 140;
                                 cell_color = color_green;
@@ -666,34 +664,15 @@ function update_grid_visuals() {
                             }
 
                             cell_index_to_highlight[index] = true;
+
+                            break;
                         }
 
-                        break;
-                    }
+                        case Ability_Type.no_target: {
+                            alpha = 140;
+                            cell_color = color_red;
 
-                    case Ability_Type.no_target: {
-                        const targeting = ability.targeting;
-
-                        switch (targeting.type) {
-                            case Ability_Targeting_Type.rectangular_area_around_caster: {
-                                if (rectangular(selected_unit.position, cell.position) <= targeting.area_radius) {
-                                    alpha = 140;
-                                    cell_color = color_red;
-                                }
-
-                                break;
-                            }
-
-                            case Ability_Targeting_Type.unit_in_manhattan_distance: {
-                                if (manhattan(selected_unit.position, cell.position) <= targeting.distance) {
-                                    alpha = 140;
-                                    cell_color = color_red;
-                                }
-
-                                break;
-                            }
-
-                            default: unreachable(targeting);
+                            break;
                         }
                     }
                 }
@@ -1387,7 +1366,7 @@ function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefin
 
 function try_attack_target(source: Unit, target: XY, flash_ground_on_error: boolean) {
     if (source.attack.type == Ability_Type.target_ground) {
-        if (!can_ability_be_cast_at_target_from_source(source.attack.targeting, source.position, target)) {
+        if (!ability_targeting_fits(source.attack.targeting, source.position, target)) {
             show_ability_error(Ability_Error.invalid_target);
 
             if (flash_ground_on_error) {
@@ -1396,7 +1375,7 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
                 for (const cell of battle.cells) {
                     const index = grid_cell_index(battle, cell.position);
 
-                    if (can_ability_be_cast_at_target_from_source(source.attack.targeting, source.position, cell.position)) {
+                    if (ability_targeting_fits(source.attack.targeting, source.position, cell.position)) {
                         cell_index_to_highlight[index] = true;
                     }
                 }
@@ -1463,7 +1442,7 @@ function setup_mouse_filter() {
 
                     switch (ability.type) {
                         case Ability_Type.target_ground: {
-                            if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position)) {
+                            if (ability_targeting_fits(ability.targeting, selected_unit.position, battle_position)) {
                                 take_battle_action({
                                     type: Action_Type.ground_target_ability,
                                     unit_id: selected_unit.id,
@@ -1480,7 +1459,7 @@ function setup_mouse_filter() {
                         }
 
                         case Ability_Type.target_unit: {
-                            if (can_ability_be_cast_at_target_from_source(ability.targeting, selected_unit.position, battle_position) && cursor_entity_unit) {
+                            if (ability_targeting_fits(ability.targeting, selected_unit.position, battle_position) && cursor_entity_unit) {
                                 take_battle_action({
                                     type: Action_Type.unit_target_ability,
                                     unit_id: selected_unit.id,
