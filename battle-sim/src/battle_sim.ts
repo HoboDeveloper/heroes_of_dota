@@ -753,16 +753,6 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.unit_force_move: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
-
-            if (unit) {
-                move_unit(battle, unit, delta.to_position);
-            }
-
-            break;
-        }
-
         case Delta_Type.start_turn: {
             for (const player of battle.players) {
                 player.has_used_a_card_this_turn = false;

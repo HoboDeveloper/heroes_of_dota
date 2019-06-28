@@ -241,15 +241,6 @@ type Delta_Move = {
     }
 }
 
-type Delta_Force_Move = {
-    type: Delta_Type.unit_force_move
-    unit_id: number
-    to_position: {
-        x: number
-        y: number
-    }
-}
-
 type Delta_Spawn = {
     type: Delta_Type.unit_spawn
     unit_type: Unit_Type
@@ -379,7 +370,6 @@ type Delta =
     Delta_Mana_Change |
     Delta_Move |
     Delta_Spawn |
-    Delta_Force_Move |
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |

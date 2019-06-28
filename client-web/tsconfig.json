@@ -6,7 +6,12 @@
     "outDir": "dist",
     "noImplicitAny": true,
     "alwaysStrict": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "plugins": [
+      {
+        "transform": "../codegen/src/enum_to_string.ts"
+      }
+    ]
   },
   "include": [
     "**/*.ts",

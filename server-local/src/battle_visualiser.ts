@@ -1130,19 +1130,6 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.unit_force_move: {
-            const unit = find_unit_by_id(delta.unit_id);
-            const to = battle_position_to_world_position_center(delta.to_position);
-
-            if (unit) {
-                FindClearSpaceForUnit(unit.handle, to,  true);
-
-                unit.position = delta.to_position;
-            }
-
-            break;
-        }
-
         case Delta_Type.start_turn: {
             for (const unit of battle.units) {
                 unit.move_points = unit.max_move_points;
