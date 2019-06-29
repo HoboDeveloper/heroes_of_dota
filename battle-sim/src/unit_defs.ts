@@ -43,8 +43,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             available_since_level: 0,
             targeting: target_line(range),
             damage: damage,
-            cooldown: 0,
-            mana_cost: 0
+            charges: 1
         });
     }
 
@@ -52,7 +51,6 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.ursa: {
             return {
                 health: 30,
-                mana: 10,
                 move_points: 4,
                 attack: basic_attack(6, 1),
                 abilities: [
@@ -63,7 +61,6 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.sniper: {
             return {
                 health: 24,
-                mana: 10,
                 move_points: 3,
                 attack: basic_attack(5, 4),
                 abilities: [
@@ -74,15 +71,13 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.pudge: {
             return {
                 health: 35,
-                mana: 10,
                 move_points: 2,
                 attack: basic_attack(7, 1),
                 abilities: [
                     active_ability<Ability_Pudge_Hook>({
                         available_since_level: 1,
                         targeting: target_line(5),
-                        cooldown: 2,
-                        mana_cost: 3,
+                        charges: 1,
                         damage: 6
                     }),
                     passive_ability<Ability_Pudge_Flesh_Heap>({
@@ -92,15 +87,13 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     active_ability<Ability_Pudge_Rot>({
                         available_since_level: 3,
                         targeting: target_rect_area_around_caster(1),
-                        cooldown: 1,
-                        mana_cost: 1,
+                        charges: 1,
                         damage: 5
                     }),
                     active_ability<Ability_Pudge_Dismember>({
                         available_since_level: 4,
                         targeting: target_unit_in_manhattan_distance(1),
-                        cooldown: 2,
-                        mana_cost: 4,
+                        charges: 1,
                         damage: 14
                     })
                 ]
@@ -110,23 +103,20 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.tidehunter: {
             return {
                 health: 35,
-                mana: 10,
                 move_points: 3,
                 attack: basic_attack(6, 1),
                 abilities: [
                     active_ability<Ability_Tide_Gush>({
                         available_since_level: 1,
                         targeting: target_unit_in_manhattan_distance(6),
-                        cooldown: 2,
-                        mana_cost: 4,
+                        charges: 1,
                         damage: 4,
                         move_points_reduction: 2
                     }),
                     active_ability<Ability_Tide_Anchor_Smash>({
                         available_since_level: 2,
                         targeting: target_rect_area_around_caster(1),
-                        cooldown: 1,
-                        mana_cost: 2,
+                        charges: 2,
                         damage: 4,
                         attack_reduction: 2
                     }),
@@ -138,8 +128,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 4,
                         targeting: target_unit_in_manhattan_distance(5),
                         damage: 5,
-                        cooldown: 3,
-                        mana_cost: 5
+                        charges: 1,
                     })
                 ]
             }
@@ -148,15 +137,13 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.luna: {
             return {
                 health: 25,
-                mana: 12,
                 move_points: 4,
                 attack: basic_attack(5, 2),
                 abilities: [
                     active_ability<Ability_Luna_Lucent_Beam>({
                         available_since_level: 1,
                         targeting: target_unit_in_manhattan_distance(5),
-                        cooldown: 2,
-                        mana_cost: 4,
+                        charges: 1,
                         damage: 6
                     }),
                     passive_ability<Ability_Luna_Moon_Glaive>({
@@ -170,8 +157,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 4,
                         targeting: target_unit_in_manhattan_distance(4),
                         total_beams: 16,
-                        cooldown: 3,
-                        mana_cost: 5
+                        charges: 1,
                     })
                 ]
             }

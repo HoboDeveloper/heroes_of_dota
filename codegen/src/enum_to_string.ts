@@ -23,7 +23,6 @@ export default function run_transformer(program: ts.Program, options: Options): 
 
             if (decl.kind == ts.SyntaxKind.FunctionDeclaration && decl.name.escapedText == "enum_to_string") {
                 const argument = call.arguments[0];
-                const symbol = checker.getSymbolAtLocation(argument);
                 const type = checker.getTypeAtLocation(argument);
                 const flags = type.getFlags();
 

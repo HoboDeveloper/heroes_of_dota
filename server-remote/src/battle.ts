@@ -447,15 +447,6 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         return { unit: unit, ability: ability };
     }
 
-    function mana_change(unit: Unit, mana_change: number): Delta_Mana_Change {
-        return {
-            type: Delta_Type.mana_change,
-            unit_id: unit.id,
-            mana_change: mana_change,
-            new_mana: Math.max(0, Math.min(unit[Unit_Field.max_mana], unit.mana + mana_change))
-        }
-    }
-
     switch (action.type) {
         case Action_Type.move: {
             const unit = find_valid_unit_for_action(action.unit_id);
@@ -488,7 +479,6 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             return [
-                mana_change(actors.unit, -actors.ability.mana_cost),
                 cast
             ]
         }
@@ -509,7 +499,6 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             return [
-                mana_change(actors.unit, -actors.ability.mana_cost),
                 cast
             ]
         }
@@ -530,7 +519,6 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             const deltas: Delta[] = [
-                mana_change(actors.unit, -actors.ability.mana_cost),
                 cast
             ];
 

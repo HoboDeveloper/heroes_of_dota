@@ -6,7 +6,6 @@ declare const enum Player_State {
 
 declare const enum Delta_Type {
     health_change = 0,
-    mana_change = 1,
     unit_move = 2,
     unit_spawn = 3,
     start_turn = 4,
@@ -19,7 +18,7 @@ declare const enum Delta_Type {
     modifier_appled = 11,
     modifier_removed = 12,
     permanent_modifier_applied = 13,
-    set_ability_cooldown_remaining = 14,
+    set_ability_charges_remaining = 14,
     ability_effect_applied = 15,
     draw_card = 16,
     use_card = 17,
@@ -45,7 +44,6 @@ declare const enum Unit_Type {
 
 declare const enum Unit_Field {
     max_health = 0,
-    max_mana = 1,
     max_move_points = 2,
     level = 3,
     attack_bonus = 4,
@@ -80,7 +78,6 @@ declare const enum Card_Type {
 
 type Unit_Definition = {
     health: number
-    mana: number
     move_points: number
     attack: Ability_Definition_Active
     abilities: Ability_Definition[]
@@ -88,8 +85,7 @@ type Unit_Definition = {
 
 type Ability_Definition_Active_Base = {
     available_since_level: number
-    cooldown: number
-    mana_cost: number
+    charges: number
 }
 
 type Ability_Definition_Passive_Base = {
@@ -224,13 +220,6 @@ type Delta_Health_Change = Unit_Field_Change & {
     type: Delta_Type.health_change
 }
 
-type Delta_Mana_Change = {
-    type: Delta_Type.mana_change
-    unit_id: number
-    new_mana: number
-    mana_change: number
-}
-
 type Delta_Move = {
     type: Delta_Type.unit_move
     unit_id: number
@@ -294,10 +283,6 @@ type Delta_Max_Health_Change = Delta_Field_Change & {
     field: Unit_Field.max_health
 }
 
-type Delta_Max_Mana_Change = Delta_Field_Change & {
-    field: Unit_Field.max_mana
-}
-
 type Delta_Max_Move_Points_Change = Delta_Field_Change & {
     field: Unit_Field.max_move_points
 }
@@ -336,11 +321,11 @@ type Delta_Modifier_Removed = {
     modifier_id: number
 }
 
-type Delta_Set_Ability_Cooldown_Remaining = {
-    type: Delta_Type.set_ability_cooldown_remaining
+type Delta_Set_Ability_Charges_Remaining = {
+    type: Delta_Type.set_ability_charges_remaining
     unit_id: number
     ability_id: Ability_Id
-    cooldown_remaining: number
+    charges_remaining: number
 }
 
 type Delta_Ability_Effect_Applied<T extends Ability_Effect> = {
@@ -367,7 +352,6 @@ type Delta_Game_Over = {
 
 type Delta =
     Delta_Health_Change |
-    Delta_Mana_Change |
     Delta_Move |
     Delta_Spawn |
     Delta_Ground_Target_Ability |
@@ -375,7 +359,6 @@ type Delta =
     Delta_Use_No_Target_Ability |
     Delta_Level_Change |
     Delta_Max_Health_Change |
-    Delta_Max_Mana_Change |
     Delta_Max_Move_Points_Change |
     Delta_Attack_Bonus_Change |
     Delta_Armor_Change |
@@ -383,7 +366,7 @@ type Delta =
     Delta_Modifier_Applied<Ability_Effect> |
     Delta_Permanent_Modifier_Applied<Ability_Effect> |
     Delta_Modifier_Removed |
-    Delta_Set_Ability_Cooldown_Remaining |
+    Delta_Set_Ability_Charges_Remaining |
     Delta_Ability_Effect_Applied<Ability_Effect> |
     Delta_Draw_Card |
     Delta_Use_Card |

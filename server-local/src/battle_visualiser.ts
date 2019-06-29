@@ -175,9 +175,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         is_playing_a_delta: false,
         level: 1,
         health: definition.health,
-        mana: definition.mana,
         max_health: definition.health,
-        max_mana: definition.mana,
         attack_bonus: 0,
         stunned_counter: 0,
         move_points: definition.move_points,
@@ -1001,7 +999,6 @@ function change_field(main_player: Main_Player, unit: Battle_Unit, field: Unit_F
 
         case Unit_Field.attack_bonus: { unit.attack_bonus = new_value; update_player_state_net_table(main_player); break; }
         case Unit_Field.max_health: { unit.max_health = new_value; update_player_state_net_table(main_player); break; }
-        case Unit_Field.max_mana: { unit.max_mana = new_value; update_player_state_net_table(main_player); break; }
         case Unit_Field.max_move_points: { unit.max_move_points = new_value; update_player_state_net_table(main_player); break; }
 
         case Unit_Field.level: {
@@ -1154,24 +1151,6 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.mana_change: {
-            const unit = find_unit_by_id(delta.unit_id);
-
-            if (unit) {
-                unit.mana = delta.new_mana;
-
-                if (delta.mana_change != 0) {
-                    const player = PlayerResource.GetPlayer(main_player.player_id);
-
-                    SendOverheadEventMessage(player, Overhead_Event_Type.OVERHEAD_ALERT_MANA_LOSS, unit.handle, delta.mana_change, player);
-                }
-
-                update_player_state_net_table(main_player);
-            }
-
-            break;
-        }
-
         case Delta_Type.health_change: {
             const source = find_unit_by_id(delta.source_unit_id);
             const target = find_unit_by_id(delta.target_unit_id);
@@ -1229,7 +1208,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.set_ability_cooldown_remaining: break;
+        case Delta_Type.set_ability_charges_remaining: break;
 
         case Delta_Type.game_over: {
             const event: Game_Over_Event = {
@@ -1293,11 +1272,9 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         // TODO we need this to be typesafe, codegen a copy<T extends U, U>(source: T, target: U) function
         new_unit.health = unit.health;
         new_unit.level = unit.level;
-        new_unit.mana = unit.mana;
         new_unit.stunned_counter = unit.stunned_counter;
         new_unit.attack_bonus = unit.attack_bonus;
         new_unit.max_health = unit.max_health;
-        new_unit.max_mana = unit.max_mana;
         new_unit.move_points = unit.move_points;
         new_unit.max_move_points = unit.max_move_points;
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));

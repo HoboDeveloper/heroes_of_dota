@@ -33,12 +33,10 @@ type UI_Unit_Data = {
     level_ticks: Panel[],
 
     stat_health: Stat_Indicator
-    stat_mana: Stat_Indicator
     stat_attack: Stat_Indicator
     stat_move_points: Stat_Indicator
     stat_max_move_points: Stat_Indicator
     stat_max_health: Stat_Indicator
-    stat_max_mana: Stat_Indicator
 }
 
 type UI_Battle = Battle & {
@@ -75,14 +73,12 @@ type Hero_Row = {
     unit_id: number;
     ability_buttons: Hero_Ability_Button[];
     health: Hero_Panel_Stat_Indicator;
-    mana: Hero_Panel_Stat_Indicator;
     level: Hero_Panel_Stat_Indicator;
 }
 
 type Hero_Ability_Button = {
     ability: AbilityId;
     ability_panel: Panel;
-    cooldown_layer: Panel;
 }
 
 type Cost_Population_Result = {
@@ -739,15 +735,6 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
         "max_health_label"
     );
 
-    const [ mana, max_mana ] = stat_indicator_ui(
-        data.mana,
-        data.max_mana,
-        "mana_container",
-        "mana_icon",
-        "mana_label",
-        "max_mana_label"
-    );
-
     const [ move_points, max_move_points ] = stat_indicator_ui(
         data.move_points,
         data.max_move_points,
@@ -802,7 +789,6 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
     return {
         id: data.id,
         stat_health: health,
-        stat_mana: mana,
         stat_attack: {
             displayed_value: data.attack_bonus,
             value: data.attack_bonus,
@@ -812,7 +798,6 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
         stat_move_points: move_points,
         stat_max_move_points: max_move_points,
         stat_max_health: max_health,
-        stat_max_mana: max_mana,
         level: data.level,
         stat_bar_panel: panel,
         level_ticks: level_ticks
@@ -874,8 +859,6 @@ function process_state_update(state: Player_Net_Table) {
                 existing_data.level = new_data.level;
                 existing_data.stat_health.value = new_data.health;
                 existing_data.stat_max_health.value = new_data.max_health;
-                existing_data.stat_mana.value = new_data.mana;
-                existing_data.stat_max_mana.value = new_data.max_mana;
                 existing_data.stat_move_points.value = new_data.move_points;
                 existing_data.stat_max_move_points.value = new_data.max_move_points;
                 existing_data.stat_attack.value = new_data.attack_bonus;
@@ -972,10 +955,8 @@ function make_battle_snapshot(): Battle_Snapshot {
                 level: unit[Unit_Field.level],
                 health: unit.health,
                 max_health: unit[Unit_Field.max_health],
-                max_mana: unit[Unit_Field.max_mana],
                 move_points: unit.move_points,
                 max_move_points: unit[Unit_Field.max_move_points],
-                mana: unit.mana,
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
@@ -1085,7 +1066,6 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
     const level = create_indicator(indicators, "level_indicator", unit[Unit_Field.level]);
     const health = create_indicator(indicators, "health_indicator", unit.health);
-    const mana = create_indicator(indicators, "mana_indicator", unit.mana);
 
     const ability_buttons: Hero_Ability_Button[] = [];
 
@@ -1120,21 +1100,12 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
         const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
         safely_set_panel_background_image(ability_image, get_full_ability_icon_path(ability.id));
-
-        const cooldown_layer = $.CreatePanel("Panel", ability_panel, "cooldown_layer");
-
-        ability_buttons.push({
-            ability: ability.id,
-            ability_panel: ability_panel,
-            cooldown_layer: cooldown_layer
-        })
     }
 
     const new_row: Hero_Row = {
         unit_id: unit.id,
         ability_buttons: ability_buttons,
         health: health,
-        mana: mana,
         level: level
     };
 
@@ -1154,7 +1125,6 @@ function update_hero_control_panel_state(unit: Unit) {
 
     // TODO Might be worth it to try and granularly update labels. But probably not
     row.health.label.text = unit.health.toString();
-    row.mana.label.text = unit.mana.toString();
     row.level.label.text = unit[Unit_Field.level].toString();
 
     for (const ability_button of row.ability_buttons) {
@@ -1168,11 +1138,9 @@ function update_hero_control_panel_state(unit: Unit) {
         ability_button.ability_panel.SetHasClass("not_learned", !is_available);
 
         if (is_available && ability.type != Ability_Type.passive) {
-            const on_cooldown = ability.cooldown_remaining > 0;
-            const not_enough_mana = ability.mana_cost > unit.mana;
+            const not_enough_charges = ability.charges_remaining < 1;
 
-            ability_button.ability_panel.SetHasClass("on_cooldown", on_cooldown);
-            ability_button.ability_panel.SetHasClass("not_enough_mana", !on_cooldown && not_enough_mana);
+            ability_button.ability_panel.SetHasClass("not_enough_charges", not_enough_charges);
         }
     }
 }
@@ -1279,8 +1247,6 @@ function try_update_stat_bar_display(ui_data: UI_Unit_Data, force = false) {
     try_update_stat_indicator(ui_data.stat_attack);
     try_update_stat_indicator(ui_data.stat_health);
     try_update_stat_indicator(ui_data.stat_max_health);
-    try_update_stat_indicator(ui_data.stat_mana);
-    try_update_stat_indicator(ui_data.stat_max_mana);
     try_update_stat_indicator(ui_data.stat_move_points);
     try_update_stat_indicator(ui_data.stat_max_move_points);
 }
@@ -1585,8 +1551,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
     switch (error) {
         case Ability_Error.other: return native(0); // TODO
         case Ability_Error.dead: return native(20);
-        case Ability_Error.no_mana: return native(14);
-        case Ability_Error.on_cooldown: return native(15);
+        case Ability_Error.no_charges: return custom("Ability has no more charges");
         case Ability_Error.invalid_target: return custom("Target is out of range");
         case Ability_Error.not_learned_yet: return native(16);
         case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");

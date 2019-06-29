@@ -597,23 +597,17 @@ handlers.set("/battle_cheat", body => {
                     source_ability_id: Ability_Id.basic_attack,
                     new_value: unit[Unit_Field.max_health],
                     value_delta: unit[Unit_Field.max_health] - unit.health
-                },
-                {
-                    type: Delta_Type.mana_change,
-                    unit_id: unit.id,
-                    mana_change: unit[Unit_Field.max_mana] - unit.mana,
-                    new_mana: unit[Unit_Field.max_mana]
                 }
             ];
 
             const cooldown_deltas = unit.abilities
-                .filter(ability => ability.type != Ability_Type.passive && ability.cooldown_remaining > 0)
+                .filter(ability => ability.type != Ability_Type.passive && ability.charges_remaining < 1)
                 .map(ability => ({
-                    type: Delta_Type.set_ability_cooldown_remaining,
+                    type: Delta_Type.set_ability_charges_remaining,
                     unit_id: unit.id,
                     ability_id: ability.id,
-                    cooldown_remaining: 0
-                }) as Delta_Set_Ability_Cooldown_Remaining); // WTF typescript
+                    charges_remaining: (ability as Ability_Active).charges
+                }) as Delta_Set_Ability_Charges_Remaining); // WTF typescript
 
             submit_battle_deltas(battle, deltas.concat(cooldown_deltas));
         }

@@ -318,7 +318,7 @@ function receive_battle_deltas(game: Game_In_Battle, head_before_merge: number, 
         if (line) {
             game.battle_log.push(line);
         } else {
-            console.log(`Delta (${delta.type}) is not supported for battle log`);
+            console.log(`Delta (${enum_to_string(delta.type)}) is not supported for battle log`);
         }
 
         collapse_delta(battle, delta);

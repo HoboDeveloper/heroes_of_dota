@@ -3,8 +3,7 @@ declare function ability_definition_to_ability<T>(definition: Ability_Definition
 declare const enum Ability_Error {
     other = 0,
     dead = 1,
-    no_mana = 2,
-    on_cooldown = 3,
+    no_charges = 2,
     invalid_target = 4,
     already_acted_this_turn = 5,
     not_learned_yet = 6,
@@ -49,12 +48,10 @@ type Unit = {
     dead: boolean;
     position: XY;
     health: number;
-    mana: number;
     move_points: number;
     has_taken_an_action_this_turn: boolean;
     attack: Ability;
     [Unit_Field.level]: number;
-    [Unit_Field.max_mana]: number;
     [Unit_Field.max_health]: number;
     [Unit_Field.max_move_points]: number;
     [Unit_Field.attack_bonus]: number;
@@ -82,9 +79,8 @@ type Expiring_Modifier = Modifier_Base & {
 type Modifier = Permanent_Modifier | Expiring_Modifier;
 
 type Ability_Passive = Ability_Definition_Passive;
-
 type Ability_Active = Ability_Definition_Active & {
-    cooldown_remaining: number;
+    charges_remaining: number;
 }
 
 type Ability = Ability_Passive | Ability_Active;
@@ -360,8 +356,8 @@ function pass_turn_to_next_player(battle: Battle) {
     for (const unit of battle.units) {
         if (unit.owner_player_id == turn_passed_from_player_id) {
             for (const ability of unit.abilities) {
-                if (ability.type != Ability_Type.passive && ability.cooldown_remaining > 0) {
-                    ability.cooldown_remaining--;
+                if (ability.id == Ability_Id.basic_attack) {
+                    ability.charges_remaining = ability.charges;
                 }
             }
 
@@ -417,8 +413,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     if (unit[Unit_Field.level] < ability.available_since_level) return error(Ability_Error.not_learned_yet);
 
     if (ability.type == Ability_Type.passive) return error(Ability_Error.other);
-    if (ability.cooldown_remaining > 0) return error(Ability_Error.on_cooldown);
-    if (ability.mana_cost > unit.mana) return error(Ability_Error.no_mana);
+    if (ability.charges_remaining < 1) return error(Ability_Error.no_charges);
 
     return {
         success: true,
@@ -450,7 +445,6 @@ function change_field_default(battle: Battle, target: Unit, field: Unit_Field, c
     switch (field) {
         case Unit_Field.max_move_points: target.move_points = Math.min(target.move_points, change.new_value); break;
         case Unit_Field.max_health: target.health = Math.min(target.health, change.new_value); break;
-        case Unit_Field.max_mana: target.mana = Math.min(target.mana, change.new_value); break;
     }
 
     if (tie_to_modifier_id != undefined) {
@@ -665,14 +659,12 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 attack: ability_definition_to_ability(definition.attack),
                 move_points: definition.move_points,
                 health: definition.health,
-                mana: definition.mana,
                 dead: false,
                 has_taken_an_action_this_turn: false,
                 abilities: definition.abilities.map(ability_definition_to_ability),
                 modifiers: [],
                 [Unit_Field.attack_bonus]: 0,
                 [Unit_Field.level]: 1,
-                [Unit_Field.max_mana]: definition.mana,
                 [Unit_Field.max_health]: definition.health,
                 [Unit_Field.max_move_points]: definition.move_points,
                 [Unit_Field.state_stunned_counter]: 0,
@@ -695,16 +687,6 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.mana_change: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
-
-            if (unit) {
-                unit.mana = delta.new_mana;
-            }
-
-            break;
-        }
-
         case Delta_Type.use_no_target_ability:
         case Delta_Type.use_unit_target_ability:
         case Delta_Type.use_ground_target_ability: {
@@ -716,7 +698,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 const ability = find_unit_ability(unit, delta.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
-                    ability.cooldown_remaining = ability.cooldown;
+                    ability.charges = ability.charges - 1;
                 }
 
                 switch (delta.type) {
@@ -849,14 +831,14 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.set_ability_cooldown_remaining: {
+        case Delta_Type.set_ability_charges_remaining: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
             if (unit) {
                 const ability = find_unit_ability(unit, delta.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
-                    ability.cooldown_remaining = delta.cooldown_remaining;
+                    ability.charges_remaining = delta.charges_remaining;
                 }
             }
 
