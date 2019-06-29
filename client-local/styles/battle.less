@@ -136,20 +136,6 @@
             }
           }
 
-          #mana_indicator.indicator {
-            align: right bottom;
-
-            Label {
-              padding-bottom: -6px;
-
-              color: #1874ba;
-            }
-
-            /*#background {
-              background-color: #1874ba;
-            }*/
-          }
-
           .indicator {
             > #background {
               /*border: 1px solid black;
@@ -193,10 +179,6 @@
 
             &.on_cooldown #ability_image {
               saturation: 0.5;
-            }
-
-            &.not_enough_mana #ability_image {
-              wash-color: #1874baee;
             }
 
             #ability_image {
@@ -334,16 +316,6 @@
 
       #health_icon {
         background-image: @icon-armor;
-      }
-    }
-
-    #mana_container {
-      #mana_label, #max_mana_label {
-        text-shadow: 0px 0px 2px 2.0 rgb(0, 127, 162);
-      }
-
-      #mana_icon {
-        background-image: @icon-mana;
       }
     }
 
