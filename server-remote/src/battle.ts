@@ -413,7 +413,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         return unit;
     }
 
-    function find_valid_unit_and_authorize_ability(unit_id: number, ability_id: number): { unit: Unit, ability: Ability } | undefined {
+    function find_valid_unit_and_authorize_ability(unit_id: number, ability_id: Ability_Id): { unit: Unit, ability: Ability_Active } | undefined {
         const unit = find_valid_unit_for_action(unit_id);
 
         if (!unit) return;
@@ -424,7 +424,18 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
         const ability = ability_use.ability;
 
+        if (ability.type == Ability_Type.passive) return;
+
         return { unit: unit, ability: ability };
+    }
+
+    function decrement_charges(actors: { unit: Unit, ability: Ability_Active }): Delta_Set_Ability_Charges_Remaining {
+        return {
+            type: Delta_Type.set_ability_charges_remaining,
+            unit_id: actors.unit.id,
+            ability_id: actors.ability.id,
+            charges_remaining: actors.ability.charges_remaining - 1
+        }
     }
 
     switch (action.type) {
@@ -459,6 +470,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             return [
+                decrement_charges(actors),
                 cast
             ]
         }
@@ -479,6 +491,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             return [
+                decrement_charges(actors),
                 cast
             ]
         }
@@ -499,6 +512,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!cast) return;
 
             const deltas: Delta[] = [
+                decrement_charges(actors),
                 cast
             ];
 
