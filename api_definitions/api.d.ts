@@ -8,9 +8,7 @@ declare const enum Delta_Type {
     health_change = 0,
     unit_move = 2,
     unit_spawn = 3,
-    start_turn = 4,
     end_turn = 5,
-    unit_force_move = 6,
     use_ground_target_ability = 7,
     use_unit_target_ability = 8,
     use_no_target_ability = 9,
@@ -209,7 +207,6 @@ type Battle_Player = {
 }
 
 type Unit_Field_Change = {
-    source_ability_id: Ability_Id
     source_unit_id: number
     target_unit_id: number
     new_value: number
@@ -261,10 +258,6 @@ type Delta_Use_No_Target_Ability_Base = {
     unit_id: number
 }
 
-type Delta_Start_Turn = {
-    type: Delta_Type.start_turn
-}
-
 type Delta_End_Turn = {
     type: Delta_Type.end_turn
 }
@@ -276,7 +269,6 @@ type Delta_Field_Change = Unit_Field_Change & {
 
 type Delta_Level_Change = Delta_Field_Change & {
     field: Unit_Field.level
-    received_from_enemy_kill: boolean
 }
 
 type Delta_Max_Health_Change = Delta_Field_Change & {
@@ -370,7 +362,6 @@ type Delta =
     Delta_Ability_Effect_Applied<Ability_Effect> |
     Delta_Draw_Card |
     Delta_Use_Card |
-    Delta_Start_Turn |
     Delta_End_Turn |
     Delta_Game_Over
 

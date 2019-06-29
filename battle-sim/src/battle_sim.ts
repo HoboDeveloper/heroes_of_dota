@@ -106,7 +106,7 @@ type XY = {
     y: number;
 }
 
-const max_unit_level = 4;
+const max_unit_level = 3;
 
 function xy(x: number, y: number): XY {
     return { x: x, y: y };
@@ -355,12 +355,6 @@ function pass_turn_to_next_player(battle: Battle) {
 
     for (const unit of battle.units) {
         if (unit.owner_player_id == turn_passed_from_player_id) {
-            for (const ability of unit.abilities) {
-                if (ability.id == Ability_Id.basic_attack) {
-                    ability.charges_remaining = ability.charges;
-                }
-            }
-
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
                     if (modifier.duration_remaining > 0) {
@@ -369,23 +363,24 @@ function pass_turn_to_next_player(battle: Battle) {
                 }
             }
         }
+
+        unit.move_points = unit[Unit_Field.max_move_points];
+        unit.has_taken_an_action_this_turn = false;
+    }
+
+    for (const player of battle.players) {
+        player.has_used_a_card_this_turn = false;
     }
 }
 
-function collapse_deltas(battle: Battle, head_before_merge: number, deltas: Delta[]) {
-    for (let index = 0; index < deltas.length; index++) {
-        battle.deltas[head_before_merge + index] = deltas[index];
-    }
+function catch_up_to_head(battle: Battle) {
+    while (battle.deltas.length != battle.delta_head) {
+        const target_head = battle.deltas.length;
 
-    for (const delta of deltas) {
-        if (!delta) {
-            break;
+        for (; battle.delta_head < target_head; battle.delta_head++) {
+            collapse_delta(battle, battle.deltas[battle.delta_head]);
         }
-
-        collapse_delta(battle, delta);
     }
-
-    battle.delta_head += deltas.length;
 }
 
 function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefined {
@@ -477,28 +472,6 @@ function apply_modifier(source: Unit, target: Unit, modifier_id: number, ability
 
 function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
     switch (effect.ability_id) {
-        case Ability_Id.pudge_flesh_heap: {
-            const unit = find_unit_by_id(battle, effect.unit_id);
-
-            if (unit) {
-                change_field(battle, unit, Unit_Field.max_health, effect.max_health_change);
-                change_health(battle, unit, unit, effect.health_change);
-            }
-            break;
-        }
-
-        case Ability_Id.luna_lunar_blessing: {
-            const source = find_unit_by_id(battle, effect.source_unit_id);
-            const target = find_unit_by_id(battle, effect.target_unit_id);
-
-            if (source && target) {
-                apply_modifier(source, target, effect.modifier_id, effect.ability_id);
-                change_field(battle, target, Unit_Field.attack_bonus, effect.damage_bonus, effect.modifier_id);
-            }
-
-            break;
-        }
-
         case Ability_Id.luna_moon_glaive: {
             const source = find_unit_by_id(battle, effect.source_unit_id);
             const target = find_unit_by_id(battle, effect.target_unit_id);
@@ -510,11 +483,7 @@ function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
             break;
         }
 
-        case Ability_Id.tide_kraken_shell: {
-            break;
-        }
-
-        default: unreachable(effect);
+        default: unreachable(effect.ability_id);
     }
 }
 
@@ -730,19 +699,6 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
                     default: unreachable(delta);
                 }
-            }
-
-            break;
-        }
-
-        case Delta_Type.start_turn: {
-            for (const player of battle.players) {
-                player.has_used_a_card_this_turn = false;
-            }
-
-            for (const unit of battle.units) {
-                unit.move_points = unit[Unit_Field.max_move_points];
-                unit.has_taken_an_action_this_turn = false;
             }
 
             break;

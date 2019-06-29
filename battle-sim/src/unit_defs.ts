@@ -80,18 +80,14 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         charges: 1,
                         damage: 6
                     }),
-                    passive_ability<Ability_Pudge_Flesh_Heap>({
-                        available_since_level: 2,
-                        health_per_kill: 5
-                    }),
                     active_ability<Ability_Pudge_Rot>({
-                        available_since_level: 3,
+                        available_since_level: 2,
                         targeting: target_rect_area_around_caster(1),
                         charges: 1,
                         damage: 5
                     }),
                     active_ability<Ability_Pudge_Dismember>({
-                        available_since_level: 4,
+                        available_since_level: 3,
                         targeting: target_unit_in_manhattan_distance(1),
                         charges: 1,
                         damage: 14
@@ -120,12 +116,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         damage: 4,
                         attack_reduction: 2
                     }),
-                    passive_ability<Ability_Tide_Kraken_Shell>({
-                        available_since_level: 3,
-                        attack_reduction: 3
-                    }),
                     active_ability<Ability_Tide_Ravage>({
-                        available_since_level: 4,
+                        available_since_level: 3,
                         targeting: target_unit_in_manhattan_distance(5),
                         damage: 5,
                         charges: 1,
@@ -149,12 +141,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     passive_ability<Ability_Luna_Moon_Glaive>({
                         available_since_level: 2
                     }),
-                    passive_ability<Ability_Luna_Lunar_Blessing>({
-                        available_since_level: 3,
-                        attack_bonus: 2
-                    }),
                     active_ability<Ability_Luna_Eclipse>({
-                        available_since_level: 4,
+                        available_since_level: 3,
                         targeting: target_unit_in_manhattan_distance(4),
                         total_beams: 16,
                         charges: 1,

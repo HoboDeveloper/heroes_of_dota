@@ -833,34 +833,6 @@ function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Un
 
 function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Effect) {
     switch (effect.ability_id) {
-        case Ability_Id.tide_kraken_shell: {
-            const unit = find_unit_by_id(effect.unit_id);
-
-            if (unit) {
-                fx_by_unit("particles/units/heroes/hero_tidehunter/tidehunter_krakenshell_purge.vpcf", unit).release();
-                unit_emit_sound(unit, "Hero_Tidehunter.KrakenShell");
-            }
-
-            break;
-        }
-
-        case Ability_Id.pudge_flesh_heap: {
-            const unit = find_unit_by_id(effect.unit_id);
-
-            if (unit) {
-                fx_by_unit("particles/econ/items/bloodseeker/bloodseeker_eztzhok_weapon/bloodseeker_bloodbath_eztzhok.vpcf", unit)
-                    .to_unit_origin(1, unit)
-                    .release();
-
-                unit_emit_sound(unit, "pudge_ability_flesh_heap");
-
-                change_field(main_player, unit, Unit_Field.max_health, effect.max_health_change);
-                change_health(main_player, unit, unit, effect.health_change);
-            }
-
-            break;
-        }
-
         case Ability_Id.luna_moon_glaive: {
             const source = find_unit_by_id(effect.source_unit_id);
             const target = find_unit_by_id(effect.target_unit_id);
@@ -880,17 +852,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             break;
         }
 
-        case Ability_Id.luna_lunar_blessing: {
-            const unit = find_unit_by_id(effect.target_unit_id);
-
-            if (unit) {
-                change_field(main_player, unit, Unit_Field.attack_bonus, effect.damage_bonus);
-            }
-
-            break;
-        }
-
-        default: unreachable(effect);
+        default: unreachable(effect.ability_id);
     }
 }
 
@@ -1007,6 +969,7 @@ function change_field(main_player: Main_Player, unit: Battle_Unit, field: Unit_F
             unit_emit_sound(unit, "hero_level_up");
             fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
             update_player_state_net_table(main_player);
+            wait(1);
 
             break;
         }
@@ -1127,15 +1090,13 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.start_turn: {
+        case Delta_Type.end_turn: {
             for (const unit of battle.units) {
                 unit.move_points = unit.max_move_points;
             }
 
-            break;
-        }
+            update_player_state_net_table(main_player);
 
-        case Delta_Type.end_turn: {
             break;
         }
 

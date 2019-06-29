@@ -999,16 +999,13 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.basic_attack: return "juggernaut_blade_dance";
         case Ability_Id.pudge_hook: return "pudge_meat_hook";
         case Ability_Id.pudge_rot: return "pudge_rot";
-        case Ability_Id.pudge_flesh_heap: return "pudge_flesh_heap";
         case Ability_Id.pudge_dismember: return "pudge_dismember";
         case Ability_Id.sniper_shrapnel: return "sniper_shrapnel";
         case Ability_Id.tide_gush: return "tidehunter_gush";
         case Ability_Id.tide_anchor_smash: return "tidehunter_anchor_smash";
-        case Ability_Id.tide_kraken_shell: return "tidehunter_kraken_shell";
         case Ability_Id.tide_ravage: return "tidehunter_ravage";
         case Ability_Id.luna_lucent_beam: return "luna_lucent_beam";
         case Ability_Id.luna_moon_glaive: return "luna_moon_glaive";
-        case Ability_Id.luna_lunar_blessing: return "luna_lunar_blessing";
         case Ability_Id.luna_eclipse: return "luna_eclipse";
     }
 

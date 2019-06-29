@@ -12,7 +12,6 @@ export type Battle_Record = Battle & {
     card_id_auto_increment: number
     finished: boolean
     turn_index: number
-    kills_this_delta: Unit_Kill[]
 }
 
 const battles: Battle_Record[] = [];
@@ -31,11 +30,6 @@ export function random_in_array<T>(array: T[], length = array.length): T | undef
     if (length == 0) return;
 
     return array[random_int_up_to(length)];
-}
-
-type Unit_Kill = {
-    victim_unit_id: number
-    killer_unit_id: number
 }
 
 type Aura = {
@@ -138,10 +132,9 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
     }
 }
 
-function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal: number, max_health_override: number = target[Unit_Field.max_health]): Delta_Health_Change {
+function heal_delta(source: Unit, target: Unit, heal: number, max_health_override: number = target[Unit_Field.max_health]): Delta_Health_Change {
     return {
         source_unit_id: source.id,
-        source_ability_id: source_ability,
         target_unit_id: target.id,
         type: Delta_Type.health_change,
         new_value: Math.min(max_health_override, target.health + heal),
@@ -149,12 +142,11 @@ function heal_delta(source: Unit, source_ability: Ability_Id, target: Unit, heal
     };
 }
 
-function field_change_delta<T extends Unit_Field>(field: T, source: Unit, target: Unit, source_ability: Ability_Id, value_delta: number): Delta_Field_Change & { field: T } {
+function field_change_delta<T extends Unit_Field>(field: T, source: Unit, target: Unit, value_delta: number): Delta_Field_Change & { field: T } {
     return {
         type: Delta_Type.unit_field_change,
         field: field,
         source_unit_id: source.id,
-        source_ability_id: source_ability,
         target_unit_id: target.id,
         new_value: target[field] + value_delta,
         value_delta: value_delta
@@ -381,6 +373,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
     }
 }
 
+// TODO move into a battle_sim callback?
 function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, target: Unit, damage: number): Delta | undefined {
     for (const ability of source.abilities) {
         if (source[Unit_Field.level] < ability.available_since_level) continue;
@@ -399,22 +392,9 @@ function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, tar
                         source_unit_id: source.id,
                         target_unit_id: glaive_target.id,
                         original_target_id: target.id,
-                        damage_dealt: health_change(glaive_target, damage)
+                        damage_dealt: health_change(glaive_target, -damage)
                     });
                 }
-            }
-        }
-    }
-
-    for (const ability of target.abilities) {
-        if (target[Unit_Field.level] < ability.available_since_level) continue;
-
-        switch (ability.id) {
-            case Ability_Id.tide_kraken_shell: {
-                return apply_ability_effect_delta({
-                    ability_id: ability.id,
-                    unit_id: target.id
-                });
             }
         }
     }
@@ -563,6 +543,8 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         }
 
         case Action_Type.end_turn: {
+            battle.turn_index++;
+
             return [{
                 type: Delta_Type.end_turn
             }];
@@ -636,114 +618,13 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     return last_alive_unit_player_id;
 }
 
-function push_pudge_flesh_heap_deltas(pudge: Unit, ability: Ability_Pudge_Flesh_Heap, target_deltas: Delta[]) {
-    const delta = apply_ability_effect_delta( {
-        ability_id: ability.id,
-        unit_id: pudge.id,
-        health_change: health_change(pudge, ability.health_per_kill),
-        max_health_change: field_change(pudge, Unit_Field.max_health, ability.health_per_kill)
-    });
-
-    target_deltas.push(delta);
-}
-
-function process_on_death_delta(battle: Battle_Record, delta: Delta_Health_Change, target_deltas: Delta[]) {
-    const source = find_unit_by_id(battle, delta.source_unit_id);
-    const target = find_unit_by_id(battle, delta.target_unit_id);
-
-    if (!source || !target) return;
-    if (source.owner_player_id == target.owner_player_id) return;
-
-    const source_level = source[Unit_Field.level];
-
-    if (source_level < max_unit_level) {
-        target_deltas.push({
-            type: Delta_Type.unit_field_change,
-            field: Unit_Field.level,
-            received_from_enemy_kill: true,
-            target_unit_id: source.id,
-            new_value: source_level + 1,
-            value_delta: 1,
-            source_unit_id: source.id,
-            source_ability_id: delta.source_ability_id
-        });
-    }
-
-    for (const ability of source.abilities) {
-        if (source_level < ability.available_since_level) continue;
-
-        if (ability.id == Ability_Id.pudge_flesh_heap) {
-            push_pudge_flesh_heap_deltas(source, ability, target_deltas);
-        }
-    }
-}
-
-function on_ability_received(battle: Battle_Record, unit: Unit, ability: Ability, from_enemy_kill: boolean, target_deltas: Delta[]) {
-    switch (ability.id) {
-        case Ability_Id.pudge_flesh_heap: {
-            if (from_enemy_kill) {
-                push_pudge_flesh_heap_deltas(unit, ability, target_deltas);
-            }
-
-            break;
-        }
-
-        case Ability_Id.tide_kraken_shell: {
-            const armor = field_change_delta(Unit_Field.armor, unit, unit, Ability_Id.tide_kraken_shell, 3);
-
-            target_deltas.push(armor);
-
-            break;
-        }
-
-        case Ability_Id.luna_lunar_blessing: {
-            for (const target of battle.units) {
-                // Even if dead
-                if (target.owner_player_id == unit.owner_player_id) {
-                    const effect = apply_ability_effect_delta({
-                        ability_id: Ability_Id.luna_lunar_blessing,
-                        modifier_id: get_next_modifier_id(battle),
-                        source_unit_id: unit.id,
-                        target_unit_id: target.id,
-                        damage_bonus: field_change(target, Unit_Field.attack_bonus, ability.attack_bonus)
-                    });
-
-                    target_deltas.push(effect);
-                }
-            }
-
-            break;
-        }
-    }
-}
-
-function on_level_up(battle: Battle_Record, delta: Delta_Level_Change, target_deltas: Delta[]) {
-    const unit = find_unit_by_id(battle, delta.target_unit_id);
-
-    if (!unit) return;
-
-    const new_level = unit[Unit_Field.level];
-    const previous_level = unit[Unit_Field.level] - delta.value_delta;
-
-    for (const ability of unit.abilities) {
-        if (unit[Unit_Field.level] < ability.available_since_level) continue;
-
-        const just_received_this_ability = new_level >= ability.available_since_level && previous_level < ability.available_since_level;
-
-        if (just_received_this_ability) {
-            on_ability_received(battle, unit, ability, delta.received_from_enemy_kill, target_deltas);
-        }
-    }
-}
-
 function server_change_health(battle: Battle_Record, source: Unit, target: Unit, change: Value_Change) {
     const killed = change_health_default(battle, source, target, change);
 
     if (killed) {
-        battle.kills_this_delta.push({
-            killer_unit_id: source.id,
-            victim_unit_id: target.id
-        });
+        if (source.owner_player_id != target.owner_player_id && source[Unit_Field.level] < max_unit_level) {
+            battle.deltas.push(field_change_delta(Unit_Field.level, source, source, 1));
+        }
     }
 
     return killed;
@@ -751,64 +632,6 @@ function server_change_health(battle: Battle_Record, source: Unit, target: Unit,
 
 function server_change_field(battle: Battle, target: Unit, field: Unit_Field, change: Value_Change, tie_to_modifier_id?: number) {
     change_field_default(battle, target, field, change, tie_to_modifier_id);
-
-
-}
-
-function process_collapsed_deltas(battle: Battle_Record, deltas: Delta[]): Delta[] | undefined {
-    const new_deltas: Delta[] = [];
-    // TODO all of this is broken with abilities
-
-    for (const delta of deltas) {
-        switch (delta.type) {
-            case Delta_Type.health_change: {
-                if (delta.new_value == 0) {
-                    process_on_death_delta(battle, delta, new_deltas);
-                }
-
-                break;
-            }
-
-            case Delta_Type.unit_field_change: {
-                if (delta.field == Unit_Field.level) {
-                    on_level_up(battle, delta, new_deltas);
-                }
-
-                break;
-            }
-
-            case Delta_Type.end_turn: {
-                battle.turn_index++;
-
-                for (const unit of battle.units) {
-                    if (unit.dead) continue;
-
-                    for (const modifier of unit.modifiers) {
-                        if (!modifier.permanent) {
-                            if (modifier.duration_remaining == 0) {
-                                new_deltas.push({
-                                    type: Delta_Type.modifier_removed,
-                                    modifier_id: modifier.id
-                                });
-                            }
-                        }
-                    }
-                }
-
-                new_deltas.push({
-                    type: Delta_Type.start_turn
-                });
-
-                break;
-            }
-        }
-    }
-
-    if (new_deltas.length == 0) {
-        return;
-    }
-
-    return new_deltas;
 }
 
 export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
@@ -822,9 +645,10 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
 
     const initial_head = battle.delta_head;
     const new_deltas = turn_action_to_new_deltas(battle, player, action);
-    const collapsed_anything = submit_battle_deltas(battle, new_deltas);
 
-    if (collapsed_anything) {
+    if (new_deltas) {
+        submit_battle_deltas(battle, new_deltas)
+
         const possible_winner = try_compute_battle_winner_player_id(battle);
 
         if (possible_winner != undefined) {
@@ -837,27 +661,17 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
 
             report_battle_over(battle, possible_winner);
         }
-    }
 
-    if (!collapsed_anything) {
+        return get_battle_deltas_after(battle, initial_head);
+    } else {
         return;
     }
-
-    return get_battle_deltas_after(battle, initial_head);
 }
 
-export function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[] | undefined): boolean {
-    let new_deltas = battle_deltas;
-    let collapsed_anything = false;
+export function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
+    battle.deltas.push(...battle_deltas);
 
-    while (new_deltas) {
-        collapse_deltas(battle, battle.delta_head, new_deltas);
-        new_deltas = process_collapsed_deltas(battle, new_deltas);
-
-        collapsed_anything = true;
-    }
-
-    return collapsed_anything;
+    catch_up_to_head(battle);
 }
 
 export function get_battle_deltas_after(battle: Battle, head: number): Delta[] {
@@ -900,7 +714,6 @@ export function start_battle(players: Player[]): number {
         modifier_id_auto_increment: 0,
         card_id_auto_increment: 0,
         finished: false,
-        kills_this_delta: [],
         change_health: server_change_health,
         change_field: server_change_field
     };
@@ -919,7 +732,9 @@ export function start_battle(players: Player[]): number {
         draw_hero_card(battle, battle.players[1], Unit_Type.luna)
     ];
 
-    collapse_deltas(battle, battle.delta_head, spawn_deltas);
+    battle.deltas.push(...spawn_deltas);
+
+    catch_up_to_head(battle);
 
     battles.push(battle);
 

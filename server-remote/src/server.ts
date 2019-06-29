@@ -594,7 +594,6 @@ handlers.set("/battle_cheat", body => {
                     type: Delta_Type.health_change,
                     source_unit_id: unit.id,
                     target_unit_id: unit.id,
-                    source_ability_id: Ability_Id.basic_attack,
                     new_value: unit[Unit_Field.max_health],
                     value_delta: unit[Unit_Field.max_health] - unit.health
                 }
@@ -646,12 +645,10 @@ handlers.set("/battle_cheat", body => {
                 submit_battle_deltas(battle, [{
                     type: Delta_Type.unit_field_change,
                     field: Unit_Field.level,
-                    source_ability_id: Ability_Id.basic_attack,
                     source_unit_id: request.selected_unit_id,
                     target_unit_id: request.selected_unit_id,
                     new_value: new_lvl,
-                    value_delta: delta,
-                    received_from_enemy_kill: false
+                    value_delta: delta
                 }]);
 
                 break;
@@ -682,7 +679,6 @@ handlers.set("/battle_cheat", body => {
                     if (!unit.dead) {
                         const delta: Delta_Health_Change = {
                             type: Delta_Type.health_change,
-                            source_ability_id: Ability_Id.basic_attack,
                             source_unit_id: unit.id,
                             target_unit_id: unit.id,
                             new_value: 0,
