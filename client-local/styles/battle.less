@@ -114,16 +114,6 @@
             height: 100%;
           }
 
-          #level_indicator.indicator {
-            align: left bottom;
-
-            Label {
-              padding-bottom: -6px;
-
-              color: #fff24e;
-            }
-          }
-
           #health_indicator.indicator {
             align: right top;
 
@@ -133,6 +123,19 @@
 
             Label {
               color: #13d72e;
+            }
+          }
+
+          #level_indicator {
+            align: left bottom;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 4px;
+            border-radius: 4px;
+
+            .level_pip {
+              width: 6px;
+              height: 6px;
+              margin: 0;
             }
           }
 
@@ -173,12 +176,9 @@
               brightness: 0.2;
             }
 
-            &.on_cooldown #cooldown_layer {
-              visibility: visible;
-            }
-
-            &.on_cooldown #ability_image {
-              saturation: 0.5;
+            &.not_enough_charges #ability_image {
+              saturation: 0.1;
+              brightness: 0.2;
             }
 
             #ability_image {
@@ -189,12 +189,16 @@
               background-color: black; // Else the rendering bugs out
             }
 
-            #cooldown_layer {
-              background-image: url("file://{images}/custom_game/hourglass.png");
-              width: 20px;
-              height: 20px;
-              align: center center;
-              visibility: collapse;
+            #charges {
+              font-family: @font-mono;
+              font-size: 16px;
+              color: white;
+              align: right bottom;
+              background-color: rgba(0, 0, 0, 0.95);
+              border-radius: 5px;
+              text-align: center;
+              line-height: 20px;
+              width: 18px;
             }
 
             &:hover {
@@ -219,6 +223,22 @@
     transform: scaleX(-1);
     width: 52px;
     height: 138px;
+  }
+}
+
+.level_bar {
+  flow-children: right;
+
+  .level_pip {
+    width: 4px;
+    height: 4px;
+    background-color: gray;
+    opacity-mask: url("s2r://panorama/images/masks/softedge_circle_sharper_png.vtex");
+    margin: 1px;
+
+    &.active {
+      background-color: #e2df22dd;
+    }
   }
 }
 
@@ -330,21 +350,7 @@
     }
 
     #level_bar {
-      flow-children: right;
       horizontal-align: center;
-
-      .level_tick {
-        width: 4px;
-        height: 4px;
-        background-color: gray;
-        opacity-mask: url("s2r://panorama/images/masks/softedge_circle_sharper_png.vtex");
-        margin: 1px;
-
-        &.active {
-          background-color: #e2df22dd;
-        }
-      }
-
       margin-top: 3px;
     }
 

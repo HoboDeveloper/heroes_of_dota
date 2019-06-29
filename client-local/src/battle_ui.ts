@@ -30,7 +30,7 @@ type UI_Unit_Data = {
     level: number
 
     stat_bar_panel: Panel,
-    level_ticks: Panel[],
+    level_bar: Level_Bar
 
     stat_health: Stat_Indicator
     stat_attack: Stat_Indicator
@@ -65,20 +65,21 @@ type Stat_Indicator = {
     formatter(unit: Unit, value: number): string
 }
 
-type Hero_Panel_Stat_Indicator = {
-    label: LabelPanel;
-}
-
 type Hero_Row = {
-    unit_id: number;
-    ability_buttons: Hero_Ability_Button[];
-    health: Hero_Panel_Stat_Indicator;
-    level: Hero_Panel_Stat_Indicator;
+    unit_id: number
+    ability_buttons: Hero_Ability_Button[]
+    health_label: LabelPanel
+    level_bar: Level_Bar
 }
 
 type Hero_Ability_Button = {
     ability: AbilityId;
     ability_panel: Panel;
+    charges_label: LabelPanel
+}
+
+type Level_Bar = {
+    pips: Panel[]
 }
 
 type Cost_Population_Result = {
@@ -725,7 +726,8 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
     const panel = $.CreatePanel("Panel", $("#stat_bar_container"), "");
     panel.AddClass("unit_stat_bar");
 
-    const level_bar = $.CreatePanel("Panel", panel, "level_bar");
+    const level_bar = create_level_bar(panel, "level_bar");
+
     const [ health, max_health ] = stat_indicator_ui(
         data.health,
         data.max_health,
@@ -780,12 +782,6 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
         ]
     }
 
-    for (let index = 0; index < max_unit_level; index++) {
-        const level_tick = $.CreatePanel("Panel", level_bar, "");
-        level_tick.AddClass("level_tick");
-        level_ticks.push(level_tick);
-    }
-
     return {
         id: data.id,
         stat_health: health,
@@ -800,7 +796,7 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
         stat_max_health: max_health,
         level: data.level,
         stat_bar_panel: panel,
-        level_ticks: level_ticks
+        level_bar: level_bar
     }
 }
 
@@ -813,9 +809,7 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
         data.stat_health.label.AddClass(which_animation);
     }
 
-    data.level_ticks.forEach((tick, index) => {
-        tick.SetHasClass("active", index < data.level);
-    });
+    update_level_bar(data.level_bar, data.level);
 
     function try_find_and_update_associated_unit() {
         const unit = find_unit_by_id(battle, data.id);
@@ -1038,17 +1032,38 @@ function get_full_unit_icon_path(type: Unit_Type): string {
     return `file://{images}/heroes/npc_dota_hero_${get_hero_name(type)}.png`;
 }
 
+function create_level_bar(parent: Panel, id: string): Level_Bar {
+    const panel = $.CreatePanel("Panel", parent, id);
+    panel.AddClass("level_bar");
+
+    const level_bar: Level_Bar = {
+        pips: []
+    };
+
+    for (let index = 0; index < max_unit_level; index++) {
+        const pip = $.CreatePanel("Panel", panel, "");
+        pip.AddClass("level_pip");
+        level_bar.pips.push(pip);
+    }
+
+    return level_bar;
+}
+
+function update_level_bar(level_bar: Level_Bar, level: number) {
+    level_bar.pips.forEach((tick, index) => {
+        tick.SetHasClass("active", index < level);
+    });
+}
+
 function add_spawned_hero_to_control_panel(unit: Unit) {
-    function create_indicator(parent: Panel, id: string, value: number): Hero_Panel_Stat_Indicator {
+    function create_indicator(parent: Panel, id: string, value: number): LabelPanel {
         const indicator = $.CreatePanel("Panel", parent, id);
         const label = $.CreatePanel("Label", indicator, "");
 
         indicator.AddClass("indicator");
         label.text = value.toString();
 
-        return {
-            label: label
-        }
+        return label;
     }
 
     const hero_row = $.CreatePanel("Panel", control_panel.panel, "");
@@ -1060,9 +1075,8 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
     safely_set_panel_background_image(portrait, get_full_unit_icon_path(unit.type));
 
     const indicators = $.CreatePanel("Panel", portrait, "indicators");
-
-    const level = create_indicator(indicators, "level_indicator", unit[Unit_Field.level]);
     const health = create_indicator(indicators, "health_indicator", unit.health);
+    const level = create_level_bar(indicators, "level_indicator");
 
     const ability_buttons: Hero_Ability_Button[] = [];
 
@@ -1097,13 +1111,22 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
 
         const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
         safely_set_panel_background_image(ability_image, get_full_ability_icon_path(ability.id));
+
+        const charges_label = $.CreatePanel("Label", ability_panel, "charges");
+        charges_label.hittest = false;
+
+        ability_buttons.push({
+            ability: ability.id,
+            ability_panel: ability_panel,
+            charges_label: charges_label
+        })
     }
 
     const new_row: Hero_Row = {
         unit_id: unit.id,
         ability_buttons: ability_buttons,
-        health: health,
-        level: level
+        health_label: health,
+        level_bar: level
     };
 
     control_panel.hero_rows.push(new_row);
@@ -1120,9 +1143,9 @@ function update_hero_control_panel_state(unit: Unit) {
 
     if (!row) return;
 
-    // TODO Might be worth it to try and granularly update labels. But probably not
-    row.health.label.text = unit.health.toString();
-    row.level.label.text = unit[Unit_Field.level].toString();
+    row.health_label.text = unit.health.toString();
+
+    update_level_bar(row.level_bar, unit[Unit_Field.level]);
 
     for (const ability_button of row.ability_buttons) {
         const ability = find_unit_ability(unit, ability_button.ability);
@@ -1138,6 +1161,7 @@ function update_hero_control_panel_state(unit: Unit) {
             const not_enough_charges = ability.charges_remaining < 1;
 
             ability_button.ability_panel.SetHasClass("not_enough_charges", not_enough_charges);
+            ability_button.charges_label.text = ability.charges_remaining.toString();
         }
     }
 }
