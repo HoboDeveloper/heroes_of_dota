@@ -355,6 +355,12 @@ function pass_turn_to_next_player(battle: Battle) {
 
     for (const unit of battle.units) {
         if (unit.owner_player_id == turn_passed_from_player_id) {
+            for (const ability of unit.abilities) {
+                if (ability.id == Ability_Id.basic_attack) {
+                    ability.charges_remaining = ability.charges;
+                }
+            }
+
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
                     if (modifier.duration_remaining > 0) {
