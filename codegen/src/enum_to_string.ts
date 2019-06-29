@@ -25,21 +25,33 @@ export default function run_transformer(program: ts.Program, options: Options): 
                 const argument = call.arguments[0];
                 const type = checker.getTypeAtLocation(argument);
                 const flags = type.getFlags();
+                const is_union = (flags & ts.TypeFlags.UnionOrIntersection) != 0;
+                const is_enum = (flags & ts.TypeFlags.EnumLike) != 0;
 
-                if ((flags & ts.TypeFlags.UnionOrIntersection) != 0) {
+                if (is_union || is_enum) {
                     const inline_function_argument_name = "value";
 
                     let case_clauses;
 
-                    if ((flags & ts.TypeFlags.EnumLike) != 0) {
-                        const enum_decl = type.getSymbol().valueDeclaration as ts.EnumDeclaration;
+                    if (is_enum) {
+                        const declaration = type.getSymbol().valueDeclaration;
 
-                        case_clauses = enum_decl.members.map(member => {
+                        let enum_members: ts.EnumMember[];
+
+                        if (declaration.kind == ts.SyntaxKind.EnumDeclaration) {
+                            enum_members = [ ...(declaration as ts.EnumDeclaration).members ];
+                        } else if (declaration.kind == ts.SyntaxKind.EnumMember) {
+                            enum_members = [ declaration as ts.EnumMember ];
+                        } else {
+                            error_out(argument, "Unsupported declaration kind");
+                        }
+
+                        case_clauses = enum_members.map(member => {
                             return ts.createCaseClause(ts.createLiteral(parseInt(member.initializer.getText())), [
                                 ts.createReturn(ts.createStringLiteral(member.name.getText()))
                             ]);
                         });
-                    } else {
+                    } else if (is_union) {
                         const union = type as ts.UnionOrIntersectionType;
 
                         case_clauses = union.types.map(type => {
@@ -49,7 +61,6 @@ export default function run_transformer(program: ts.Program, options: Options): 
                                 ts.createReturn(ts.createStringLiteral(type.getSymbol().getEscapedName().toString()))
                             ]);
                         });
-
                     }
 
                     const switch_expression = ts.createSwitch(ts.createIdentifier(inline_function_argument_name), ts.createCaseBlock(case_clauses));
