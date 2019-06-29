@@ -67,6 +67,7 @@ type Stat_Indicator = {
 
 type Hero_Row = {
     unit_id: number
+    panel: Panel
     ability_buttons: Hero_Ability_Button[]
     health_label: LabelPanel
     level_bar: Level_Bar
@@ -1069,8 +1070,13 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
     const hero_row = $.CreatePanel("Panel", control_panel.panel, "");
     hero_row.AddClass("hero_row");
 
-    const portrait = $.CreatePanel("Panel", hero_row, "hero_portrait");
-    const abilities = $.CreatePanel("Panel", hero_row, "ability_row");
+    const death_overlay = $.CreatePanel("Panel", hero_row, "death_overlay");
+    death_overlay.hittest = false;
+
+    const content_container = $.CreatePanel("Panel", hero_row, "container");
+
+    const portrait = $.CreatePanel("Panel", content_container, "hero_portrait");
+    const abilities = $.CreatePanel("Panel", content_container, "ability_row");
 
     safely_set_panel_background_image(portrait, get_full_unit_icon_path(unit.type));
 
@@ -1123,6 +1129,7 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
     }
 
     const new_row: Hero_Row = {
+        panel: hero_row,
         unit_id: unit.id,
         ability_buttons: ability_buttons,
         health_label: health,
@@ -1143,6 +1150,7 @@ function update_hero_control_panel_state(unit: Unit) {
 
     if (!row) return;
 
+    row.panel.SetHasClass("dead", unit.dead);
     row.health_label.text = unit.health.toString();
 
     update_level_bar(row.level_bar, unit[Unit_Field.level]);

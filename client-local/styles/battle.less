@@ -83,131 +83,149 @@
 
     #hero_rows {
       flow-children: down;
-      padding: 4px;
+      padding-top: 4px;
       padding-bottom: 0;
 
       .hero_row {
-        flow-children: right;
         margin-bottom: 4px;
 
-        &:hover .hero_portrait {
+        &.dead {
           wash-color: gray;
         }
 
-        &:hover .ability_row {
-          wash-color: gray;
+        &.dead #death_overlay {
+          width: 100%;
+          height: 3px;
+          vertical-align: center;
+          background-color: red;
+          box-shadow: black 0px 0px 3px 3px;
+          z-index: 1;
         }
 
-        #hero_portrait {
-          box-shadow: inset #151515 2px 2px 4px 4px;
-          background-size: auto 100%;
-          background-position: center;
-          background-color: black; // Else the rendering bugs out
-          width: 76px;
-          height: 42px;
-          margin-right: 8px;
-          border-radius: 2px;
-
-          #indicators {
-            margin-right: 2px;
-            width: 100%;
-            height: 100%;
-          }
-
-          #health_indicator.indicator {
-            align: right top;
-
-            /*#background {
-              background-color: #ba1217;
-            }*/
-
-            Label {
-              color: #13d72e;
-            }
-          }
-
-          #level_indicator {
-            align: left bottom;
-            background-color: rgba(0, 0, 0, 0.8);
-            padding: 4px;
-            border-radius: 4px;
-
-            .level_pip {
-              width: 6px;
-              height: 6px;
-              margin: 0;
-            }
-          }
-
-          .indicator {
-            > #background {
-              /*border: 1px solid black;
-              border-radius: 50%;
-              width: 20px;
-              height: 20px;
-              align: center center;*/
-            }
-
-            Label {
-              font-family: @font-mono;
-              font-size: 18px;
-              text-shadow: 0px 1px 1px 8.0 #00000077;
-              color: white;
-              align: center center;
-              text-align: center center;
-            }
-          }
-        }
-
-        #ability_row {
+        #container {
           flow-children: right;
-          align: left center;
+          padding-left: 4px;
+          padding-right: 4px;
 
-          .ability_button {
+          &:hover .hero_portrait {
+            wash-color: gray;
+          }
+
+          &:hover .ability_row {
+            wash-color: gray;
+          }
+
+          #hero_portrait {
             box-shadow: inset #151515 2px 2px 4px 4px;
-            width: 48px;
-            height: 36px;
-            margin-left: 1px;
-            margin-right: 1px;
+            background-size: auto 100%;
+            background-position: center;
+            background-color: black; // Else the rendering bugs out
+            width: 76px;
+            height: 42px;
+            margin-right: 8px;
             border-radius: 2px;
 
-            &.not_learned #ability_image {
-              saturation: 0.1;
-              brightness: 0.2;
-            }
-
-            &.not_enough_charges #ability_image {
-              saturation: 0.1;
-              brightness: 0.2;
-            }
-
-            #ability_image {
+            #indicators {
+              margin-right: 2px;
               width: 100%;
               height: 100%;
-              background-size: 100% auto;
-              background-position: center;
-              background-color: black; // Else the rendering bugs out
             }
 
-            #charges {
-              font-family: @font-mono;
-              font-size: 16px;
-              color: white;
-              align: right bottom;
-              background-color: rgba(0, 0, 0, 0.95);
-              border-radius: 5px;
-              text-align: center;
-              line-height: 20px;
-              width: 18px;
+            #health_indicator.indicator {
+              align: right top;
+
+              /*#background {
+                background-color: #ba1217;
+              }*/
+
+              Label {
+                color: #13d72e;
+              }
             }
 
-            &:hover {
-              brightness: 1.5;
+            #level_indicator {
+              align: left bottom;
+              background-color: rgba(0, 0, 0, 0.8);
+              padding: 4px;
+              border-radius: 4px;
+
+              .level_pip {
+                width: 6px;
+                height: 6px;
+                margin: 0;
+              }
             }
 
-            &.not_learned {
+            .indicator {
+              > #background {
+                /*border: 1px solid black;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                align: center center;*/
+              }
+
+              Label {
+                font-family: @font-mono;
+                font-size: 18px;
+                text-shadow: 0px 1px 1px 8.0 #00000077;
+                color: white;
+                align: center center;
+                text-align: center center;
+              }
+            }
+          }
+
+          #ability_row {
+            flow-children: right;
+            align: left center;
+
+            .ability_button {
+              box-shadow: inset #151515 2px 2px 4px 4px;
+              width: 48px;
+              height: 36px;
+              margin-left: 1px;
+              margin-right: 1px;
+              border-radius: 2px;
+
+              &.not_learned #ability_image {
+                saturation: 0.1;
+                brightness: 0.2;
+              }
+
+              &.not_enough_charges #ability_image {
+                saturation: 0.1;
+                brightness: 0.2;
+              }
+
+              #ability_image {
+                width: 100%;
+                height: 100%;
+                background-size: 100% auto;
+                background-position: center;
+                background-color: black; // Else the rendering bugs out
+              }
+
+              #charges {
+                font-family: @font-mono;
+                font-size: 16px;
+                color: white;
+                align: right bottom;
+                background-color: rgba(0, 0, 0, 0.95);
+                border-radius: 5px;
+                text-align: center;
+                line-height: 20px;
+                width: 18px;
+              }
+
               &:hover {
-                brightness: 0.5;
+                brightness: 1.5;
+              }
+
+              &.not_learned {
+                &:hover {
+                  brightness: 0.5;
+                }
               }
             }
           }
