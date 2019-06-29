@@ -318,7 +318,7 @@ function receive_battle_deltas(game: Game_In_Battle, head_before_merge: number, 
         if (line) {
             game.battle_log.push(line);
         } else {
-            console.log(`Delta (${enum_to_string(delta.type)}) is not supported for battle log`);
+            console.log(`Delta (${enum_to_string(delta.type)}) is not supported for battle log`, delta);
         }
 
         collapse_delta(battle, delta);
@@ -601,6 +601,76 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
                 clr.unit_name(target)
             ]
         }
+
+        case Delta_Type.use_no_target_ability:
+        case Delta_Type.use_ground_target_ability: {
+            const unit = find_unit_by_id(game.battle, delta.unit_id);
+
+            if (!unit) break;
+
+            const ability = find_unit_ability(unit, delta.ability_id);
+
+            if (!ability) break;
+
+            return [
+                clr.unit_name(unit),
+                clr.plain(" uses "),
+                clr.ability_name(ability)
+            ]
+        }
+
+        case Delta_Type.ability_effect_applied: {
+            const id: Ability_Id = delta.effect.ability_id;
+
+            return [
+                clr.txt(enum_to_string(id), "gray"),
+                clr.plain(" triggers")
+            ]
+        }
+
+        case Delta_Type.end_turn: {
+            return [
+                clr.txt("Next turn", "gray")
+            ]
+        }
+
+        case Delta_Type.unit_field_change: {
+            const source = find_unit_by_id(game.battle, delta.source_unit_id);
+            const target = find_unit_by_id(game.battle, delta.target_unit_id);
+
+            if (!source) break;
+            if (!target) break;
+
+            function delta_string(value: number) {
+                if (value >= 0) {
+                    return `+${value}`;
+                } else {
+                    return `${value}`;
+                }
+            }
+
+            if (source == target) {
+                return [
+                    clr.unit_name(source),
+                    clr.plain("'s "),
+                    clr.txt(enum_to_string(delta.field), "gray"),
+                    clr.plain(" changes to "),
+                    clr.txt(delta.new_value.toString(), "gray"),
+                    clr.plain(` (${delta_string(delta.value_delta)})`)
+                ]
+            } else {
+                return [
+                    clr.unit_name(source),
+                    clr.plain(" changes "),
+                    clr.unit_name(target),
+                    clr.plain("'s "),
+                    clr.txt(enum_to_string(delta.field), "gray"),
+                    clr.plain(" to "),
+                    clr.txt(delta.new_value.toString(), "gray"),
+                    clr.plain(` (${delta_string(delta.value_delta)})`)
+                ]
+            }
+        }
     }
 
     return undefined;
@@ -708,6 +778,8 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
     const icon_offset = (cell_size - icon_size) / 2;
 
     for (const unit of game.battle.units) {
+        if (unit.dead) continue;
+
         const xy = unit.position;
 
         if (is_unit_selection(game.selection) && game.selection.unit_id == unit.id) {
@@ -849,7 +921,10 @@ function draw_ability_list(game: Game_In_Battle, unit: Unit): boolean {
         const needs_targeting = ability.type == Ability_Type.target_ground || ability.type == Ability_Type.target_unit;
         const top_left_y = 120 + index * 34;
 
-        const state = do_button(enum_to_string(ability.id), top_left_x, top_left_y, 14, 6);
+        const ability_name = enum_to_string(ability.id);
+        const button_text = ability.type != Ability_Type.passive ? `${ability_name} (${ability.charges_remaining})` : ability_name;
+
+        const state = do_button(button_text, top_left_x, top_left_y, 14, 6);
 
         if (state == Button_State.clicked) {
             if (needs_targeting) {
@@ -997,15 +1072,34 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
             const battle = {
                 ...make_battle(player_state.participants, player_state.grid_size.width, player_state.grid_size.height),
                 change_health: (battle: Battle, source: Unit, target: Unit, change: Value_Change) => {
-                    battle_log.push([
-                        clr.unit_name(target),
-                        clr.plain(" takes "),
-                        clr.txt((-change.value_delta).toString(), "gray"),
-                        clr.plain(" damage from "),
-                        clr.unit_name(source)
-                    ]);
+                    if (change.value_delta > 0) {
+                        battle_log.push([
+                            clr.unit_name(source),
+                            clr.plain(" restores "),
+                            clr.txt(change.value_delta.toString(), "gray"),
+                            clr.plain(" health to "),
+                            clr.unit_name(target)
+                        ]);
+                    } else if (change.value_delta < 0) {
+                        battle_log.push([
+                            clr.unit_name(target),
+                            clr.plain(" takes "),
+                            clr.txt((-change.value_delta).toString(), "gray"),
+                            clr.plain(" damage from "),
+                            clr.unit_name(source)
+                        ]);
+                    }
 
-                    return change_health_default(battle, source, target, change);
+                    const died = change_health_default(battle, source, target, change);
+
+                    if (died) {
+                        battle_log.push([
+                            clr.unit_name(target),
+                            clr.plain(" dies")
+                        ]);
+                    }
+
+                    return died;
                 }
             };
 
