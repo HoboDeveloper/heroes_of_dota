@@ -122,7 +122,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     ts.createPropertyAssignment("attack_bonus", ts.createPropertyAccess(identifier, "attack_bonus")),
 
                     // Defaults
-                    ts.createPropertyAssignment("charges_remaining",   ts.createLiteral(0)),
+                    ts.createPropertyAssignment("charges_remaining", ts.createPropertyAccess(identifier, "charges")),
                 ], true));
 
                 const block = ts.createBlock([
