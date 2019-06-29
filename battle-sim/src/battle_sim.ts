@@ -354,13 +354,11 @@ function pass_turn_to_next_player(battle: Battle) {
     }
 
     for (const unit of battle.units) {
-        if (unit.owner_player_id == turn_passed_from_player_id) {
-            for (const ability of unit.abilities) {
-                if (ability.id == Ability_Id.basic_attack) {
-                    ability.charges_remaining = ability.charges;
-                }
-            }
+        if (unit.attack.type != Ability_Type.passive) {
+            unit.attack.charges_remaining = unit.attack.charges;
+        }
 
+        if (unit.owner_player_id == turn_passed_from_player_id) {
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
                     if (modifier.duration_remaining > 0) {
@@ -669,12 +667,6 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             if (unit) {
                 unit.has_taken_an_action_this_turn = true;
-
-                const ability = find_unit_ability(unit, delta.ability_id);
-
-                if (ability && ability.type != Ability_Type.passive) {
-                    ability.charges = ability.charges - 1;
-                }
 
                 switch (delta.type) {
                     case Delta_Type.use_no_target_ability: {
