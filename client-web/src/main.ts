@@ -213,14 +213,6 @@ function draw_player_list(game: Game_On_Global_Map) {
     }
 }
 
-function player_state_to_string(player_state: Player_State) {
-    switch (player_state) {
-        case Player_State.in_battle: return "in battle";
-        case Player_State.on_global_map: return "on global map";
-        case Player_State.not_logged_in: return "not logged in";
-    }
-}
-
 function drop_selection(game: Game_In_Battle) {
     game.selection = { type: Selection_Type.none };
 }
@@ -235,7 +227,7 @@ function draw_header(game: Game) {
 
     ctx.font = `${font_size_px}px Open Sans`;
     ctx.fillStyle = "black";
-    ctx.fillText(player_state_to_string(game.state), 30, 30);
+    ctx.fillText(enum_to_string(game.state), 30, 30);
 }
 
 async function check_and_try_refresh_nearby_players(game: Game_On_Global_Map, time: number) {
