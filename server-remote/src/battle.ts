@@ -697,31 +697,35 @@ export function find_battle_by_id(id: number): Battle_Record | undefined {
 }
 
 export function start_battle(players: Player[]): number {
-    const grid_size = xy(12, 12);
-    const deployment_zone_height = 3;
+    const grid_size = xy(12, 8);
+    const deployment_zone_width = 3;
 
-    const bottom_player_zone = {
+    const left_player_zone = {
         min_x: 0,
         min_y: 0,
-        max_x: grid_size.x,
-        max_y: deployment_zone_height
+        max_x: deployment_zone_width,
+        max_y: grid_size.y,
+        face_x: 1,
+        face_y: 0
     };
 
     const top_player_zone = {
-        min_x: 0,
-        min_y: grid_size.y - deployment_zone_height,
+        min_x: grid_size.x - deployment_zone_width,
+        min_y: 0,
         max_x: grid_size.x,
-        max_y: grid_size.y
+        max_y: grid_size.y,
+        face_x: -1,
+        face_y: 0
     };
 
     const battle_players: Battle_Participant_Info[] = players.map(player => ({
         id: player.id,
         name: player.name,
-        deployment_zone: player == players[0] ? bottom_player_zone : top_player_zone
+        deployment_zone: player == players[0] ? left_player_zone : top_player_zone
     }));
 
     const battle: Battle_Record = {
-        ...make_battle(battle_players, 12, 12),
+        ...make_battle(battle_players, grid_size.x, grid_size.y),
         id: battle_id_auto_increment++,
         turn_index: 0,
         unit_id_auto_increment: 0,

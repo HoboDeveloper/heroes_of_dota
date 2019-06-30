@@ -174,10 +174,10 @@ subscribe_to_net_table_key<Player_Net_Table>("main", "player", data => {
     $("#battle_ui").style.visibility = data.state == Player_State.in_battle ? "visible" : "collapse";
 
     if (data.state == Player_State.in_battle) {
-        GameUI.SetCameraDistance(1600);
+        GameUI.SetCameraDistance(1400);
         GameUI.SetCameraYaw(0);
-        GameUI.SetCameraPitchMin(65);
-        GameUI.SetCameraPitchMax(65);
+        GameUI.SetCameraPitchMin(60);
+        GameUI.SetCameraPitchMax(60);
     } else {
         GameUI.SetCameraDistance(1300);
         GameUI.SetCameraYaw(0);

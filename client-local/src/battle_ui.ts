@@ -12,7 +12,7 @@ const control_panel: Control_Panel = {
     hero_rows: []
 };
 
-const battle_cell_size = 128;
+const battle_cell_size = 144;
 const hand: Card_Panel[] = [];
 
 type Held_Card = {
@@ -117,7 +117,14 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
 function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            battle.unit_id_to_facing[delta.unit_id] = delta.owner_id == this_player_id ? xy(0, 1) : xy(0, -1);
+            const owner = find_player_by_id(battle, delta.owner_id)
+
+            if (!owner) break;
+
+            battle.unit_id_to_facing[delta.unit_id] = {
+                x: owner.deployment_zone.face_x,
+                y: owner.deployment_zone.face_y
+            };
 
             break;
         }

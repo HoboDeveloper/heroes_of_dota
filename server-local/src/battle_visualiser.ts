@@ -49,7 +49,7 @@ type Modifier_Data = {
 
 declare let battle: Battle;
 
-const battle_cell_size = 128;
+const battle_cell_size = 144;
 
 function get_battle_cell_size(): number {
     return battle_cell_size;
@@ -158,13 +158,14 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
 }
 
 function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
+    const owner = array_find(battle.players, player => player.id == owner_id)!;
     const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
-    handle.SetForwardVector(Vector(facing.x, facing.y));
+    handle.SetForwardVector(Vector(owner.deployment_zone.face_x, owner.deployment_zone.face_y));
 
     const unit: Battle_Unit = {
         handle: handle,

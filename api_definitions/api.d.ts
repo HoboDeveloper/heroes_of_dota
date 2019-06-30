@@ -182,15 +182,19 @@ type Card_Spell = {
 
 type Card = Card_Unknown | Card_Hero | Card_Spell;
 
+type Deployment_Zone = {
+    min_x: number
+    min_y: number
+    max_x: number
+    max_y: number
+    face_x: number
+    face_y: number
+}
+
 type Battle_Participant_Info = {
     id: number
     name: string
-    deployment_zone: {
-        min_x: number
-        min_y: number
-        max_x: number
-        max_y: number
-    }
+    deployment_zone: Deployment_Zone
 }
 
 type Battle_Player = {
@@ -198,12 +202,7 @@ type Battle_Player = {
     name: string
     hand: Card[]
     has_used_a_card_this_turn: boolean
-    deployment_zone: {
-        min_x: number
-        min_y: number
-        max_x: number
-        max_y: number
-    }
+    deployment_zone: Deployment_Zone
 }
 
 type Unit_Field_Change = {
