@@ -752,8 +752,6 @@ function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
     $.CreatePanel("Panel", attack_container, "attack_icon").AddClass("stat_icon");
     attack_container.AddClass("container");
 
-    const level_ticks: Panel[] = [];
-
     function stat_indicator(label: LabelPanel, value: number): Stat_Indicator {
         return {
             displayed_value: value,
@@ -989,6 +987,23 @@ function clear_held_card() {
     held_card = undefined;
 }
 
+function get_ability_tooltip(ability: Ability) {
+    switch (ability.id) {
+        case Ability_Id.basic_attack: return `Deal ${ability.damage} damage`;
+        case Ability_Id.pudge_hook: return `Hook, deals ${ability.damage} damage`;
+        case Ability_Id.pudge_rot: return `Deal ${ability.damage} damage in an AoE`;
+        case Ability_Id.pudge_dismember: return `Deal ${ability.damage} damage<br/>Restore ${ability.damage} health`;
+        case Ability_Id.tide_gush: return `Deal ${ability.damage} damage<br/>Slow for ${ability.move_points_reduction}`;
+        case Ability_Id.tide_anchor_smash: return `Deal ${ability.damage} damage<br/>Reduce attack by ${ability.attack_reduction}`;
+        case Ability_Id.tide_ravage: return `Stun, ${ability.damage} damage`;
+        case Ability_Id.luna_lucent_beam: return `Deal ${ability.damage} damage`;
+        case Ability_Id.luna_moon_glaive: return `Attack bounces to nearby targets`;
+        case Ability_Id.luna_eclipse: return `Deal ${ability.total_beams} damage randomly split between nearby targets`;
+    }
+
+    return unreachable(ability);
+}
+
 function get_ability_icon(ability_id: Ability_Id): string {
     switch (ability_id) {
         case Ability_Id.basic_attack: return "juggernaut_blade_dance";
@@ -1107,12 +1122,16 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
             if (selected && selected.id == unit.id) {
                 set_current_hovered_ability(ability.id);
             }
+
+            $.DispatchEvent("DOTAShowTextTooltip", ability_panel, get_ability_tooltip(ability));
         });
 
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
             if (current_hovered_ability == ability.id) {
                 set_current_hovered_ability(undefined);
             }
+
+            $.DispatchEvent("DOTAHideTextTooltip");
         });
 
         const ability_image = $.CreatePanel("Panel", ability_panel, "ability_image");
