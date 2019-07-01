@@ -925,9 +925,19 @@ function move_order_particle(world_position: XYZ) {
 }
 
 function try_order_unit_to_move(unit: Unit, move_where: XY) {
+    if (unit.has_taken_an_action_this_turn) {
+        show_generic_error("Already acted this turn");
+        return;
+    }
+
     const path = find_grid_path(unit.position, move_where);
 
-    if (path && path.length <= unit.move_points) {
+    if (!path) {
+        show_generic_error("Can't move there");
+        return;
+    }
+
+    if (path.length <= unit.move_points) {
         take_battle_action({
             type: Action_Type.move,
             to: move_where,
@@ -942,7 +952,7 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
 
         highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
     } else {
-        show_generic_error("Out of move range");
+        show_generic_error("Not enough move points");
     }
 }
 
