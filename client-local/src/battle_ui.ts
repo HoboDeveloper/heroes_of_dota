@@ -466,9 +466,9 @@ function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): Part
     const unique_edges: { edge: Edge, from: XY, to: XY, deleted: boolean }[] = [];
 
     function merge_edges(at: XY, going_towards: Edge, right_relative: number | undefined, left_relative: number | undefined, index: number) {
-        const right_neighbor = right_relative && cell_index_to_edges[right_relative];
+        const right_neighbor = right_relative != undefined && cell_index_to_edges[right_relative];
         const right_edge = right_neighbor && right_neighbor.find(old => old.edge == going_towards);
-        const left_neighbor = left_relative && cell_index_to_edges[left_relative];
+        const left_neighbor = left_relative != undefined && cell_index_to_edges[left_relative];
         const left_edge = left_neighbor && left_neighbor.find(old => old.edge == going_towards);
 
         if (right_edge && left_edge) {
@@ -520,7 +520,7 @@ function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): Part
                     cell_index_to_edges[index] = [];
                 }
 
-                merge_edges(cell.position, edge, right, left, index);
+                merge_edges(at, edge, right, left, index);
             }
         }
     }
