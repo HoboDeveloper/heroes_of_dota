@@ -1710,7 +1710,7 @@ function update_hand() {
     // TODO particle from card to world
     // TODO fix name panel jumping (needs to only be applied for hover in hand)
 
-    const ratio = 1920 / Game.GetScreenWidth();
+    const ratio = 1080 / Game.GetScreenHeight();
     const cursor = GameUI.GetCursorPosition();
     const [ cursor_x, cursor_y ] = cursor;
     const cursor_ui_x = cursor_x * ratio;
@@ -1813,9 +1813,11 @@ function update_hand() {
         const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
 
         if (is_position_valid) {
+            const width_ratio = 1920 / Game.GetScreenWidth();
+
             panel.SetHasClass("in_preview", true);
             panel.SetHasClass("in_preview_size", true);
-            panel.style.position = `${1600}px ${300}px 0`;
+            panel.style.position = `${1600 / width_ratio}px ${300 / ratio}px 0`;
 
             if (held_card.hovered_cell == undefined || !xy_equal(battle_position, held_card.hovered_cell)) {
                 held_card.hovered_cell = battle_position;
