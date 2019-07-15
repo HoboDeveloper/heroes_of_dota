@@ -892,6 +892,37 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             break;
         }
 
+        case Ability_Id.skywrath_concussive_shot: {
+            function is_shot_hit(cast: Concussive_Shot_Hit | Concussive_Shot_Miss): cast is Concussive_Shot_Hit {
+                return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
+            }
+
+            const projectile_fx = "particles/units/heroes/hero_skywrath_mage/skywrath_mage_concussive_shot.vpcf";
+
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2, 0.1);
+            unit_emit_sound(unit, "Hero_SkywrathMage.ConcussiveShot.Cast");
+
+            if (is_shot_hit(cast.result)) {
+                const target = find_unit_by_id(cast.result.target_unit_id);
+
+                if (target) {
+                    tracking_projectile_to_unit(unit, target, projectile_fx, 1200, "attach_attack2");
+                    unit_emit_sound(target, "Hero_SkywrathMage.ConcussiveShot.Target");
+                    change_health(main_player, unit, target, cast.result.damage);
+                    apply_modifier(main_player, target, cast.result.modifier);
+                    shake_screen(target.position, Shake.weak);
+                }
+            } else {
+                const failure_fx = "particles/units/heroes/hero_skywrath_mage/skywrath_mage_concussive_shot_failure.vpcf";
+
+                fx(failure_fx)
+                    .follow_unit_origin(0, unit)
+                    .release();
+            }
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
