@@ -47,6 +47,17 @@
         event_type = 1
     }
 
+    vo_luna_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/luna/luna_luna_spawn_01.vsnd",
+            "sounds/vo/luna/luna_luna_spawn_02.vsnd",
+            "sounds/vo/luna/luna_luna_spawn_03.vsnd",
+            "sounds/vo/luna/luna_luna_spawn_04.vsnd",
+        ]
+    }
+
     vo_luna_attack = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -110,6 +121,19 @@
         ]
     }
 
+    vo_sniper_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/sniper/sniper_snip_spawn_01.vsnd",
+            "sounds/vo/sniper/sniper_snip_spawn_02.vsnd",
+            "sounds/vo/sniper/sniper_snip_spawn_03.vsnd",
+            "sounds/vo/sniper/sniper_snip_spawn_04.vsnd",
+            "sounds/vo/sniper/sniper_snip_spawn_05.vsnd",
+            "sounds/vo/sniper/sniper_snip_spawn_06.vsnd",
+        ]
+    }
+
     vo_sniper_attack = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -136,6 +160,20 @@
             "sounds/vo/sniper/snip_deny_05.vsnd",
             "sounds/vo/sniper/snip_deny_06.vsnd",
             "sounds/vo/sniper/snip_deny_07.vsnd",
+        ]
+    }
+
+    vo_pudge_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/pudge/pudge_pud_spawn_01.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_02.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_03.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_04.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_05.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_06.vsnd",
+            "sounds/vo/pudge/pudge_pud_spawn_07.vsnd",
         ]
     }
 
@@ -167,6 +205,22 @@
         ]
     }
 
+    vo_tide_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_01.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_02.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_03.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_04.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_05.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_06.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_07.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_08.vsnd",
+            "sounds/vo/tidehunter/tidehunter_tide_spawn_09.vsnd",
+        ]
+    }
+
     vo_tide_attack = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -186,6 +240,95 @@
             "sounds/vo/tidehunter/tide_deny_02.vsnd",
             "sounds/vo/tidehunter/tide_deny_03.vsnd",
             "sounds/vo/tidehunter/tide_deny_04.vsnd",
+        ]
+    }
+
+    vo_ursa_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/ursa/ursa_spawn_01.vsnd",
+            "sounds/vo/ursa/ursa_spawn_02.vsnd",
+            "sounds/vo/ursa/ursa_spawn_03.vsnd",
+            "sounds/vo/ursa/ursa_spawn_04.vsnd",
+            "sounds/vo/ursa/ursa_spawn_05.vsnd",
+        ]
+    }
+
+    vo_ursa_attack = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/ursa/ursa_attack_01.vsnd",
+            "sounds/vo/ursa/ursa_attack_02.vsnd",
+            "sounds/vo/ursa/ursa_attack_03.vsnd",
+            "sounds/vo/ursa/ursa_attack_04.vsnd",
+            "sounds/vo/ursa/ursa_attack_05.vsnd",
+            "sounds/vo/ursa/ursa_attack_06.vsnd",
+            "sounds/vo/ursa/ursa_attack_07.vsnd",
+            "sounds/vo/ursa/ursa_attack_08.vsnd",
+            "sounds/vo/ursa/ursa_attack_09.vsnd",
+        ]
+    }
+
+    vo_ursa_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/ursa/ursa_deny_01.vsnd",
+            "sounds/vo/ursa/ursa_deny_02.vsnd",
+            "sounds/vo/ursa/ursa_deny_03.vsnd",
+            "sounds/vo/ursa/ursa_deny_08.vsnd",
+            "sounds/vo/ursa/ursa_deny_09.vsnd",
+            "sounds/vo/ursa/ursa_deny_10.vsnd",
+            "sounds/vo/ursa/ursa_deny_16.vsnd",
+            "sounds/vo/ursa/ursa_deny_17.vsnd",
+            "sounds/vo/ursa/ursa_deny_18.vsnd",
+        ]
+    }
+
+    vo_skywrath_mage_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/skywrath_mage/drag_spawn_01.vsnd",
+            "sounds/vo/skywrath_mage/drag_spawn_02.vsnd",
+            "sounds/vo/skywrath_mage/drag_spawn_03.vsnd",
+            "sounds/vo/skywrath_mage/drag_spawn_04.vsnd",
+        ]
+    }
+
+    vo_skywrath_mage_attack = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/skywrath_mage/drag_attack_01.vsnd",
+            "sounds/vo/skywrath_mage/drag_attack_02.vsnd",
+            "sounds/vo/skywrath_mage/drag_attack_03.vsnd",
+            "sounds/vo/skywrath_mage/drag_attack_04.vsnd",
+        ]
+    }
+
+    vo_skywrath_mage_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/skywrath_mage/drag_deny_01.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_02.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_03.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_04.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_05.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_06.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_07.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_08.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_09.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_10.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_11.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_12.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_13.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_14.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_15.vsnd",
+            "sounds/vo/skywrath_mage/drag_deny_16.vsnd",
         ]
     }
 }
