@@ -117,7 +117,7 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
 function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
-            const owner = find_player_by_id(battle, delta.owner_id)
+            const owner = find_player_by_id(battle, delta.owner_id);
 
             if (!owner) break;
 
@@ -324,8 +324,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             entity_id_to_unit_data: {},
             unit_id_to_facing: {},
             outline_particles: [],
-            change_health: change_health_default,
-            change_field: change_field_default
+            change_health: change_health_default
         };
 
         const particle_bottom_left_origin: XYZ = [
@@ -925,6 +924,11 @@ function move_order_particle(world_position: XYZ) {
 }
 
 function try_order_unit_to_move(unit: Unit, move_where: XY) {
+    if (is_unit_stunned(unit)) {
+        show_ability_error(Ability_Error.stunned);
+        return;
+    }
+
     if (unit.has_taken_an_action_this_turn) {
         show_generic_error("Already acted this turn");
         return;
@@ -962,17 +966,17 @@ function make_battle_snapshot(): Battle_Snapshot {
             .filter(unit => !unit.dead)
             .map(unit => ({
                 id: unit.id,
-                level: unit[Unit_Field.level],
+                level: unit.level,
                 health: unit.health,
-                max_health: unit[Unit_Field.max_health],
+                max_health: unit.max_health,
                 move_points: unit.move_points,
-                max_move_points: unit[Unit_Field.max_move_points],
+                max_move_points: unit.max_move_points,
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
-                stunned_counter: unit[Unit_Field.state_stunned_counter],
+                stunned_counter: unit.state_stunned_counter,
                 owner_id: unit.owner_player_id,
-                attack_bonus: unit[Unit_Field.attack_bonus]
+                attack_bonus: unit.attack_bonus
             })),
         delta_head: battle.delta_head
     }
@@ -1189,7 +1193,7 @@ function update_hero_control_panel_state(unit: Unit) {
     row.panel.SetHasClass("dead", unit.dead);
     row.health_label.text = unit.health.toString();
 
-    update_level_bar(row.level_bar, unit[Unit_Field.level]);
+    update_level_bar(row.level_bar, unit.level);
 
     for (const ability_button of row.ability_buttons) {
         const ability = find_unit_ability(unit, ability_button.ability);
@@ -1197,7 +1201,7 @@ function update_hero_control_panel_state(unit: Unit) {
         if (!ability) continue;
         if (ability.id == Ability_Id.basic_attack) continue;
 
-        const is_available = unit[Unit_Field.level] >= ability.available_since_level;
+        const is_available = unit.level >= ability.available_since_level;
 
         ability_button.ability_panel.SetHasClass("not_learned", !is_available);
 

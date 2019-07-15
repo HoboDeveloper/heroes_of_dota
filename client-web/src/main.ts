@@ -626,6 +626,19 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             ]
         }
 
+        case Delta_Type.level_change: {
+            const unit = find_unit_by_id(game.battle, delta.unit_id);
+
+            if (!unit) break;
+
+            return [
+                clr.unit_name(unit),
+                clr.plain(" is now level "),
+                clr.txt(delta.new_level.toString(), "gray")
+            ]
+        }
+
+        /* TODO repurpose this for modifiers
         case Delta_Type.unit_field_change: {
             const source = find_unit_by_id(game.battle, delta.source_unit_id);
             const target = find_unit_by_id(game.battle, delta.target_unit_id);
@@ -662,7 +675,7 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
                     clr.plain(` (${delta_string(delta.value_delta)})`)
                 ]
             }
-        }
+        }*/
     }
 
     return undefined;
@@ -844,7 +857,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
 
         // Level
         {
-            for (let index = 0; index < unit[Unit_Field.level]; index++) {
+            for (let index = 0; index < unit.level; index++) {
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = "black";
                 ctx.shadowColor = "black";

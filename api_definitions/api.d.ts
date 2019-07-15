@@ -12,10 +12,8 @@ declare const enum Delta_Type {
     use_ground_target_ability = 7,
     use_unit_target_ability = 8,
     use_no_target_ability = 9,
-    unit_field_change = 10,
-    modifier_appled = 11,
+    level_change = 10,
     modifier_removed = 12,
-    permanent_modifier_applied = 13,
     set_ability_charges_remaining = 14,
     ability_effect_applied = 15,
     draw_card = 16,
@@ -40,13 +38,12 @@ declare const enum Unit_Type {
     luna = 4
 }
 
-declare const enum Unit_Field {
-    max_health = 0,
-    max_move_points = 2,
-    level = 3,
-    attack_bonus = 4,
-    armor = 5,
-    state_stunned_counter = 6,
+declare const enum Modifier_Field {
+    health_bonus = 1,
+    attack_bonus = 2,
+    armor_bonus = 3,
+    move_points_bonus = 4,
+    state_stunned_counter = 6
 }
 
 declare const enum Unit_State {
@@ -205,15 +202,12 @@ type Battle_Player = {
     deployment_zone: Deployment_Zone
 }
 
-type Unit_Field_Change = {
+type Delta_Health_Change = {
+    type: Delta_Type.health_change
     source_unit_id: number
     target_unit_id: number
     new_value: number
     value_delta: number
-}
-
-type Delta_Health_Change = Unit_Field_Change & {
-    type: Delta_Type.health_change
 }
 
 type Delta_Move = {
@@ -261,50 +255,10 @@ type Delta_End_Turn = {
     type: Delta_Type.end_turn
 }
 
-type Delta_Field_Change = Unit_Field_Change & {
-    type: Delta_Type.unit_field_change
-    field: Unit_Field
-}
-
-type Delta_Level_Change = Delta_Field_Change & {
-    field: Unit_Field.level
-}
-
-type Delta_Max_Health_Change = Delta_Field_Change & {
-    field: Unit_Field.max_health
-}
-
-type Delta_Max_Move_Points_Change = Delta_Field_Change & {
-    field: Unit_Field.max_move_points
-}
-
-type Delta_Attack_Bonus_Change = Delta_Field_Change & {
-    field: Unit_Field.attack_bonus
-}
-
-type Delta_Armor_Change = Delta_Field_Change & {
-    field: Unit_Field.armor
-}
-
-type Delta_State_Stunned_Counter_Change = Delta_Field_Change & {
-    field: Unit_Field.state_stunned_counter
-}
-
-type Delta_Modifier_Applied<T extends Ability_Effect> = {
-    type: Delta_Type.modifier_appled
-    modifier_id: number
-    effect: T
-    target_unit_id: number
-    source_unit_id: number
-    duration: number
-}
-
-type Delta_Permanent_Modifier_Applied<T extends Ability_Effect> = {
-    type: Delta_Type.permanent_modifier_applied
-    modifier_id: number
-    effect: T
-    target_unit_id: number
-    source_unit_id: number
+type Delta_Level_Change = {
+    type: Delta_Type.level_change
+    unit_id: number
+    new_level: number
 }
 
 type Delta_Modifier_Removed = {
@@ -349,13 +303,6 @@ type Delta =
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |
     Delta_Level_Change |
-    Delta_Max_Health_Change |
-    Delta_Max_Move_Points_Change |
-    Delta_Attack_Bonus_Change |
-    Delta_Armor_Change |
-    Delta_State_Stunned_Counter_Change |
-    Delta_Modifier_Applied<Ability_Effect> |
-    Delta_Permanent_Modifier_Applied<Ability_Effect> |
     Delta_Modifier_Removed |
     Delta_Set_Ability_Charges_Remaining |
     Delta_Ability_Effect_Applied<Ability_Effect> |
@@ -363,6 +310,16 @@ type Delta =
     Delta_Use_Card |
     Delta_End_Turn |
     Delta_Game_Over
+
+type Modifier_Change = {
+    field: Modifier_Field
+    delta: number
+}
+
+type Modifier_Application = {
+    modifier_id: number
+    changes: Modifier_Change[]
+}
 
 type Movement_History_Entry = {
     order_x: number

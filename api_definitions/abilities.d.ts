@@ -178,10 +178,9 @@ type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
 
 type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
-    modifier_id: number
+    modifier: Modifier_Application
     duration: number
     damage_dealt: Value_Change
-    move_points_change: Value_Change
 }
 
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
@@ -189,17 +188,15 @@ type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     duration: number
     targets: {
         target_unit_id: number
-        modifier_id: number
-        attack_change: Value_Change
+        modifier: Modifier_Application
         damage_dealt: Value_Change
     }[]
 }
 
 type Ravage_Target = {
     target_unit_id: number
-    modifier_id: number
     damage_dealt: Value_Change
-    stun_counter: Value_Change
+    modifier: Modifier_Application
 }
 
 type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {

@@ -594,8 +594,8 @@ handlers.set("/battle_cheat", body => {
                     type: Delta_Type.health_change,
                     source_unit_id: unit.id,
                     target_unit_id: unit.id,
-                    new_value: unit[Unit_Field.max_health],
-                    value_delta: unit[Unit_Field.max_health] - unit.health
+                    new_value: unit.max_health,
+                    value_delta: unit.max_health - unit.health
                 }
             ];
 
@@ -640,15 +640,11 @@ handlers.set("/battle_cheat", body => {
                 if (!unit) break;
 
                 const new_lvl = parseInt(parts[1]);
-                const delta = new_lvl - unit[Unit_Field.level];
 
                 submit_battle_deltas(battle, [{
-                    type: Delta_Type.unit_field_change,
-                    field: Unit_Field.level,
-                    source_unit_id: request.selected_unit_id,
-                    target_unit_id: request.selected_unit_id,
-                    new_value: new_lvl,
-                    value_delta: delta
+                    type: Delta_Type.level_change,
+                    unit_id: request.selected_unit_id,
+                    new_level: new_lvl,
                 }]);
 
                 break;

@@ -17,7 +17,8 @@ type Battle = {
     };
     is_over: boolean
     camera_dummy: CDOTA_BaseNPC;
-    modifier_id_to_modifier_data: { [modifier_id: number]: Modifier_Data }
+    // TODO move this to shared visualizer data, otherwise modifier state is not persisted correctly through reconnects
+    modifier_id_to_modifier_data: Record<number, Modifier_Data>
 }
 
 type Battle_Unit = Shared_Visualizer_Unit_Data & {
@@ -44,7 +45,8 @@ type Ranged_Attack_Spec = {
 
 type Modifier_Data = {
     unit_id: number
-    modifier_name: string
+    modifier_name?: string
+    changes: Modifier_Change[]
 }
 
 declare let battle: Battle;
@@ -428,7 +430,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
             });
 
             change_health(main_player, caster, target, target_data.damage_dealt);
-            change_field(main_player, target, Unit_Field.state_stunned_counter, target_data.stun_counter);
+            apply_modifier(main_player, target, target_data.modifier);
         }
 
         wait(particle_delay);
@@ -598,13 +600,69 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
     }
 }
 
-function apply_and_record_modifier(target: Battle_Unit, modifier_id: number, modifier_name: string) {
-    print("Apply and record", modifier_id, modifier_name, "to", target.handle.GetName());
+function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, changes: Modifier_Change[], invert: boolean) {
+    for (const change of changes) {
+        const delta = invert ? -change.delta : change.delta;
+
+        switch (change.field) {
+            case Modifier_Field.move_points_bonus: {
+                target.max_move_points += delta;
+                target.move_points = Math.min(target.move_points, target.max_move_points);
+                break;
+            }
+
+            case Modifier_Field.attack_bonus: {
+                target.attack_bonus += delta;
+                break;
+            }
+
+            case Modifier_Field.health_bonus: {
+                target.max_health += delta;
+                target.health = Math.min(target.health, target.max_health);
+                break;
+            }
+
+            case Modifier_Field.state_stunned_counter: {
+                target.stunned_counter += delta;
+
+                update_stun_visuals(target);
+                break;
+            }
+
+            case Modifier_Field.armor_bonus: {
+                break;
+            }
+
+            default: unreachable(change.field);
+        }
+    }
+
+    update_player_state_net_table(main_player);
+}
+
+function apply_modifier_with_visuals(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application, modifier_name: string) {
+    const modifier_changes = from_client_array(modifier.changes);
+
+    print("Apply and record", modifier.modifier_id, modifier_name, "to", target.handle.GetName());
     target.handle.AddNewModifier(target.handle, undefined, modifier_name, {});
-    battle.modifier_id_to_modifier_data[modifier_id] = {
+    battle.modifier_id_to_modifier_data[modifier.modifier_id] = {
         unit_id: target.id,
-        modifier_name: modifier_name
+        modifier_name: modifier_name,
+        changes: modifier_changes
     };
+
+    apply_modifier_changes(main_player, target, modifier_changes, false);
+}
+
+function apply_modifier(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application) {
+    const modifier_changes = from_client_array(modifier.changes);
+
+    battle.modifier_id_to_modifier_data[modifier.modifier_id] = {
+        unit_id: target.id,
+        changes: modifier_changes
+    };
+
+    apply_modifier_changes(main_player, target, modifier_changes, false);
 }
 
 function unit_emit_sound(unit: Battle_Unit, sound: string) {
@@ -626,14 +684,16 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 
         case Ability_Id.tide_gush: {
             const fx = "particles/units/heroes/hero_tidehunter/tidehunter_gush.vpcf";
+            const { damage_dealt, modifier } = cast;
 
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.2);
             unit_emit_sound(unit, "Ability.GushCast");
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
             unit_emit_sound(unit, "Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
-            apply_and_record_modifier(target, cast.modifier_id, "Modifier_Tide_Gush");
-            change_health(main_player, unit, target, cast.damage_dealt);
+            apply_modifier_with_visuals(main_player, target, modifier, "Modifier_Tide_Gush");
+            change_health(main_player, unit, target, damage_dealt);
+
 
             break;
         }
@@ -708,7 +768,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
                 if (target) {
                     change_health(main_player, unit, target, effect.damage_dealt);
-                    change_field(main_player, unit, Unit_Field.attack_bonus, effect.attack_change);
+                    apply_modifier(main_player, unit, effect.modifier);
                 }
             }
 
@@ -821,14 +881,6 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         }
 
         default: unreachable(cast);
-    }
-}
-
-function play_modifier_applied_delta(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, effect: Ability_Effect) {
-    switch (effect.ability_id) {
-        default: {
-            log_chat_debug_message(`Error no modifier effect for ability ${effect.ability_id} found`);
-        }
     }
 }
 
@@ -946,34 +998,6 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
         }
 
         target.handle.ForceKill(false);
-    }
-}
-
-function change_field(main_player: Main_Player, unit: Battle_Unit, field: Unit_Field, change: Value_Change) {
-    const new_value = change.new_value;
-
-    switch (field) {
-        case Unit_Field.state_stunned_counter: {
-            unit.stunned_counter = new_value;
-
-            update_stun_visuals(unit);
-            break;
-        }
-
-        case Unit_Field.attack_bonus: { unit.attack_bonus = new_value; update_player_state_net_table(main_player); break; }
-        case Unit_Field.max_health: { unit.max_health = new_value; update_player_state_net_table(main_player); break; }
-        case Unit_Field.max_move_points: { unit.max_move_points = new_value; update_player_state_net_table(main_player); break; }
-
-        case Unit_Field.level: {
-            unit.level = new_value;
-
-            unit_emit_sound(unit, "hero_level_up");
-            fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
-            update_player_state_net_table(main_player);
-            wait(1);
-
-            break;
-        }
     }
 }
 
@@ -1101,13 +1125,16 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.unit_field_change: {
-            const unit = find_unit_by_id(delta.target_unit_id);
-
-            print("Changing field of", delta.target_unit_id, unit ? unit.handle.GetName() : "none", delta.field, "new value", delta.new_value);
+        case Delta_Type.level_change: {
+            const unit = find_unit_by_id(delta.unit_id);
 
             if (unit) {
-                change_field(main_player, unit, delta.field, delta); // TODO use Value_Change
+                unit.level = delta.new_level;
+
+                unit_emit_sound(unit, "hero_level_up");
+                fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+                update_player_state_net_table(main_player);
+                wait(1);
             }
 
             break;
@@ -1124,20 +1151,6 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.permanent_modifier_applied:
-        case Delta_Type.modifier_appled: {
-            const source = find_unit_by_id(delta.source_unit_id);
-            const target = find_unit_by_id(delta.target_unit_id);
-
-            if (source && target) {
-                play_modifier_applied_delta(main_player, source, target, delta.effect);
-
-                update_player_state_net_table(main_player);
-            }
-
-            break;
-        }
-
         case Delta_Type.modifier_removed: {
             const modifier_data = battle.modifier_id_to_modifier_data[delta.modifier_id];
 
@@ -1147,9 +1160,13 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                 if (unit) {
                     print("Remove modifier", delta.modifier_id, modifier_data.modifier_name, "from", unit.handle.GetName());
 
-                    unit.handle.RemoveModifierByName(modifier_data.modifier_name);
+                    if (modifier_data.modifier_name) {
+                        unit.handle.RemoveModifierByName(modifier_data.modifier_name);
+                    }
 
                     delete battle.modifier_id_to_modifier_data[delta.modifier_id];
+
+                    apply_modifier_changes(main_player, unit, modifier_data.changes, true);
                 }
             }
 
