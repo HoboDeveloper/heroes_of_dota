@@ -1,6 +1,5 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
-// TODO transfer modifiers/state counters
 type Shared_Visualizer_Unit_Data = {
     id: number
     level: number
@@ -10,6 +9,13 @@ type Shared_Visualizer_Unit_Data = {
     max_move_points: number
     attack_bonus: number
     stunned_counter: number
+    modifiers: Modifier_Data[]
+}
+
+type Modifier_Data = {
+    modifier_id: number
+    modifier_name?: string
+    changes: Modifier_Change[]
 }
 
 type Player_Net_Table_Base = {

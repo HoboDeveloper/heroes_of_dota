@@ -17,8 +17,6 @@ type Battle = {
     };
     is_over: boolean
     camera_dummy: CDOTA_BaseNPC;
-    // TODO move this to shared visualizer data, otherwise modifier state is not persisted correctly through reconnects
-    modifier_id_to_modifier_data: Record<number, Modifier_Data>
 }
 
 type Battle_Unit = Shared_Visualizer_Unit_Data & {
@@ -41,12 +39,6 @@ type Ranged_Attack_Spec = {
     attack_point: number;
     shake_on_attack?: Shake;
     shake_on_impact?: Shake;
-}
-
-type Modifier_Data = {
-    unit_id: number
-    modifier_name?: string
-    changes: Modifier_Change[]
 }
 
 declare let battle: Battle;
@@ -182,7 +174,8 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         attack_bonus: 0,
         stunned_counter: 0,
         move_points: definition.move_points,
-        max_move_points: definition.move_points
+        max_move_points: definition.move_points,
+        modifiers: []
     };
 
     battle.units.push(unit);
@@ -636,8 +629,6 @@ function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, c
             default: unreachable(change.field);
         }
     }
-
-    update_player_state_net_table(main_player);
 }
 
 function apply_modifier_with_visuals(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application, modifier_name: string) {
@@ -645,24 +636,26 @@ function apply_modifier_with_visuals(main_player: Main_Player, target: Battle_Un
 
     print("Apply and record", modifier.modifier_id, modifier_name, "to", target.handle.GetName());
     target.handle.AddNewModifier(target.handle, undefined, modifier_name, {});
-    battle.modifier_id_to_modifier_data[modifier.modifier_id] = {
-        unit_id: target.id,
+    target.modifiers.push({
+        modifier_id: modifier.modifier_id,
         modifier_name: modifier_name,
         changes: modifier_changes
-    };
+    });
 
     apply_modifier_changes(main_player, target, modifier_changes, false);
+    update_player_state_net_table(main_player);
 }
 
 function apply_modifier(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application) {
     const modifier_changes = from_client_array(modifier.changes);
 
-    battle.modifier_id_to_modifier_data[modifier.modifier_id] = {
-        unit_id: target.id,
+    target.modifiers.push({
+        modifier_id: modifier.modifier_id,
         changes: modifier_changes
-    };
+    });
 
     apply_modifier_changes(main_player, target, modifier_changes, false);
+    update_player_state_net_table(main_player);
 }
 
 function unit_emit_sound(unit: Battle_Unit, sound: string) {
@@ -693,7 +686,6 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             shake_screen(target.position, Shake.medium);
             apply_modifier_with_visuals(main_player, target, modifier, "Modifier_Tide_Gush");
             change_health(main_player, unit, target, damage_dealt);
-
 
             break;
         }
@@ -1152,21 +1144,25 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.modifier_removed: {
-            const modifier_data = battle.modifier_id_to_modifier_data[delta.modifier_id];
+            modifier_search: {
+                for (const unit of battle.units) {
+                    for (let index = 0; index < unit.modifiers.length; index++) {
+                        const modifier = unit.modifiers[index];
 
-            if (modifier_data) {
-                const unit = find_unit_by_id(modifier_data.unit_id);
+                        if (modifier.modifier_id == delta.modifier_id) {
+                            print(`Remove modifier ${delta.modifier_id} ${modifier.modifier_name} from ${unit.handle.GetName()}`);
 
-                if (unit) {
-                    print("Remove modifier", delta.modifier_id, modifier_data.modifier_name, "from", unit.handle.GetName());
+                            if (modifier.modifier_name) {
+                                unit.handle.RemoveModifierByName(modifier.modifier_name);
+                            }
 
-                    if (modifier_data.modifier_name) {
-                        unit.handle.RemoveModifierByName(modifier_data.modifier_name);
+                            unit.modifiers.splice(index);
+
+                            apply_modifier_changes(main_player, unit, modifier.changes, true);
+
+                            break modifier_search;
+                        }
                     }
-
-                    delete battle.modifier_id_to_modifier_data[delta.modifier_id];
-
-                    apply_modifier_changes(main_player, unit, modifier_data.changes, true);
                 }
             }
 
@@ -1233,8 +1229,7 @@ function load_battle_data() {
             height: 0
         },
         is_over: false,
-        camera_dummy: camera_entity,
-        modifier_id_to_modifier_data: {}
+        camera_dummy: camera_entity
     };
 }
 
@@ -1256,6 +1251,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         new_unit.max_health = unit.max_health;
         new_unit.move_points = unit.move_points;
         new_unit.max_move_points = unit.max_move_points;
+        new_unit.modifiers = from_client_array(unit.modifiers).map(modifier => ({
+            modifier_id: modifier.modifier_id,
+            modifier_name: modifier.modifier_name,
+            changes: from_client_array(modifier.changes)
+        }));
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;
@@ -1272,5 +1272,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
 
     for (const unit of battle.units) {
         update_stun_visuals(unit);
+
+        for (const modifier of unit.modifiers) {
+            if (modifier.modifier_name) {
+                unit.handle.AddNewModifier(unit.handle, undefined, modifier.modifier_name, {});
+            }
+        }
     }
 }
