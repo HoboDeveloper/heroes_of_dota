@@ -13,8 +13,8 @@ type Shared_Visualizer_Unit_Data = {
 }
 
 type Modifier_Data = {
-    modifier_id: number
-    modifier_name?: string
+    modifier_id: Modifier_Id
+    modifier_handle_id: number
     changes: Modifier_Change[]
 }
 

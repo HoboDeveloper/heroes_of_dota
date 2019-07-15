@@ -8,7 +8,7 @@ let battle_id_auto_increment = 0;
 export type Battle_Record = Battle & {
     id: number
     unit_id_auto_increment: number
-    modifier_id_auto_increment: number
+    modifier_handle_id_auto_increment: number
     card_id_auto_increment: number
     finished: boolean
     turn_index: number
@@ -140,14 +140,15 @@ function apply_ability_effect_delta<T extends Ability_Effect>(effect: T): Delta_
 
 function health_change(target: Unit, change: number): Value_Change {
     return {
-        new_value: Math.max(0, target.health + change),
+        new_value: Math.max(0, Math.min(target.max_health, target.health + change)),
         value_delta: change
     }
 }
 
-function new_modifier(battle: Battle_Record, ...changes: [Modifier_Field, number][]): Modifier_Application {
+function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modifier_Field, number][]): Modifier_Application {
     return {
-        modifier_id: get_next_modifier_id(battle),
+        modifier_id: id,
+        modifier_handle_id: get_next_modifier_handle_id(battle),
         changes: changes.map(change => ({
             field: change[0],
             delta: change[1]
@@ -241,7 +242,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 damage_dealt: health_change(target, -ability.damage),
-                modifier: new_modifier(battle, [Modifier_Field.attack_bonus, -ability.attack_reduction])
+                modifier: new_modifier(battle, Modifier_Id.tide_anchor_smash, [Modifier_Field.attack_bonus, -ability.attack_reduction])
             }));
 
             return {
@@ -257,7 +258,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 damage_dealt: health_change(target, -ability.damage),
-                modifier: new_modifier(battle, [Modifier_Field.state_stunned_counter, 1])
+                modifier: new_modifier(battle, Modifier_Id.tide_ravage, [Modifier_Field.state_stunned_counter, 1])
             }));
 
             return {
@@ -331,7 +332,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
                 unit_id: unit.id,
                 target_unit_id: target.id,
                 ability_id: ability.id,
-                modifier: new_modifier(battle, [Modifier_Field.move_points_bonus, -ability.move_points_reduction]),
+                modifier: new_modifier(battle, Modifier_Id.tide_gush, [Modifier_Field.move_points_bonus, -ability.move_points_reduction]),
                 damage_dealt: health_change(target, -ability.damage),
                 duration: 1,
             };
@@ -582,8 +583,8 @@ function get_next_unit_id(battle: Battle_Record) {
     return battle.unit_id_auto_increment++;
 }
 
-function get_next_modifier_id(battle: Battle_Record) {
-    return battle.modifier_id_auto_increment++;
+function get_next_modifier_handle_id(battle: Battle_Record) {
+    return battle.modifier_handle_id_auto_increment++;
 }
 
 function get_next_card_id(battle: Battle_Record) {
@@ -634,7 +635,7 @@ function pass_turn_server(battle: Battle) {
             if (!modifier.permanent && modifier.duration_remaining == 0) {
                 battle.deltas.push({
                     type: Delta_Type.modifier_removed,
-                    modifier_id: modifier.id
+                    modifier_handle_id: modifier.handle_id
                 })
             }
         }
@@ -722,7 +723,7 @@ export function start_battle(players: Player[]): number {
         id: battle_id_auto_increment++,
         turn_index: 0,
         unit_id_auto_increment: 0,
-        modifier_id_auto_increment: 0,
+        modifier_handle_id_auto_increment: 0,
         card_id_auto_increment: 0,
         finished: false,
         change_health: server_change_health,

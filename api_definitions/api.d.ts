@@ -263,7 +263,7 @@ type Delta_Level_Change = {
 
 type Delta_Modifier_Removed = {
     type: Delta_Type.modifier_removed
-    modifier_id: number
+    modifier_handle_id: number
 }
 
 type Delta_Set_Ability_Charges_Remaining = {
@@ -317,7 +317,8 @@ type Modifier_Change = {
 }
 
 type Modifier_Application = {
-    modifier_id: number
+    modifier_handle_id: number
+    modifier_id: Modifier_Id
     changes: Modifier_Change[]
 }
 

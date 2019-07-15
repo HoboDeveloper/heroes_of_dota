@@ -976,7 +976,12 @@ function make_battle_snapshot(): Battle_Snapshot {
                 facing: battle.unit_id_to_facing[unit.id],
                 stunned_counter: unit.state_stunned_counter,
                 owner_id: unit.owner_player_id,
-                attack_bonus: unit.attack_bonus
+                attack_bonus: unit.attack_bonus,
+                modifiers: unit.modifiers.map(modifier => ({
+                    modifier_id: modifier.id,
+                    modifier_handle_id: modifier.handle_id,
+                    changes: modifier.changes
+                }))
             })),
         delta_head: battle.delta_head
     }

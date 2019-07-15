@@ -152,14 +152,13 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
 }
 
 function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
-    const owner = array_find(battle.players, player => player.id == owner_id)!;
     const definition = unit_definition_by_type(unit_type);
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
-    handle.SetForwardVector(Vector(owner.deployment_zone.face_x, owner.deployment_zone.face_y));
+    handle.SetForwardVector(Vector(facing.x, facing.y));
 
     const unit: Battle_Unit = {
         handle: handle,
@@ -631,26 +630,25 @@ function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, c
     }
 }
 
-function apply_modifier_with_visuals(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application, modifier_name: string) {
-    const modifier_changes = from_client_array(modifier.changes);
-
-    print("Apply and record", modifier.modifier_id, modifier_name, "to", target.handle.GetName());
-    target.handle.AddNewModifier(target.handle, undefined, modifier_name, {});
-    target.modifiers.push({
-        modifier_id: modifier.modifier_id,
-        modifier_name: modifier_name,
-        changes: modifier_changes
-    });
-
-    apply_modifier_changes(main_player, target, modifier_changes, false);
-    update_player_state_net_table(main_player);
+function modifier_id_to_visual_modifier(id: Modifier_Id): string | undefined {
+    switch (id) {
+        case Modifier_Id.tide_gush: return "Modifier_Tide_Gush";
+    }
 }
 
 function apply_modifier(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application) {
     const modifier_changes = from_client_array(modifier.changes);
+    const visual_modifier = modifier_id_to_visual_modifier(modifier.modifier_id);
+
+    print(`Apply and record ${modifier.modifier_handle_id} (${visual_modifier}) to ${target.handle.GetName()}`);
+
+    if (visual_modifier) {
+        target.handle.AddNewModifier(target.handle, undefined, visual_modifier, {});
+    }
 
     target.modifiers.push({
         modifier_id: modifier.modifier_id,
+        modifier_handle_id: modifier.modifier_handle_id,
         changes: modifier_changes
     });
 
@@ -684,7 +682,7 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
             unit_emit_sound(unit, "Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
-            apply_modifier_with_visuals(main_player, target, modifier, "Modifier_Tide_Gush");
+            apply_modifier(main_player, target, modifier);
             change_health(main_player, unit, target, damage_dealt);
 
             break;
@@ -1144,27 +1142,30 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.modifier_removed: {
-            modifier_search: {
+            // TODO uncomment break to label once TSTL supports it and code is migrated to the newer version
+            // modifier_search: {
                 for (const unit of battle.units) {
                     for (let index = 0; index < unit.modifiers.length; index++) {
                         const modifier = unit.modifiers[index];
 
-                        if (modifier.modifier_id == delta.modifier_id) {
-                            print(`Remove modifier ${delta.modifier_id} ${modifier.modifier_name} from ${unit.handle.GetName()}`);
+                        if (modifier.modifier_handle_id == delta.modifier_handle_id) {
+                            const modifier_visuals = modifier_id_to_visual_modifier(modifier.modifier_id);
 
-                            if (modifier.modifier_name) {
-                                unit.handle.RemoveModifierByName(modifier.modifier_name);
+                            if (modifier_visuals) {
+                                print(`Remove modifier ${delta.modifier_handle_id} ${modifier_visuals} from ${unit.handle.GetName()}`);
+
+                                unit.handle.RemoveModifierByName(modifier_visuals);
                             }
 
                             unit.modifiers.splice(index);
 
                             apply_modifier_changes(main_player, unit, modifier.changes, true);
 
-                            break modifier_search;
+                            // break modifier_search;
                         }
                     }
                 }
-            }
+            // }
 
             break;
         }
@@ -1253,7 +1254,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         new_unit.max_move_points = unit.max_move_points;
         new_unit.modifiers = from_client_array(unit.modifiers).map(modifier => ({
             modifier_id: modifier.modifier_id,
-            modifier_name: modifier.modifier_name,
+            modifier_handle_id: modifier.modifier_handle_id,
             changes: from_client_array(modifier.changes)
         }));
         new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
@@ -1274,8 +1275,10 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         update_stun_visuals(unit);
 
         for (const modifier of unit.modifiers) {
-            if (modifier.modifier_name) {
-                unit.handle.AddNewModifier(unit.handle, undefined, modifier.modifier_name, {});
+            const modifier_visuals = modifier_id_to_visual_modifier(modifier.modifier_id);
+
+            if (modifier_visuals) {
+                unit.handle.AddNewModifier(unit.handle, undefined, modifier_visuals, {});
             }
         }
     }

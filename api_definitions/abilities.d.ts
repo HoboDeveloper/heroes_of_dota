@@ -13,6 +13,12 @@ declare const enum Ability_Id {
     sniper_shrapnel = 12
 }
 
+declare const enum Modifier_Id {
+    tide_gush = 0,
+    tide_anchor_smash = 1,
+    tide_ravage = 2,
+}
+
 type Ability_Basic_Attack = Ability_Definition_Active_Base & {
     id: Ability_Id.basic_attack
     type: Ability_Type.target_ground

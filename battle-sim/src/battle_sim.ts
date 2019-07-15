@@ -61,7 +61,8 @@ type Unit = {
 }
 
 type Modifier_Base = {
-    id: number
+    id: Modifier_Id
+    handle_id: number
     source: Unit
     source_ability: Ability_Id
     changes: Modifier_Change[]
@@ -183,10 +184,10 @@ function find_player_card_by_id(player: Battle_Player, card_id: number): Card | 
     return player.hand.find(card => card.id == card_id);
 }
 
-function find_modifier_by_id(battle: Battle, id: number): [ Unit, Modifier ] | undefined {
+function find_modifier_by_handle_id(battle: Battle, id: number): [ Unit, Modifier ] | undefined {
     for (const unit of battle.units) {
         for (const modifier of unit.modifiers) {
-            if (modifier.id == id) {
+            if (modifier.handle_id == id) {
                 return [unit, modifier];
             }
         }
@@ -452,6 +453,7 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
 function apply_modifier(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application, duration?: number) {
     const modifier_base: Modifier_Base = {
         id: modifier.modifier_id,
+        handle_id: modifier.modifier_handle_id,
         source: source,
         source_ability: ability_id,
         changes: modifier.changes
@@ -715,7 +717,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.modifier_removed: {
-            const result = find_modifier_by_id(battle, delta.modifier_id);
+            const result = find_modifier_by_handle_id(battle, delta.modifier_handle_id);
 
             if (result) {
                 const [unit, modifier] = result;
