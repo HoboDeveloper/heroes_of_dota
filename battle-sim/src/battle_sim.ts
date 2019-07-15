@@ -31,7 +31,7 @@ type Battle = {
     cells: Cell[]
     grid_size: XY
     change_health: (battle: Battle, source: Unit, target: Unit, change: Value_Change) => boolean,
-    pass_turn: (battle: Battle) => void
+    end_turn: (battle: Battle) => void
 }
 
 type Cell = {
@@ -210,7 +210,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         deltas: [],
         grid_size: xy(grid_width, grid_height),
         change_health: change_health_default,
-        pass_turn: pass_turn_default
+        end_turn: end_turn_default
     }
 }
 
@@ -376,20 +376,16 @@ function change_health_default(battle: Battle, source: Unit, target: Unit, chang
     return false;
 }
 
-function pass_turn_default(battle: Battle) {
+function end_turn_default(battle: Battle) {
     const turn_passed_from_player_id = battle.players[battle.turning_player_index].id;
 
     battle.turning_player_index++;
 
     if (battle.turning_player_index == battle.players.length) {
-        battle.turning_player_index -= battle.players.length;
+        battle.turning_player_index = 0;
     }
 
     for (const unit of battle.units) {
-        if (unit.attack.type != Ability_Type.passive) {
-            unit.attack.charges_remaining = unit.attack.charges;
-        }
-
         if (unit.owner_player_id == turn_passed_from_player_id) {
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
@@ -399,9 +395,6 @@ function pass_turn_default(battle: Battle) {
                 }
             }
         }
-
-        unit.move_points = unit.max_move_points;
-        unit.has_taken_an_action_this_turn = false;
     }
 
     for (const player of battle.players) {
@@ -700,8 +693,21 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
+        case Delta_Type.start_turn: {
+            for (const unit of battle.units) {
+                if (unit.attack.type != Ability_Type.passive) {
+                    unit.attack.charges_remaining = unit.attack.charges;
+                }
+
+                unit.move_points = unit.max_move_points;
+                unit.has_taken_an_action_this_turn = false;
+            }
+
+            break;
+        }
+
         case Delta_Type.end_turn: {
-            battle.pass_turn(battle);
+            battle.end_turn(battle);
 
             break;
         }

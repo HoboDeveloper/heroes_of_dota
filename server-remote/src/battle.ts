@@ -627,8 +627,8 @@ function server_change_health(battle: Battle_Record, source: Unit, target: Unit,
     return killed;
 }
 
-function pass_turn_server(battle: Battle) {
-    pass_turn_default(battle);
+function end_turn_server(battle: Battle) {
+    end_turn_default(battle);
 
     for (const unit of battle.units) {
         for (const modifier of unit.modifiers) {
@@ -640,6 +640,10 @@ function pass_turn_server(battle: Battle) {
             }
         }
     }
+
+    battle.deltas.push({
+        type: Delta_Type.start_turn
+    })
 }
 
 export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
@@ -727,7 +731,7 @@ export function start_battle(players: Player[]): number {
         card_id_auto_increment: 0,
         finished: false,
         change_health: server_change_health,
-        pass_turn: pass_turn_server
+        end_turn: end_turn_server
     };
 
     fill_grid(battle);

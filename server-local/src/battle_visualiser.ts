@@ -1004,7 +1004,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             shake_screen(delta.at_position, Shake.medium);
 
-            const facing = delta.owner_id == main_player.remote_id ? { x: 0, y: 1 } : { x: 0, y : -1 };
+            const owner = array_find(battle.players, player => player.id == delta.owner_id)!;
+            const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
 
             unit_emit_sound(unit, "hero_spawn");
@@ -1105,13 +1106,16 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.end_turn: {
+        case Delta_Type.start_turn: {
             for (const unit of battle.units) {
                 unit.move_points = unit.max_move_points;
             }
 
             update_player_state_net_table(main_player);
+            break;
+        }
 
+        case Delta_Type.end_turn: {
             break;
         }
 
@@ -1257,7 +1261,6 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             modifier_handle_id: modifier.modifier_handle_id,
             changes: from_client_array(modifier.changes)
         }));
-        new_unit.handle.SetForwardVector(Vector(unit.facing.x, unit.facing.y));
 
         return new_unit;
     });
