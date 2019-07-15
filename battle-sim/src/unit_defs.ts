@@ -159,7 +159,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 abilities: [
                     active_ability<Ability_Skywrath_Concussive_Shot>({
                         available_since_level: 1,
-                        targeting: target_rect_area_around_caster(5),
+                        targeting: target_rect_area_around_caster(3),
                         charges: 1,
                         move_points_reduction: 2,
                         damage: 4,

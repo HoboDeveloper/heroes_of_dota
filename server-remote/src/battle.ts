@@ -346,7 +346,6 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
 
         case Ability_Id.skywrath_concussive_shot: {
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
-
             const enemies = targets.filter(target => target.owner_player_id != unit.owner_player_id);
             const allies = targets.filter(target => target.owner_player_id == unit.owner_player_id);
             const target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
@@ -360,14 +359,22 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                         target_unit_id: target.id,
                         damage: health_change(target, -ability.damage),
                         duration: ability.duration,
-                        modifier: new_modifier(battle, Modifier_Id.skywrath_concussive_shot, [Modifier_Field.move_points_bonus, -ability.move_points_reduction])
+                        modifier: new_modifier(
+                            battle,
+                            Modifier_Id.skywrath_concussive_shot,
+                            [Modifier_Field.move_points_bonus, -ability.move_points_reduction]
+                        )
                     }
                 }
             } else {
-
+                return {
+                    ...base,
+                    ability_id: ability.id,
+                    result: {
+                        hit: false
+                    }
+                }
             }
-
-            break;
         }
 
         default: unreachable(ability.type);
