@@ -173,6 +173,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         max_health: definition.health,
         attack_bonus: 0,
         stunned_counter: 0,
+        silenced_counter: 0,
         move_points: definition.move_points,
         max_move_points: definition.move_points,
         modifiers: []
@@ -631,7 +632,14 @@ function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, c
             case Modifier_Field.state_stunned_counter: {
                 target.stunned_counter += delta;
 
-                update_stun_visuals(target);
+                update_state_visuals(target);
+                break;
+            }
+
+            case Modifier_Field.state_silenced_counter: {
+                target.silenced_counter += delta;
+
+                update_state_visuals(target);
                 break;
             }
 
@@ -940,14 +948,19 @@ function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     }*/
 }
 
-function update_stun_visuals(unit: Battle_Unit) {
-    if (unit.stunned_counter > 0) {
-        print("Stun unit", unit.handle.GetName());
-        unit.handle.AddNewModifier(unit.handle, undefined, "modifier_stunned", {});
+function update_specific_state_visuals(unit: Battle_Unit, counter: number, associated_modifier: string) {
+    if (counter > 0) {
+        if (!unit.handle.HasModifier(associated_modifier)) {
+            unit.handle.AddNewModifier(unit.handle, undefined, associated_modifier, {});
+        }
     } else {
-        print("Unstun unit", unit.handle.GetName());
-        unit.handle.RemoveModifierByName("modifier_stunned");
+        unit.handle.RemoveModifierByName(associated_modifier);
     }
+}
+
+function update_state_visuals(unit: Battle_Unit) {
+    update_specific_state_visuals(unit, unit.stunned_counter, "modifier_stunned");
+    update_specific_state_visuals(unit, unit.silenced_counter, "modifier_silenced");
 }
 
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
@@ -1301,7 +1314,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     wait_one_frame();
 
     for (const unit of battle.units) {
-        update_stun_visuals(unit);
+        update_state_visuals(unit);
 
         for (const modifier of unit.modifiers) {
             const modifier_visuals = modifier_id_to_visual_modifier(modifier.modifier_id);

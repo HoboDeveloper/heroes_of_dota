@@ -7,7 +7,8 @@ declare const enum Ability_Error {
     invalid_target = 4,
     already_acted_this_turn = 5,
     not_learned_yet = 6,
-    stunned = 7
+    stunned = 7,
+    silenced = 8
 }
 
 type Ability_Authorization_Ok = {
@@ -56,6 +57,7 @@ type Unit = {
     max_move_points: number;
     attack_bonus: number;
     state_stunned_counter: number
+    state_silenced_counter: number
     abilities: Ability[];
     modifiers: Modifier[]
 }
@@ -170,6 +172,10 @@ function unit_at(battle: Battle, at: XY): Unit | undefined {
 
 function is_unit_stunned(unit: Unit) {
     return unit.state_stunned_counter > 0;
+}
+
+function is_unit_silenced(unit: Unit) {
+    return unit.state_silenced_counter > 0;
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
@@ -348,6 +354,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     if (unit.dead) return error(Ability_Error.dead);
     if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
     if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
+    if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
 
     if (!ability) return error(Ability_Error.other);
 
@@ -438,6 +445,11 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
                 break;
             }
 
+            case Modifier_Field.state_silenced_counter: {
+                target.state_silenced_counter += delta;
+                break;
+            }
+
             default: unreachable(change.field);
         }
     }
@@ -507,6 +519,11 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
             break;
         }
 
+        case Ability_Id.skywrath_ancient_seal: {
+            apply_modifier(source, target, cast.ability_id, cast.modifier, cast.duration);
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -563,6 +580,19 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
             break;
         }
 
+        case Ability_Id.skywrath_concussive_shot: {
+            if (cast.result.hit) {
+                const target = find_unit_by_id(battle, cast.result.target_unit_id);
+
+                if (target) {
+                    change_health(battle, source, target, cast.result.damage);
+                    apply_modifier(source, target, cast.ability_id, cast.result.modifier, cast.result.duration);
+                }
+            }
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -588,6 +618,18 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
                 if (target) {
                     move_unit(battle, target, cast.result.move_target_to);
                     change_health(battle, source, target, cast.result.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.skywrath_mystic_flare: {
+            for (const target of cast.targets) {
+                const target_unit = find_unit_by_id(battle, target.target_unit_id);
+
+                if (target_unit) {
+                    change_health_default(battle, source, target_unit, target.damage_dealt);
                 }
             }
 
@@ -632,6 +674,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 max_health: definition.health,
                 max_move_points: definition.move_points,
                 state_stunned_counter: 0,
+                state_silenced_counter: 0,
                 armor: 0
             });
 

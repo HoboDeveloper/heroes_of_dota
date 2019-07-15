@@ -120,6 +120,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     ts.createPropertyAssignment("move_points_reduction", ts.createPropertyAccess(identifier, "move_points_reduction")),
                     ts.createPropertyAssignment("total_beams", ts.createPropertyAccess(identifier, "total_beams")),
                     ts.createPropertyAssignment("attack_bonus", ts.createPropertyAccess(identifier, "attack_bonus")),
+                    ts.createPropertyAssignment("duration", ts.createPropertyAccess(identifier, "duration")),
 
                     // Defaults
                     ts.createPropertyAssignment("charges", ts.createPropertyAccess(identifier, "charges")),

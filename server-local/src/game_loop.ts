@@ -101,6 +101,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     move_points: unit.move_points,
                     max_move_points: unit.max_move_points,
                     stunned_counter: unit.stunned_counter,
+                    silenced_counter: unit.silenced_counter,
                     attack_bonus: unit.attack_bonus,
                     modifiers: unit.modifiers
                 }

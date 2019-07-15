@@ -9,6 +9,7 @@ type Shared_Visualizer_Unit_Data = {
     max_move_points: number
     attack_bonus: number
     stunned_counter: number
+    silenced_counter: number
     modifiers: Modifier_Data[]
 }
 

@@ -45,6 +45,7 @@ declare const enum Modifier_Field {
     attack_bonus = 2,
     armor_bonus = 3,
     move_points_bonus = 4,
+    state_silenced_counter = 5,
     state_stunned_counter = 6
 }
 
@@ -95,7 +96,7 @@ type Ability_Targeting_Line = {
     stop_at_first_obstacle_hit: boolean
 }
 
-type Ability_Targeting_Unit_In_Manhattan_Distance = {
+type Ability_Targeting_Target_In_Manhattan_Distance = {
     type: Ability_Targeting_Type.unit_in_manhattan_distance
     distance: number
 }
@@ -107,7 +108,7 @@ type Ability_Targeting_Rectangular_Area_Around_Caster = {
 
 type Ability_Targeting =
     Ability_Targeting_Line |
-    Ability_Targeting_Unit_In_Manhattan_Distance |
+    Ability_Targeting_Target_In_Manhattan_Distance |
     Ability_Targeting_Rectangular_Area_Around_Caster
 
 type Action_Move = {

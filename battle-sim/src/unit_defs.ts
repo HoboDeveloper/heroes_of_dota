@@ -24,7 +24,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         }
     }
 
-    function target_unit_in_manhattan_distance(distance: number): Ability_Targeting_Unit_In_Manhattan_Distance {
+    function target_in_manhattan_distance(distance: number): Ability_Targeting_Target_In_Manhattan_Distance {
         return {
             type: Ability_Targeting_Type.unit_in_manhattan_distance,
             distance: distance
@@ -88,7 +88,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Pudge_Dismember>({
                         available_since_level: 3,
-                        targeting: target_unit_in_manhattan_distance(1),
+                        targeting: target_in_manhattan_distance(1),
                         charges: 1,
                         damage: 10
                     })
@@ -104,7 +104,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 abilities: [
                     active_ability<Ability_Tide_Gush>({
                         available_since_level: 1,
-                        targeting: target_unit_in_manhattan_distance(6),
+                        targeting: target_in_manhattan_distance(6),
                         charges: 1,
                         damage: 4,
                         move_points_reduction: 2
@@ -118,7 +118,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Tide_Ravage>({
                         available_since_level: 3,
-                        targeting: target_unit_in_manhattan_distance(5),
+                        targeting: target_in_manhattan_distance(5),
                         damage: 5,
                         charges: 1,
                     })
@@ -134,7 +134,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 abilities: [
                     active_ability<Ability_Luna_Lucent_Beam>({
                         available_since_level: 1,
-                        targeting: target_unit_in_manhattan_distance(5),
+                        targeting: target_in_manhattan_distance(5),
                         charges: 1,
                         damage: 5
                     }),
@@ -143,7 +143,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Luna_Eclipse>({
                         available_since_level: 3,
-                        targeting: target_unit_in_manhattan_distance(4),
+                        targeting: target_in_manhattan_distance(4),
                         total_beams: 14,
                         charges: 1,
                     })
@@ -157,7 +157,27 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 move_points: 3,
                 attack: basic_attack(4, 3),
                 abilities: [
-
+                    active_ability<Ability_Skywrath_Concussive_Shot>({
+                        available_since_level: 1,
+                        targeting: target_rect_area_around_caster(5),
+                        charges: 1,
+                        move_points_reduction: 2,
+                        damage: 4,
+                        duration: 2
+                    }),
+                    active_ability<Ability_Skywrath_Ancient_Seal>({
+                        available_since_level: 2,
+                        targeting: target_in_manhattan_distance(3),
+                        charges: 1,
+                        duration: 3
+                    }),
+                    active_ability<Ability_Skywrath_Mystic_Flare>({
+                        available_since_level: 3,
+                        targeting: target_in_manhattan_distance(5),
+                        charges: 1,
+                        radius: 2,
+                        damage: 10
+                    })
                 ]
             }
         }

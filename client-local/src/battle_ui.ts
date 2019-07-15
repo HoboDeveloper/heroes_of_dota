@@ -975,6 +975,7 @@ function make_battle_snapshot(): Battle_Snapshot {
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
                 stunned_counter: unit.state_stunned_counter,
+                silenced_counter: unit.state_silenced_counter,
                 owner_id: unit.owner_player_id,
                 attack_bonus: unit.attack_bonus,
                 modifiers: unit.modifiers.map(modifier => ({
@@ -1013,21 +1014,22 @@ function clear_held_card() {
     held_card = undefined;
 }
 
-function get_ability_tooltip(ability: Ability) {
-    switch (ability.id) {
-        case Ability_Id.basic_attack: return `Deal ${ability.damage} damage`;
-        case Ability_Id.pudge_hook: return `Hook, deals ${ability.damage} damage`;
-        case Ability_Id.pudge_rot: return `Deal ${ability.damage} damage in an AoE`;
-        case Ability_Id.pudge_dismember: return `Deal ${ability.damage} damage<br/>Restore ${ability.damage} health`;
-        case Ability_Id.tide_gush: return `Deal ${ability.damage} damage<br/>Slow for ${ability.move_points_reduction}`;
-        case Ability_Id.tide_anchor_smash: return `Deal ${ability.damage} damage<br/>Reduce attack by ${ability.attack_reduction}`;
-        case Ability_Id.tide_ravage: return `Stun, ${ability.damage} damage`;
-        case Ability_Id.luna_lucent_beam: return `Deal ${ability.damage} damage`;
+function get_ability_tooltip(a: Ability): string {
+    switch (a.id) {
+        case Ability_Id.basic_attack: return `Deal ${a.damage} damage`;
+        case Ability_Id.pudge_hook: return `Hook, deals ${a.damage} damage`;
+        case Ability_Id.pudge_rot: return `Deal ${a.damage} damage in an AoE`;
+        case Ability_Id.pudge_dismember: return `Deal ${a.damage} damage<br/>Restore ${a.damage} health`;
+        case Ability_Id.tide_gush: return `Deal ${a.damage} damage<br/>Slow for ${a.move_points_reduction}`;
+        case Ability_Id.tide_anchor_smash: return `Deal ${a.damage} damage<br/>Reduce attack by ${a.attack_reduction}`;
+        case Ability_Id.tide_ravage: return `Stun, ${a.damage} damage`;
+        case Ability_Id.luna_lucent_beam: return `Deal ${a.damage} damage`;
         case Ability_Id.luna_moon_glaive: return `Attack bounces to nearby targets`;
-        case Ability_Id.luna_eclipse: return `Deal ${ability.total_beams} damage randomly split between nearby targets`;
+        case Ability_Id.luna_eclipse: return `Deal ${a.total_beams} damage randomly split between nearby targets`;
+        case Ability_Id.skywrath_concussive_shot: return `Deal ${a.damage} and slow random target (prioritizes enemies) by ${a.move_points_reduction} for ${a.duration} turns`;
+        case Ability_Id.skywrath_ancient_seal: return `Silence target for ${a.duration} turns`;
+        case Ability_Id.skywrath_mystic_flare: return `Deal ${a.damage} split between targets in an area`;
     }
-
-    return unreachable(ability);
 }
 
 function get_ability_icon(ability_id: Ability_Id): string {
@@ -1043,9 +1045,10 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.luna_lucent_beam: return "luna_lucent_beam";
         case Ability_Id.luna_moon_glaive: return "luna_moon_glaive";
         case Ability_Id.luna_eclipse: return "luna_eclipse";
+        case Ability_Id.skywrath_concussive_shot: return "skywrath_mage_concussive_shot";
+        case Ability_Id.skywrath_ancient_seal: return "skywrath_mage_ancient_seal";
+        case Ability_Id.skywrath_mystic_flare: return "skywrath_mage_mystic_flare";
     }
-
-    return unreachable(ability_id);
 }
 
 function get_hero_name(type: Unit_Type): string {
@@ -1631,6 +1634,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.not_learned_yet: return native(16);
         case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
         case Ability_Error.stunned: return custom("Stunned");
+        case Ability_Error.silenced: return native(24);
 
         default: return unreachable(error);
     }

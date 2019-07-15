@@ -117,7 +117,7 @@ function query_units_in_rectangular_area_around_point(battle: Battle, from_exclu
     return units;
 }
 
-function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeting: Ability_Targeting_Unit_In_Manhattan_Distance | Ability_Targeting_Rectangular_Area_Around_Caster): Unit[] {
+function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeting: Ability_Targeting_Target_In_Manhattan_Distance | Ability_Targeting_Rectangular_Area_Around_Caster): Unit[] {
     const from_exclusive = caster.position;
 
     switch (targeting.type) {
@@ -157,6 +157,12 @@ function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modif
 }
 
 function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Delta_Ground_Target_Ability | undefined {
+    const base: Delta_Ground_Target_Ability_Base = {
+        type: Delta_Type.use_ground_target_ability,
+        unit_id: unit.id,
+        target_position: target,
+    };
+
     switch (ability.id) {
         case Ability_Id.basic_attack: {
             const scan = scan_for_unit_in_direction(battle, unit.position, target, ability.targeting.line_length);
@@ -165,9 +171,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 const damage = Math.max(0, ability.damage + unit.attack_bonus - scan.unit.armor);
 
                 return {
-                    type: Delta_Type.use_ground_target_ability,
-                    unit_id: unit.id,
-                    target_position: target,
+                    ...base,
                     ability_id: Ability_Id.basic_attack,
                     result: {
                         hit: true,
@@ -177,9 +181,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 };
             } else {
                 return {
-                    type: Delta_Type.use_ground_target_ability,
-                    unit_id: unit.id,
-                    target_position: target,
+                    ...base,
                     ability_id: Ability_Id.basic_attack,
                     result: {
                         hit: false,
@@ -196,9 +198,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
 
             if (scan.hit) {
                 return {
-                    type: Delta_Type.use_ground_target_ability,
-                    unit_id: unit.id,
-                    target_position: target,
+                    ...base,
                     ability_id: ability.id,
                     result: {
                         hit: true,
@@ -209,12 +209,46 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 };
             } else {
                 return {
-                    type: Delta_Type.use_ground_target_ability,
-                    unit_id: unit.id,
-                    target_position: target,
+                    ...base,
                     ability_id: ability.id,
                     result: { hit: false, final_point: scan.final_point }
                 }
+            }
+        }
+
+        case Ability_Id.skywrath_mystic_flare: {
+            const targets = query_units_in_rectangular_area_around_point(battle, target, ability.radius).map(target => ({
+                unit: target,
+                damage_applied: 0
+            }));
+
+            let remaining_targets = targets.length;
+            let remaining_damage = ability.damage;
+
+            for (; remaining_damage > 0 && remaining_targets > 0; remaining_damage--) {
+                const target_index = random_int_up_to(remaining_targets);
+                const random_target = targets[target_index];
+
+                random_target.damage_applied++;
+
+                if (random_target.damage_applied == random_target.unit.health) {
+                    const last_target = targets[remaining_targets - 1];
+
+                    targets[remaining_targets - 1] = random_target;
+                    targets[target_index] = last_target;
+
+                    remaining_targets--;
+                }
+            }
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: targets.map(target => ({
+                    target_unit_id: target.unit.id,
+                    damage_dealt: health_change(target.unit, -target.damage_applied)
+                })),
+                damage_remaining: remaining_damage
             }
         }
 
@@ -223,6 +257,11 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
 }
 
 function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Delta_Use_No_Target_Ability | undefined {
+    const base: Delta_Use_No_Target_Ability_Base = {
+        type: Delta_Type.use_no_target_ability,
+        unit_id: unit.id,
+    };
+
     switch (ability.id) {
         case Ability_Id.pudge_rot: {
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
@@ -231,8 +270,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             }));
 
             return {
-                type: Delta_Type.use_no_target_ability,
-                unit_id: unit.id,
+                ...base,
                 ability_id: ability.id,
                 targets: targets
             }
@@ -246,8 +284,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             }));
 
             return {
-                type: Delta_Type.use_no_target_ability,
-                unit_id: unit.id,
+                ...base,
                 ability_id: ability.id,
                 targets: targets,
                 duration: 1
@@ -262,8 +299,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             }));
 
             return {
-                type: Delta_Type.use_no_target_ability,
-                unit_id: unit.id,
+                ...base,
                 ability_id: ability.id,
                 duration: 1,
                 targets: targets
@@ -301,12 +337,37 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             }));
 
             return {
-                type: Delta_Type.use_no_target_ability,
-                unit_id: unit.id,
+                ...base,
                 ability_id: ability.id,
                 missed_beams: remaining_beams,
                 targets: effects
             };
+        }
+
+        case Ability_Id.skywrath_concussive_shot: {
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
+
+            const enemies = targets.filter(target => target.owner_player_id != unit.owner_player_id);
+            const allies = targets.filter(target => target.owner_player_id == unit.owner_player_id);
+            const target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
+
+            if (target) {
+                return {
+                    ...base,
+                    ability_id: ability.id,
+                    result: {
+                        hit: true,
+                        target_unit_id: target.id,
+                        damage: health_change(target, -ability.damage),
+                        duration: ability.duration,
+                        modifier: new_modifier(battle, Modifier_Id.skywrath_concussive_shot, [Modifier_Field.move_points_bonus, -ability.move_points_reduction])
+                    }
+                }
+            } else {
+
+            }
+
+            break;
         }
 
         default: unreachable(ability.type);
@@ -314,12 +375,16 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
 }
 
 function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Delta_Unit_Target_Ability | undefined {
+    const base: Delta_Unit_Target_Ability_Base = {
+        type: Delta_Type.use_unit_target_ability,
+        unit_id: unit.id,
+        target_unit_id: target.id,
+    };
+
     switch (ability.id) {
         case Ability_Id.pudge_dismember: {
             return {
-                type: Delta_Type.use_unit_target_ability,
-                unit_id: unit.id,
-                target_unit_id: target.id,
+                ...base,
                 ability_id: ability.id,
                 damage_dealt: health_change(target, -ability.damage),
                 health_restored: health_change(target, ability.damage)
@@ -328,9 +393,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
 
         case Ability_Id.tide_gush: {
             return {
-                type: Delta_Type.use_unit_target_ability,
-                unit_id: unit.id,
-                target_unit_id: target.id,
+                ...base,
                 ability_id: ability.id,
                 modifier: new_modifier(battle, Modifier_Id.tide_gush, [Modifier_Field.move_points_bonus, -ability.move_points_reduction]),
                 damage_dealt: health_change(target, -ability.damage),
@@ -340,12 +403,19 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
 
         case Ability_Id.luna_lucent_beam: {
             return {
-                type: Delta_Type.use_unit_target_ability,
-                unit_id: unit.id,
-                target_unit_id: target.id,
+                ...base,
                 ability_id: ability.id,
                 damage_dealt: health_change(target, -ability.damage)
             };
+        }
+
+        case Ability_Id.skywrath_ancient_seal: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: new_modifier(battle, Modifier_Id.skywrath_ancient_seal, [Modifier_Field.state_silenced_counter, 1]),
+                duration: ability.duration
+            }
         }
 
         default: unreachable(ability.type);
