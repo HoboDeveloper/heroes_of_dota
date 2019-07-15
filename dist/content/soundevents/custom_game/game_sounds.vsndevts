@@ -51,10 +51,10 @@
         type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/vo/luna/luna_luna_spawn_01.vsnd",
-            "sounds/vo/luna/luna_luna_spawn_02.vsnd",
-            "sounds/vo/luna/luna_luna_spawn_03.vsnd",
-            "sounds/vo/luna/luna_luna_spawn_04.vsnd",
+            "sounds/vo/luna/luna_spawn_01.vsnd",
+            "sounds/vo/luna/luna_spawn_02.vsnd",
+            "sounds/vo/luna/luna_spawn_03.vsnd",
+            "sounds/vo/luna/luna_spawn_04.vsnd",
         ]
     }
 
@@ -125,12 +125,12 @@
         type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/vo/sniper/sniper_snip_spawn_01.vsnd",
-            "sounds/vo/sniper/sniper_snip_spawn_02.vsnd",
-            "sounds/vo/sniper/sniper_snip_spawn_03.vsnd",
-            "sounds/vo/sniper/sniper_snip_spawn_04.vsnd",
-            "sounds/vo/sniper/sniper_snip_spawn_05.vsnd",
-            "sounds/vo/sniper/sniper_snip_spawn_06.vsnd",
+            "sounds/vo/sniper/snip_spawn_01.vsnd",
+            "sounds/vo/sniper/snip_spawn_02.vsnd",
+            "sounds/vo/sniper/snip_spawn_03.vsnd",
+            "sounds/vo/sniper/snip_spawn_04.vsnd",
+            "sounds/vo/sniper/snip_spawn_05.vsnd",
+            "sounds/vo/sniper/snip_spawn_06.vsnd",
         ]
     }
 
@@ -167,13 +167,13 @@
         type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/vo/pudge/pudge_pud_spawn_01.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_02.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_03.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_04.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_05.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_06.vsnd",
-            "sounds/vo/pudge/pudge_pud_spawn_07.vsnd",
+            "sounds/vo/pudge/pud_spawn_01.vsnd",
+            "sounds/vo/pudge/pud_spawn_02.vsnd",
+            "sounds/vo/pudge/pud_spawn_03.vsnd",
+            "sounds/vo/pudge/pud_spawn_04.vsnd",
+            "sounds/vo/pudge/pud_spawn_05.vsnd",
+            "sounds/vo/pudge/pud_spawn_06.vsnd",
+            "sounds/vo/pudge/pud_spawn_07.vsnd",
         ]
     }
 
@@ -209,15 +209,15 @@
         type = "dota_update_vo_switch"
         vsnd_files =
         [
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_01.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_02.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_03.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_04.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_05.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_06.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_07.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_08.vsnd",
-            "sounds/vo/tidehunter/tidehunter_tide_spawn_09.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_01.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_02.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_03.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_04.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_05.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_06.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_07.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_08.vsnd",
+            "sounds/vo/tidehunter/tide_spawn_09.vsnd",
         ]
     }
 
