@@ -36,7 +36,8 @@ declare const enum Unit_Type {
     sniper = 1,
     pudge = 2,
     tidehunter = 3,
-    luna = 4
+    luna = 4,
+    skywrath_mage = 5
 }
 
 declare const enum Modifier_Field {

@@ -151,6 +151,17 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
+        case Unit_Type.skywrath_mage: {
+            return {
+                health: 10,
+                move_points: 3,
+                attack: basic_attack(4, 3),
+                abilities: [
+
+                ]
+            }
+        }
+
         default: return unreachable(type);
     }
 }

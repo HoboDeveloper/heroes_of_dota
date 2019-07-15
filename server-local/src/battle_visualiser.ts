@@ -146,6 +146,7 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type) {
         case Unit_Type.sniper: return "npc_dota_hero_sniper";
         case Unit_Type.tidehunter: return "npc_dota_hero_tidehunter";
         case Unit_Type.luna: return "npc_dota_hero_luna";
+        case Unit_Type.skywrath_mage: return "npc_dota_hero_skywrath_mage";
 
         default: return unreachable(unit_type);
     }
@@ -447,15 +448,23 @@ function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined
             projectile_speed: 900,
             attack_point: 0.4
         };
+
+        case Unit_Type.skywrath_mage: return {
+            particle_path: "particles/units/heroes/hero_skywrath_mage/skywrath_mage_base_attack.vpcf",
+            projectile_speed: 800,
+            attack_point: 0.5
+        }
     }
 }
 
-function get_unit_deny_voice_line(type: Unit_Type): string | undefined {
+function get_unit_deny_voice_line(type: Unit_Type): string {
     switch (type) {
         case Unit_Type.pudge: return "vo_pudge_deny";
         case Unit_Type.tidehunter: return "vo_tidehunter_deny";
         case Unit_Type.luna: return "vo_luna_deny";
         case Unit_Type.sniper: return "vo_sniper_deny";
+        case Unit_Type.skywrath_mage: return "vo_skywrath_mage_deny";
+        case Unit_Type.ursa: return "vo_ursa_deny";
     }
 }
 
@@ -475,16 +484,18 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Unit_Type.pudge: return "Hero_Pudge.PreAttack";
             case Unit_Type.ursa: return "Hero_Ursa.PreAttack";
             case Unit_Type.tidehunter: return "hero_tidehunter.PreAttack";
+            case Unit_Type.skywrath_mage: return "Hero_SkywrathMage.PreAttack";
         }
     }
 
-    function get_unit_attack_sound(type: Unit_Type): string | undefined {
+    function get_unit_attack_sound(type: Unit_Type): string {
         switch (type) {
             case Unit_Type.pudge: return "Hero_Pudge.Attack";
             case Unit_Type.ursa: return "Hero_Ursa.Attack";
             case Unit_Type.sniper: return "Hero_Sniper.attack";
             case Unit_Type.luna: return "Hero_Luna.Attack";
             case Unit_Type.tidehunter: return "hero_tidehunter.Attack";
+            case Unit_Type.skywrath_mage: return "Hero_SkywrathMage.Attack";
         }
     }
 
@@ -492,15 +503,18 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         switch (type) {
             case Unit_Type.sniper: return "Hero_Sniper.ProjectileImpact";
             case Unit_Type.luna: return "Hero_Luna.ProjectileImpact";
+            case Unit_Type.skywrath_mage: return "Hero_SkywrathMage.ProjectileImpact";
         }
     }
 
-    function get_unit_attack_vo(type: Unit_Type): string | undefined {
+    function get_unit_attack_vo(type: Unit_Type): string {
         switch (type) {
             case Unit_Type.sniper: return "vo_sniper_attack";
             case Unit_Type.luna: return "vo_luna_attack";
             case Unit_Type.pudge: return "vo_pudge_attack";
             case Unit_Type.tidehunter: return "vo_tide_attack";
+            case Unit_Type.ursa: return "vo_ursa_attack";
+            case Unit_Type.skywrath_mage: return "vo_skywrath_mage_attack";
         }
     }
 
@@ -984,7 +998,7 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
 
     if (change.new_value == 0) {
         if (source.owner_remote_id == target.owner_remote_id) {
-            try_play_sound_for_unit(source, get_unit_deny_voice_line);
+            unit_emit_sound(source, get_unit_deny_voice_line(source.type));
         }
 
         target.handle.ForceKill(false);
@@ -996,6 +1010,17 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
+            function unit_type_to_spawn_sound(type: Unit_Type): string {
+                switch (type) {
+                    case Unit_Type.pudge: return "vo_pudge_spawn";
+                    case Unit_Type.sniper: return "vo_sniper_spawn";
+                    case Unit_Type.luna: return "vo_luna_spawn";
+                    case Unit_Type.skywrath_mage: return "vo_skywrath_mage_spawn";
+                    case Unit_Type.tidehunter: return "vo_tide_spawn";
+                    case Unit_Type.ursa: return "vo_ursa_spawn";
+                }
+            }
+
             fx("particles/hero_spawn.vpcf")
                 .to_location(0, delta.at_position)
                 .release();
@@ -1008,6 +1033,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
 
+            unit_emit_sound(unit, unit_type_to_spawn_sound(unit.type));
             unit_emit_sound(unit, "hero_spawn");
 
             unit.handle.AddNewModifier(unit.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
