@@ -84,7 +84,24 @@ function scan_for_unit_in_direction(
     return { hit: false, final_point: current_cell };
 }
 
-function query_units_in_manhattan_area(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
+function query_units_in_rectangular_area(battle: Battle, from: XY, distance_inclusive: number): Unit[] {
+    const units: Unit[] = [];
+
+    for (const unit of battle.units) {
+        if (unit.dead) continue;
+
+        const unit_position = unit.position;
+        const distance = rectangular(unit_position, from);
+
+        if (distance <= distance_inclusive) {
+            units.push(unit);
+        }
+    }
+
+    return units;
+}
+
+function query_units_in_manhattan_area_around_point(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
@@ -122,7 +139,7 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
 
     switch (targeting.type) {
         case Ability_Targeting_Type.unit_in_manhattan_distance: {
-            return query_units_in_manhattan_area(battle, from_exclusive, targeting.distance);
+            return query_units_in_manhattan_area_around_point(battle, from_exclusive, targeting.distance);
         }
 
         case Ability_Targeting_Type.rectangular_area_around_caster: {
@@ -217,7 +234,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
         }
 
         case Ability_Id.skywrath_mystic_flare: {
-            const targets = query_units_in_rectangular_area_around_point(battle, target, ability.radius).map(target => ({
+            const targets = query_units_in_rectangular_area(battle, target, ability.radius).map(target => ({
                 unit: target,
                 damage_applied: 0
             }));

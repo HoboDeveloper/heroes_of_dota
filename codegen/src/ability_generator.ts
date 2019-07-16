@@ -121,6 +121,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     ts.createPropertyAssignment("total_beams", ts.createPropertyAccess(identifier, "total_beams")),
                     ts.createPropertyAssignment("attack_bonus", ts.createPropertyAccess(identifier, "attack_bonus")),
                     ts.createPropertyAssignment("duration", ts.createPropertyAccess(identifier, "duration")),
+                    ts.createPropertyAssignment("radius", ts.createPropertyAccess(identifier, "radius")),
 
                     // Defaults
                     ts.createPropertyAssignment("charges", ts.createPropertyAccess(identifier, "charges")),

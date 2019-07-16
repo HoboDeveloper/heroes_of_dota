@@ -603,6 +603,72 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             break;
         }
 
+        case Ability_Id.skywrath_mystic_flare: {
+            turn_unit_towards_target(unit, cast.target_position);
+
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            unit_emit_sound(unit, "vo_skywrath_mage_mystic_flare");
+            unit_emit_sound(unit, "Hero_SkywrathMage.MysticFlare.Cast");
+            wait(0.5);
+
+            const targets = from_client_array(cast.targets);
+            const tick_time = 0.12;
+
+            let total_time = cast.damage_remaining * tick_time;
+
+            for (const target of targets) {
+                total_time += tick_time * (-target.damage_dealt.value_delta);
+            }
+
+            const world_target = battle_position_to_world_position_center(cast.target_position);
+
+            EmitSoundOnLocationWithCaster(world_target, "Hero_SkywrathMage.MysticFlare", unit.handle);
+
+            const square_side = 3;
+            const circle_radius = square_side * battle_cell_size / 2;
+            const arbitrary_long_duration = 100;
+            const spell_fx = fx("particles/units/heroes/hero_skywrath_mage/skywrath_mage_mystic_flare_ambient.vpcf")
+                .with_point_value(0, world_target.x, world_target.y, GetGroundHeight(world_target, undefined))
+                .with_point_value(1, circle_radius, arbitrary_long_duration, tick_time);
+
+            const damaged_units = targets.map(target => ({
+                unit_id: target.target_unit_id,
+                damage_remaining: -target.damage_dealt.value_delta
+            }));
+
+            while (damaged_units.length > 0) {
+                const random_index = RandomInt(0, damaged_units.length - 1);
+                const random_target = damaged_units[random_index];
+                const target_unit = find_unit_by_id(random_target.unit_id);
+
+                random_target.damage_remaining--;
+
+                if (target_unit) {
+                    fx_by_unit("particles/units/heroes/hero_skywrath_mage/skywrath_mage_mystic_flare.vpcf", target_unit).release();
+                    unit_emit_sound(target_unit, "Hero_SkywrathMage.MysticFlare.Target");
+                    change_health(main_player, unit, target_unit, { new_value: target_unit.health - 1, value_delta: -1 });
+                }
+
+                if (random_target.damage_remaining == 0) {
+                    damaged_units.splice(random_index, 1);
+                }
+
+                wait(tick_time);
+            }
+
+            if (cast.damage_remaining > 0) {
+                wait(cast.damage_remaining * tick_time);
+            }
+
+            StopSoundOn("Hero_SkywrathMage.MysticFlare", unit.handle);
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+
+            spell_fx.destroy_and_release(false);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }

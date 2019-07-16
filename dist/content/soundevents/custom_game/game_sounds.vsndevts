@@ -331,4 +331,15 @@
             "sounds/vo/skywrath_mage/drag_deny_16.vsnd",
         ]
     }
+
+    vo_skywrath_mage_mystic_flare = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/skywrath_mage/drag_mystic_flare_01.vsnd",
+            "sounds/vo/skywrath_mage/drag_mystic_flare_02.vsnd",
+            "sounds/vo/skywrath_mage/drag_mystic_flare_03.vsnd",
+            "sounds/vo/skywrath_mage/drag_mystic_flare_04.vsnd",
+        ]
+    }
 }

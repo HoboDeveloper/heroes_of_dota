@@ -175,7 +175,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         available_since_level: 3,
                         targeting: target_in_manhattan_distance(5),
                         charges: 1,
-                        radius: 2,
+                        radius: 1,
                         damage: 10
                     })
                 ]
