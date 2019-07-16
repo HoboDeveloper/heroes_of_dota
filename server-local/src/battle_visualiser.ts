@@ -16,7 +16,8 @@ type Battle = {
         height: number
     };
     is_over: boolean
-    camera_dummy: CDOTA_BaseNPC;
+    camera_dummy: CDOTA_BaseNPC
+    modifier_tied_fxs: Modifier_Tied_Fx[]
 }
 
 type Battle_Unit = Shared_Visualizer_Unit_Data & {
@@ -39,6 +40,12 @@ type Ranged_Attack_Spec = {
     attack_point: number;
     shake_on_attack?: Shake;
     shake_on_impact?: Shake;
+}
+
+type Modifier_Tied_Fx = {
+    fx: FX
+    unit_id: number
+    modifier_id: Modifier_Id
 }
 
 declare let battle: Battle;
@@ -718,21 +725,65 @@ function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, c
     }
 }
 
-function modifier_id_to_visual_modifier(id: Modifier_Id): string | undefined {
+type Modifier_Visuals_Complex = {
+    complex: true
+    native_modifier_name: string
+}
+
+type Modifier_Visuals_Simple = {
+    complex: false
+    fx_applier: (this: void, unit: Battle_Unit) => FX
+}
+
+function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Modifier_Visuals_Simple | undefined {
+    function complex(name: string): Modifier_Visuals_Complex {
+        return {
+            complex: true,
+            native_modifier_name: name
+        }
+    }
+
+    function simple(fx_applier: (this: void, unit: Battle_Unit) => FX): Modifier_Visuals_Simple {
+        return {
+            complex: false,
+            fx_applier: fx_applier
+        }
+    }
+
     switch (id) {
-        case Modifier_Id.tide_gush: return "Modifier_Tide_Gush";
+        case Modifier_Id.tide_gush: return complex("Modifier_Tide_Gush");
+        case Modifier_Id.skywrath_ancient_seal: return simple(target =>
+            fx("particles/units/heroes/hero_skywrath_mage/skywrath_mage_ancient_seal_debuff.vpcf")
+                .follow_unit_overhead(0, target)
+                .follow_unit_origin(1, target)
+        )
+    }
+}
+
+function try_apply_modifier_visuals(target: Battle_Unit, modifier_id: Modifier_Id) {
+    const visuals = modifier_id_to_visuals(modifier_id);
+
+    if (!visuals) {
+        return;
+    }
+
+    if (visuals.complex) {
+        target.handle.AddNewModifier(target.handle, undefined, visuals.native_modifier_name, {});
+    } else {
+        battle.modifier_tied_fxs.push({
+            unit_id: target.id,
+            modifier_id: modifier_id,
+            fx: visuals.fx_applier(target)
+        })
     }
 }
 
 function apply_modifier(main_player: Main_Player, target: Battle_Unit, modifier: Modifier_Application) {
     const modifier_changes = from_client_array(modifier.changes);
-    const visual_modifier = modifier_id_to_visual_modifier(modifier.modifier_id);
 
-    print(`Apply and record ${modifier.modifier_handle_id} (${visual_modifier}) to ${target.handle.GetName()}`);
+    print(`Apply and record ${modifier.modifier_handle_id} to ${target.handle.GetName()}`);
 
-    if (visual_modifier) {
-        target.handle.AddNewModifier(target.handle, undefined, visual_modifier, {});
-    }
+    try_apply_modifier_visuals(target, modifier.modifier_id);
 
     target.modifiers.push({
         modifier_id: modifier.modifier_id,
@@ -790,6 +841,14 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             shake_screen(target.position, Shake.medium);
             unit_emit_sound(unit, "Hero_Luna.LucentBeam.Target");
             change_health(main_player, unit, target, cast.damage_dealt);
+
+            break;
+        }
+
+        case Ability_Id.skywrath_ancient_seal: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_3, 0.4);
+            unit_emit_sound(target, "Hero_SkywrathMage.AncientSeal.Target");
+            apply_modifier(main_player, target, cast.modifier);
 
             break;
         }
@@ -1289,12 +1348,26 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                         const modifier = unit.modifiers[index];
 
                         if (modifier.modifier_handle_id == delta.modifier_handle_id) {
-                            const modifier_visuals = modifier_id_to_visual_modifier(modifier.modifier_id);
+                            const modifier_visuals = modifier_id_to_visuals(modifier.modifier_id);
 
                             if (modifier_visuals) {
                                 print(`Remove modifier ${delta.modifier_handle_id} ${modifier_visuals} from ${unit.handle.GetName()}`);
 
-                                unit.handle.RemoveModifierByName(modifier_visuals);
+                                if (modifier_visuals.complex) {
+                                    unit.handle.RemoveModifierByName(modifier_visuals.native_modifier_name);
+                                } else {
+                                    for (let fx_index = 0; fx_index < battle.modifier_tied_fxs.length; fx_index++) {
+                                        const fx = battle.modifier_tied_fxs[fx_index];
+
+                                        if (fx.modifier_id == modifier.modifier_id && fx.unit_id == unit.id) {
+                                            fx.fx.destroy_and_release(false);
+
+                                            battle.modifier_tied_fxs.splice(fx_index);
+
+                                            break;
+                                        }
+                                    }
+                                }
                             }
 
                             unit.modifiers.splice(index);
@@ -1370,7 +1443,8 @@ function load_battle_data() {
             height: 0
         },
         is_over: false,
-        camera_dummy: camera_entity
+        camera_dummy: camera_entity,
+        modifier_tied_fxs: []
     };
 }
 
@@ -1414,11 +1488,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         update_state_visuals(unit);
 
         for (const modifier of unit.modifiers) {
-            const modifier_visuals = modifier_id_to_visual_modifier(modifier.modifier_id);
-
-            if (modifier_visuals) {
-                unit.handle.AddNewModifier(unit.handle, undefined, modifier_visuals, {});
-            }
+            try_apply_modifier_visuals(unit, modifier.modifier_id);
         }
     }
 }
