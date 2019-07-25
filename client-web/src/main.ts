@@ -335,13 +335,13 @@ function on_cell_right_clicked(game: Game_In_Battle, player: Battle_Player, x: n
 
         case Selection_Type.unit: {
             const selected_unit = find_unit_by_id(game.battle, game.selection.unit_id);
-            const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
+            const attacked_unit = unit_at(game.battle, xy(x, y));
 
             if (!selected_unit) {
                 break;
             }
 
-            if (unit_at) {
+            if (attacked_unit) {
                 if (selected_unit.attack.type == Ability_Type.target_ground) {
                     if (ability_targeting_fits(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
                         take_battle_action(game, {
@@ -374,30 +374,28 @@ function is_unit_selection(selection: Selection_State): selection is (Unit_Selec
 }
 
 function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number, y: number) {
-    const unit_at = game.battle.units.find(unit => unit.position.x == x && unit.position.y == y);
+    const unit_in_cell = unit_at(game.battle, xy(x, y));
 
     if (game.selection.type == Selection_Type.ability) {
-        const selected_id = game.selection.unit_id;
-        const ability_id = game.selection.ability_id;
-        const selected = game.battle.units.find(unit => unit.id == selected_id);
+        const selected = find_unit_by_id(game.battle, game.selection.unit_id);
 
         if (selected) {
-            const ability = selected.abilities.find(ability => ability.id == ability_id);
+            const ability = find_unit_ability(selected, game.selection.ability_id);
 
             if (ability && (ability.type == Ability_Type.target_unit || ability.type == Ability_Type.target_ground)) {
                 const can_be_cast = ability_targeting_fits(ability.targeting, selected.position, xy(x, y));
 
-                if (ability.type == Ability_Type.target_unit && unit_at && can_be_cast) {
+                if (ability.type == Ability_Type.target_unit && unit_in_cell && can_be_cast) {
                     take_battle_action(game, {
                         type: Action_Type.unit_target_ability,
                         ability_id: ability.id,
                         unit_id: selected.id,
-                        target_id: unit_at.id
+                        target_id: unit_in_cell.id
                     });
 
                     game.selection = {
                         type: Selection_Type.unit,
-                        unit_id: selected_id
+                        unit_id: selected.id
                     };
                 }
 
@@ -411,7 +409,7 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
 
                     game.selection = {
                         type: Selection_Type.unit,
-                        unit_id: selected_id
+                        unit_id: selected.id
                     };
                 }
 
@@ -420,10 +418,10 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
         }
     }
 
-    if (unit_at) {
+    if (unit_in_cell) {
         game.selection = {
             type: Selection_Type.unit,
-            unit_id: unit_at.id
+            unit_id: unit_in_cell.id
         }
     } else {
         drop_selection(game);
@@ -796,7 +794,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
             if (!highlight_occupied) {
                 if (game.selection.type == Selection_Type.ability) {
                     const ability_id = game.selection.ability_id;
-                    const ability = unit.abilities.find(ability => ability.id == ability_id);
+                    const ability = find_unit_ability(unit, ability_id);
 
                     if (ability && ability.type != Ability_Type.passive) {
                         highlight_cells_for_ability(game.battle, unit, ability);
@@ -989,7 +987,7 @@ function do_one_frame(time: number) {
         }
 
         case Player_State.in_battle: {
-            const this_player = game.battle.players.find(player => player.id == game.player_id);
+            const this_player = find_player_by_id(game.battle, game.player_id);
 
             if (!this_player) {
                 break;
@@ -998,8 +996,7 @@ function do_one_frame(time: number) {
             let ability_was_highlighted = false;
 
             if (is_unit_selection(game.selection)) {
-                const selected_id = game.selection.unit_id;
-                const selected_unit = game.battle.units.find(unit => unit.id == selected_id);
+                const selected_unit = find_unit_by_id(game.battle, game.selection.unit_id);
 
                 if (selected_unit) {
                     if (draw_ability_list(game, selected_unit)) {
