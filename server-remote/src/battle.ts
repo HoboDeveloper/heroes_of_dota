@@ -866,13 +866,13 @@ export function start_battle(players: Player[]): number {
     fill_grid(battle);
 
     const spawn_deltas = [
-        draw_hero_card(battle, battle.players[0], Unit_Type.sniper),
+        draw_hero_card(battle, battle.players[0], Unit_Type.dragon_knight),
         draw_hero_card(battle, battle.players[0], Unit_Type.pudge),
         draw_hero_card(battle, battle.players[0], Unit_Type.tidehunter),
         draw_hero_card(battle, battle.players[0], Unit_Type.luna),
         draw_hero_card(battle, battle.players[0], Unit_Type.skywrath_mage),
 
-        draw_hero_card(battle, battle.players[1], Unit_Type.sniper),
+        draw_hero_card(battle, battle.players[1], Unit_Type.dragon_knight),
         draw_hero_card(battle, battle.players[1], Unit_Type.pudge),
         draw_hero_card(battle, battle.players[1], Unit_Type.tidehunter),
         draw_hero_card(battle, battle.players[1], Unit_Type.luna),

@@ -342,4 +342,46 @@
             "sounds/vo/skywrath_mage/drag_mystic_flare_04.vsnd",
         ]
     }
+
+    vo_dragon_knight_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/dragon_knight/drag_spawn_01.vsnd",
+            "sounds/vo/dragon_knight/drag_spawn_02.vsnd",
+            "sounds/vo/dragon_knight/drag_spawn_04.vsnd",
+        ]
+    }
+
+    vo_dragon_knight_attack = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/dragon_knight/drag_attack_01.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_02.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_03.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_04.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_05.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_06.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_07.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_08.vsnd",
+            "sounds/vo/dragon_knight/drag_attack_09.vsnd",
+        ]
+    }
+
+    vo_dragon_knight_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/dragon_knight/drag_deny_01.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_02.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_03.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_04.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_05.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_06.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_07.vsnd",
+            "sounds/vo/dragon_knight/drag_deny_09.vsnd",
+        ]
+    }
+
 }

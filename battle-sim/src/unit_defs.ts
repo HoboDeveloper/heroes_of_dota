@@ -18,7 +18,6 @@ function target_line(length: number, selector: Ability_Target_Selector = single_
     return {
         type: Ability_Targeting_Type.line,
         line_length: length,
-        stop_at_first_obstacle_hit: false,
         selector: selector
     }
 }
@@ -170,7 +169,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 10,
                 move_points: 3,
-                attack: basic_attack(4, 3),
+                attack: basic_attack(3, 3),
                 abilities: [
                     active_ability<Ability_Skywrath_Concussive_Shot>({
                         available_since_level: 1,
@@ -193,6 +192,15 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         damage: 10
                     })
                 ]
+            }
+        }
+
+        case Unit_Type.dragon_knight: {
+            return {
+                health: 14,
+                move_points: 3,
+                attack: basic_attack(4, 1),
+                abilities: []
             }
         }
 

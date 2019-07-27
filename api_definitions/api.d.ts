@@ -37,7 +37,8 @@ declare const enum Unit_Type {
     pudge = 2,
     tidehunter = 3,
     luna = 4,
-    skywrath_mage = 5
+    skywrath_mage = 5,
+    dragon_knight = 6
 }
 
 declare const enum Modifier_Field {
@@ -99,7 +100,6 @@ type Ability_Definition_Passive_Base = {
 type Ability_Targeting_Line = {
     type: Ability_Targeting_Type.line
     line_length: number
-    stop_at_first_obstacle_hit: boolean
     selector: Ability_Target_Selector
 }
 

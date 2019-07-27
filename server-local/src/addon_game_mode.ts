@@ -15,7 +15,8 @@ function Precache(context: CScriptPrecacheContext) {
         "tidehunter",
         "ursa",
         "sniper",
-        "skywrath_mage"
+        "skywrath_mage",
+        "dragon_knight"
     ];
 
     for (const hero_name of heroes) {

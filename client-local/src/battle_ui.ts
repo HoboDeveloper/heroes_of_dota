@@ -1106,8 +1106,7 @@ function get_hero_name(type: Unit_Type): string {
         case Unit_Type.tidehunter: return "tidehunter";
         case Unit_Type.luna: return "luna";
         case Unit_Type.skywrath_mage: return "skywrath_mage";
-
-        default: return unreachable(type);
+        case Unit_Type.dragon_knight: return "dragon_knight";
     }
 }
 
