@@ -471,6 +471,17 @@ function highlight_cells_for_ability(battle: Battle, unit: Unit, ability: Abilit
     }
 }
 
+function highlight_cells_for_ability_selector(battle: Battle, from_position: XY, to_position: XY, selector: Ability_Target_Selector) {
+    for (let x = 0; x < battle.grid_size.x; x++) {
+        for (let y = 0; y < battle.grid_size.y; y++) {
+            if (ability_selector_fits(selector, from_position, to_position, xy(x, y))) {
+                game.ctx.fillStyle = "rgba(255, 0, 0, 0.1)";
+                game.ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
+            }
+        }
+    }
+}
+
 namespace clr {
     export function txt(text: string, color: string): Colored_String {
         return {
@@ -748,6 +759,8 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
         );
     }
 
+    let hovered_cell: XY | undefined;
+
     for (let x = 0; x < grid_size.x; x++) {
         for (let y = 0; y < grid_size.y; y++) {
             const hovered = contains(
@@ -772,6 +785,8 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
                     ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
                     ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
                 }
+
+                hovered_cell = xy(x, y);
             }
         }
     }
@@ -797,7 +812,15 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
                     const ability = find_unit_ability(unit, ability_id);
 
                     if (ability && ability.type != Ability_Type.passive) {
-                        highlight_cells_for_ability(game.battle, unit, ability);
+                        if (ability.type == Ability_Type.target_unit || ability.type == Ability_Type.target_ground) {
+                            if (hovered_cell && ability_targeting_fits(ability.targeting, unit.position, hovered_cell)) {
+                                highlight_cells_for_ability_selector(game.battle, unit.position, hovered_cell, ability.targeting.selector);
+                            } else {
+                                highlight_cells_for_ability(game.battle, unit, ability);
+                            }
+                        } else {
+                            highlight_cells_for_ability(game.battle, unit, ability);
+                        }
                     }
                 } else {
                     if (!unit.has_taken_an_action_this_turn) {

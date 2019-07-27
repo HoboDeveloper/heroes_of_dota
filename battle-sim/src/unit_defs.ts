@@ -1,7 +1,6 @@
 type Ability_Active_Discriminator = {
     id: Ability_Id,
     type: Ability_Type,
-    targeting: Ability_Targeting
 }
 
 type Ability_Passive_Discriminator = {
@@ -9,44 +8,60 @@ type Ability_Passive_Discriminator = {
     type: Ability_Type,
 }
 
-type Active_Ability_Stats<T extends Ability_Definition_Active> = Pick<T, Exclude<keyof T, keyof Ability_Active_Discriminator>> & { targeting: T["targeting"] }
+type Active_Ability_Stats<T extends Ability_Definition_Active> = Pick<T, Exclude<keyof T, keyof Ability_Active_Discriminator>>
 type Passive_Ability_Stats<T extends Ability_Definition_Passive> = Pick<T, Exclude<keyof T, keyof Ability_Passive_Discriminator>>;
 
 declare function active_ability<T extends Ability_Definition_Active>(stats: Active_Ability_Stats<T>): T;
 declare function passive_ability<T extends Ability_Definition_Passive>(stats: Passive_Ability_Stats<T>): T;
 
+function target_line(length: number, selector: Ability_Target_Selector = single_target()): Ability_Targeting_Line {
+    return {
+        type: Ability_Targeting_Type.line,
+        line_length: length,
+        stop_at_first_obstacle_hit: false,
+        selector: selector
+    }
+}
+
+function single_target(): Ability_Target_Selector_Single_Target {
+    return {
+        type: Ability_Target_Selector_Type.single_target
+    }
+}
+
+function targets_in_rectangle(radius: number): Ability_Target_Selector_In_Rectangle {
+    return {
+        type: Ability_Target_Selector_Type.rectangle,
+        area_radius: radius
+    }
+}
+
+function target_in_manhattan_distance(distance: number, selector: Ability_Target_Selector = single_target()): Ability_Targeting_Target_In_Manhattan_Distance {
+    return {
+        type: Ability_Targeting_Type.unit_in_manhattan_distance,
+        distance: distance,
+        selector: selector
+    }
+}
+
+function target_rect_area_around_caster(area_radius: number, selector: Ability_Target_Selector = single_target()): Ability_Targeting_Rectangular_Area_Around_Caster {
+    return {
+        type: Ability_Targeting_Type.rectangular_area_around_caster,
+        area_radius: area_radius,
+        selector: selector
+    }
+}
+
+function basic_attack(damage: number, range: number): Ability_Basic_Attack {
+    return active_ability<Ability_Basic_Attack>({
+        available_since_level: 0,
+        targeting: target_line(range),
+        damage: damage,
+        charges: 1
+    });
+}
+
 function unit_definition_by_type(type: Unit_Type): Unit_Definition {
-    function target_line(length: number): Ability_Targeting_Line {
-        return {
-            type: Ability_Targeting_Type.line,
-            line_length: length,
-            stop_at_first_obstacle_hit: false
-        }
-    }
-
-    function target_in_manhattan_distance(distance: number): Ability_Targeting_Target_In_Manhattan_Distance {
-        return {
-            type: Ability_Targeting_Type.unit_in_manhattan_distance,
-            distance: distance
-        }
-    }
-
-    function target_rect_area_around_caster(area_radius: number): Ability_Targeting_Rectangular_Area_Around_Caster {
-        return {
-            type: Ability_Targeting_Type.rectangular_area_around_caster,
-            area_radius: area_radius
-        }
-    }
-
-    function basic_attack(damage: number, range: number): Ability_Basic_Attack {
-        return active_ability<Ability_Basic_Attack>({
-            available_since_level: 0,
-            targeting: target_line(range),
-            damage: damage,
-            charges: 1
-        });
-    }
-
     switch (type) {
         case Unit_Type.ursa: {
             return {
@@ -173,9 +188,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Skywrath_Mystic_Flare>({
                         available_since_level: 3,
-                        targeting: target_in_manhattan_distance(5),
+                        targeting: target_in_manhattan_distance(5, targets_in_rectangle(1)),
                         charges: 1,
-                        radius: 1,
                         damage: 10
                     })
                 ]

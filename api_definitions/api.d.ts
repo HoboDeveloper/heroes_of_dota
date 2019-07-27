@@ -61,6 +61,12 @@ declare const enum Ability_Targeting_Type {
     rectangular_area_around_caster = 3
 }
 
+declare const enum Ability_Target_Selector_Type {
+    single_target = 0,
+    rectangle = 1,
+    line = 2
+}
+
 declare const enum Ability_Type {
     passive = 0,
     no_target = 1,
@@ -94,17 +100,39 @@ type Ability_Targeting_Line = {
     type: Ability_Targeting_Type.line
     line_length: number
     stop_at_first_obstacle_hit: boolean
+    selector: Ability_Target_Selector
 }
 
 type Ability_Targeting_Target_In_Manhattan_Distance = {
     type: Ability_Targeting_Type.unit_in_manhattan_distance
     distance: number
+    selector: Ability_Target_Selector
 }
 
 type Ability_Targeting_Rectangular_Area_Around_Caster = {
     type: Ability_Targeting_Type.rectangular_area_around_caster
     area_radius: number
+    selector: Ability_Target_Selector
 }
+
+type Ability_Target_Selector_Single_Target = {
+    type: Ability_Target_Selector_Type.single_target
+}
+
+type Ability_Target_Selector_In_Rectangle = {
+    type: Ability_Target_Selector_Type.rectangle
+    area_radius: number
+}
+
+type Ability_Target_Selector_In_Line = {
+    type: Ability_Target_Selector_Type.line
+    length: number
+}
+
+type Ability_Target_Selector =
+    Ability_Target_Selector_Single_Target |
+    Ability_Target_Selector_In_Rectangle |
+    Ability_Target_Selector_In_Line
 
 type Ability_Targeting =
     Ability_Targeting_Line |

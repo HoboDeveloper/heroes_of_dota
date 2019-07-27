@@ -84,6 +84,31 @@ function scan_for_unit_in_direction(
     return { hit: false, final_point: current_cell };
 }
 
+function query_units_in_line(
+    battle: Battle,
+    from_exclusive: XY,
+    to: XY,
+    max_scan_distance: number,
+    direction_normal: XY = direction_normal_between_points(battle, from_exclusive, to)
+): Unit[] {
+    const result: Unit[] = [];
+
+    let current_cell = xy(from_exclusive.x, from_exclusive.y);
+
+    for (let scanned = 0; scanned < max_scan_distance; scanned++) {
+        current_cell.x += direction_normal.x;
+        current_cell.y += direction_normal.y;
+
+        const unit = unit_at(battle, current_cell);
+
+        if (unit) {
+            result.push(unit);
+        }
+    }
+
+    return result;
+}
+
 function query_units_in_rectangular_area(battle: Battle, from: XY, distance_inclusive: number): Unit[] {
     const units: Unit[] = [];
 
@@ -94,22 +119,6 @@ function query_units_in_rectangular_area(battle: Battle, from: XY, distance_incl
         const distance = rectangular(unit_position, from);
 
         if (distance <= distance_inclusive) {
-            units.push(unit);
-        }
-    }
-
-    return units;
-}
-
-function query_units_in_manhattan_area_around_point(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
-    const units: Unit[] = [];
-
-    for (const unit of battle.units) {
-        if (unit.dead) continue;
-
-        const distance = manhattan(unit.position, from_exclusive);
-
-        if (distance > 0 && distance <= distance_inclusive) {
             units.push(unit);
         }
     }
@@ -134,18 +143,44 @@ function query_units_in_rectangular_area_around_point(battle: Battle, from_exclu
     return units;
 }
 
-function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeting: Ability_Targeting_Target_In_Manhattan_Distance | Ability_Targeting_Rectangular_Area_Around_Caster): Unit[] {
-    const from_exclusive = caster.position;
+function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeting: Ability_Targeting): Unit[] {
+    const units: Unit[] = [];
 
-    switch (targeting.type) {
-        case Ability_Targeting_Type.unit_in_manhattan_distance: {
-            return query_units_in_manhattan_area_around_point(battle, from_exclusive, targeting.distance);
-        }
+    for (const unit of battle.units) {
+        if (unit.dead) continue;
 
-        case Ability_Targeting_Type.rectangular_area_around_caster: {
-            return query_units_in_rectangular_area_around_point(battle, from_exclusive, targeting.area_radius);
+        if (ability_targeting_fits(targeting, caster.position, unit.position)) {
+            units.push(unit);
         }
     }
+
+    return units;
+}
+
+function query_units_with_selector(battle: Battle, from: XY, target: XY, selector: Ability_Target_Selector): Unit[] {
+    switch (selector.type) {
+        case Ability_Target_Selector_Type.rectangle: {
+            return query_units_in_rectangular_area(battle, target, selector.area_radius);
+        }
+
+        case Ability_Target_Selector_Type.line: {
+            return query_units_in_line(battle, from, target, selector.length);
+        }
+
+        case Ability_Target_Selector_Type.single_target: {
+            const unit = unit_at(battle, target);
+
+            if (unit) {
+                return [ unit ];
+            }
+
+            return [];
+        }
+    }
+}
+
+function query_units_for_point_target_ability(battle: Battle, caster: Unit, target: XY, targeting: Ability_Targeting): Unit[] {
+    return query_units_with_selector(battle, caster.position, target, targeting.selector);
 }
 
 function apply_ability_effect_delta<T extends Ability_Effect>(effect: T): Delta_Ability_Effect_Applied<T> {
@@ -234,7 +269,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
         }
 
         case Ability_Id.skywrath_mystic_flare: {
-            const targets = query_units_in_rectangular_area(battle, target, ability.radius).map(target => ({
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
                 unit: target,
                 damage_applied: 0
             }));

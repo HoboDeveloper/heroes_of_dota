@@ -4,6 +4,8 @@ let this_player_id: number;
 let battle: UI_Battle;
 let current_targeted_ability: AbilityId | undefined;
 let current_hovered_ability: Ability_Id | undefined;
+let hovered_cell: XY | undefined;
+
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
 
@@ -19,7 +21,6 @@ type Held_Card = {
     card_panel: Card_Panel;
     offset: XY;
     returning_to_cursor: boolean;
-    hovered_cell?: XY;
     zone_highlight_particles: ParticleId[];
 }
 
@@ -589,9 +590,34 @@ function highlight_outline_temporarily(cell_index_to_highlight: boolean[], color
 function update_grid_visuals() {
     $.Msg("Update grid visuals");
 
-    const highlighted_ability = get_current_highlight_ability_id();
+    const highlighted_ability_id = get_current_highlight_ability_id();
     const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
     const selected_entity_path = selected_unit ? populate_path_costs(selected_unit.position) : undefined;
+    const highlighted_ability = selected_unit && highlighted_ability_id != undefined ?
+        find_unit_ability(selected_unit, highlighted_ability_id) :
+        undefined;
+
+    let can_highlighted_ability_target_hovered_cell = false;
+    let highlighted_ability_selector: Ability_Target_Selector | undefined;
+
+    if (hovered_cell && highlighted_ability && selected_unit) {
+        switch (highlighted_ability.type) {
+            case Ability_Type.target_ground:
+            case Ability_Type.target_unit: {
+                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(highlighted_ability.targeting, selected_unit.position, hovered_cell);
+                highlighted_ability_selector = highlighted_ability.targeting.selector;
+
+                break;
+            }
+
+            case Ability_Type.no_target:
+            case Ability_Type.passive: {
+                break;
+            }
+
+            default: unreachable(highlighted_ability);
+        }
+    }
 
     function color_cell(cell: UI_Cell, color: XYZ, alpha: number) {
         Particles.SetParticleControl(cell.associated_particle, 2, color);
@@ -608,7 +634,7 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path && highlighted_ability == undefined) {
+        if (selected_unit && selected_entity_path && !highlighted_ability) {
             const cost = selected_entity_path.cell_index_to_cost[index];
 
             if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
@@ -643,48 +669,68 @@ function update_grid_visuals() {
             }
         }
 
-        if (selected_unit && highlighted_ability != undefined) {
-            const ability = find_unit_ability(selected_unit, highlighted_ability);
-
-            if (ability && ability.type != Ability_Type.passive) {
-                if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
-                    switch (ability.type) {
-                        case Ability_Type.target_ground: {
-                            alpha = 20;
-                            cell_color = color_red;
-
-                            cell_index_to_highlight[index] = true;
-
-                            break;
-                        }
-
-                        case Ability_Type.target_unit: {
-                            if (unit_in_cell) {
-                                alpha = 140;
-                                cell_color = color_green;
-                            } else {
-                                alpha = 20;
-                                cell_color = color_red;
-                            }
-
-                            cell_index_to_highlight[index] = true;
-
-                            break;
-                        }
-
-                        case Ability_Type.no_target: {
-                            alpha = 140;
-                            cell_color = color_red;
-
-                            break;
-                        }
-                    }
-                }
+        if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
+            if (held_card) {
+                cell_index_to_highlight[index] = true;
+            } else {
+                alpha = 140;
+                cell_color = color_green;
             }
         }
 
-        if (held_card && held_card.hovered_cell && xy_equal(held_card.hovered_cell, cell.position)) {
-            cell_index_to_highlight[index] = true;
+        if (selected_unit && highlighted_ability) {
+            const ability = highlighted_ability;
+
+            switch (ability.type) {
+                case Ability_Type.target_ground: {
+                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                        alpha = 20;
+                        cell_color = color_red;
+
+                        cell_index_to_highlight[index] = true;
+                    }
+
+                    break;
+                }
+
+                case Ability_Type.target_unit: {
+                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                        if (unit_in_cell) {
+                            alpha = 140;
+                            cell_color = color_green;
+                        } else {
+                            alpha = 20;
+                            cell_color = color_red;
+                        }
+
+                        cell_index_to_highlight[index] = true;
+                    }
+
+                    break;
+                }
+
+                case Ability_Type.no_target: {
+                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                        alpha = 140;
+                        cell_color = color_red;
+                    }
+
+                    break;
+                }
+
+                case Ability_Type.passive: {
+                    break;
+                }
+
+                default: unreachable(ability);
+            }
+
+            if (hovered_cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
+                if (ability_selector_fits(highlighted_ability_selector, selected_unit.position, hovered_cell, cell.position)) {
+                    alpha = 140;
+                    cell_color = color_red;
+                }
+            }
         }
 
         color_cell(cell, cell_color, alpha);
@@ -1361,6 +1407,7 @@ function periodically_update_ui() {
 
     update_current_ability_based_on_cursor_state();
     update_stat_bar_positions();
+    update_hovered_cell();
     update_hand();
 
     if (current_targeted_ability != undefined) {
@@ -1719,6 +1766,33 @@ function add_card_panel(card: Card) {
     hand.push(card_panel);
 }
 
+function get_hovered_battle_position(): XY | undefined {
+    const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
+    const battle_position = world_position_to_battle_position(world_position);
+    const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
+
+    if (!is_position_valid) {
+        return;
+    }
+
+    return battle_position;
+}
+
+function update_hovered_cell() {
+    const battle_position = get_hovered_battle_position();
+
+    if (battle_position) {
+        if (hovered_cell == undefined || !xy_equal(battle_position, hovered_cell)) {
+            hovered_cell = battle_position;
+
+            update_grid_visuals();
+        }
+    } else if (hovered_cell) {
+        hovered_cell = undefined;
+        update_grid_visuals();
+    }
+}
+
 function update_hand() {
     // TODO cancel current state (ability hovering etc)
     // TODO particle from card to world
@@ -1741,8 +1815,6 @@ function update_hand() {
         panel.SetHasClass("in_hand", true);
         panel.SetHasClass("in_preview", false);
         panel.SetHasClass("in_preview_size", false);
-
-        const hovered_cell = held_card.hovered_cell;
 
         if (hovered_cell) {
             const card = held_card.card_panel.card;
@@ -1822,28 +1894,14 @@ function update_hand() {
 
     if (held_card) {
         const panel = held_card.card_panel.panel;
-        const world_position = GameUI.GetScreenWorldPosition(cursor);
-        const battle_position = world_position_to_battle_position(world_position);
-        const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
 
-        if (is_position_valid) {
+        if (hovered_cell) {
             const width_ratio = 1920 / Game.GetScreenWidth();
 
             panel.SetHasClass("in_preview", true);
             panel.SetHasClass("in_preview_size", true);
             panel.style.position = `${1600 / width_ratio}px ${300 / ratio}px 0`;
-
-            if (held_card.hovered_cell == undefined || !xy_equal(battle_position, held_card.hovered_cell)) {
-                held_card.hovered_cell = battle_position;
-
-                update_grid_visuals();
-            }
         } else {
-            if (held_card.hovered_cell) {
-                held_card.hovered_cell = undefined;
-                update_grid_visuals();
-            }
-
             if (panel.BHasClass("in_preview")) {
                 held_card.returning_to_cursor = true;
                 panel.SetHasClass("in_preview", false);

@@ -266,24 +266,47 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
-function ability_targeting_fits(targeting: Ability_Targeting, from: XY, at: XY): boolean {
+function ability_targeting_fits(targeting: Ability_Targeting, from: XY, check_at: XY): boolean {
     switch (targeting.type) {
         case Ability_Targeting_Type.line: {
-            if (xy_equal(from, at)) return false;
+            if (!are_points_on_the_same_line(from, check_at)) {
+                return false;
+            }
 
-            return are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(from, at, targeting.line_length);
+            const distance = distance_between_points_on_the_same_line(from, check_at);
+            return distance > 0 && distance <= targeting.line_length;
         }
 
         case Ability_Targeting_Type.rectangular_area_around_caster: {
-            return rectangular(from, at) <= targeting.area_radius;
+            const distance = rectangular(from, check_at);
+            return distance > 0 && distance <= targeting.area_radius;
         }
 
         case Ability_Targeting_Type.unit_in_manhattan_distance: {
-            return manhattan(from, at) <= targeting.distance;
+            const distance = manhattan(from, check_at);
+            return distance > 0 && distance <= targeting.distance;
         }
     }
+}
 
-    return false;
+function ability_selector_fits(selector: Ability_Target_Selector, from: XY, to: XY, check_at: XY): boolean {
+    switch (selector.type) {
+        case Ability_Target_Selector_Type.single_target: {
+            return xy_equal(to, check_at);
+        }
+
+        case Ability_Target_Selector_Type.rectangle: {
+            return rectangular(to, check_at) <= selector.area_radius;
+        }
+
+        case Ability_Target_Selector_Type.line: {
+            if (are_points_on_the_same_line(from, check_at) && are_points_on_the_same_line(check_at, to)) {
+                return distance_between_points_on_the_same_line(from, check_at) <= selector.length;
+            }
+
+            return false;
+        }
+    }
 }
 
 function fill_grid(battle: Battle) {
@@ -313,16 +336,20 @@ function move_unit(battle: Battle, unit: Unit, to: XY) {
     unit.position = to;
 }
 
-function are_cells_on_the_same_line_and_have_lesser_or_equal_distance_between(a: XY, b: XY, distance: number) {
+function are_points_on_the_same_line(a: XY, b: XY): boolean {
+    return a.x == b.x || a.y == b.y;
+}
+
+function distance_between_points_on_the_same_line(a: XY, b: XY): number {
     if (a.x == b.x) {
-        return Math.abs(a.y - b.y) <= distance;
+        return Math.abs(a.y - b.y);
     }
 
     if (a.y == b.y) {
-        return Math.abs(a.x - b.x) <= distance;
+        return Math.abs(a.x - b.x);
     }
 
-    return false;
+    throw "Points are not on the same line";
 }
 
 function catch_up_to_head(battle: Battle) {

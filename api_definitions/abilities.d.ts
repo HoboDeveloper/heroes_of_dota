@@ -115,7 +115,6 @@ type Ability_Skywrath_Mystic_Flare = Ability_Definition_Active_Base & {
     type: Ability_Type.target_ground
     targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
-    radius: number
 }
 
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
