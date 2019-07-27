@@ -75,9 +75,10 @@ type Hero_Row = {
 }
 
 type Hero_Ability_Button = {
-    ability: AbilityId;
+    ability: Ability_Id;
     ability_panel: Panel;
     charges_label: LabelPanel
+    overlay: Panel
 }
 
 type Level_Bar = {
@@ -971,7 +972,7 @@ function move_order_particle(world_position: XYZ) {
 
 function try_order_unit_to_move(unit: Unit, move_where: XY) {
     if (is_unit_stunned(unit)) {
-        show_ability_error(Ability_Error.stunned);
+        show_error_ui(ability_error_to_reason(Ability_Error.stunned));
         return;
     }
 
@@ -1072,7 +1073,7 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.luna_lucent_beam: return `Deal ${a.damage} damage`;
         case Ability_Id.luna_moon_glaive: return `Attack bounces to nearby targets`;
         case Ability_Id.luna_eclipse: return `Deal ${a.total_beams} damage randomly split between nearby targets`;
-        case Ability_Id.skywrath_concussive_shot: return `Deal ${a.damage} and slow random target (prioritizes enemies) by ${a.move_points_reduction} for ${a.duration} turns`;
+        case Ability_Id.skywrath_concussive_shot: return `Deal ${a.damage} damage and slow random target (prioritizes enemies) by ${a.move_points_reduction} for ${a.duration} turns`;
         case Ability_Id.skywrath_ancient_seal: return `Silence target for ${a.duration} turns`;
         case Ability_Id.skywrath_mystic_flare: return `Deal ${a.damage} split between targets in an area`;
     }
@@ -1216,10 +1217,13 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
         const charges_label = $.CreatePanel("Label", ability_panel, "charges");
         charges_label.hittest = false;
 
+        const overlay = $.CreatePanel("Panel", ability_panel, "overlay");
+
         ability_buttons.push({
             ability: ability.id,
             ability_panel: ability_panel,
-            charges_label: charges_label
+            charges_label: charges_label,
+            overlay: overlay
         })
     }
 
@@ -1260,11 +1264,12 @@ function update_hero_control_panel_state(unit: Unit) {
 
         ability_button.ability_panel.SetHasClass("not_learned", !is_available);
 
-        if (is_available && ability.type != Ability_Type.passive) {
+        if (ability.type != Ability_Type.passive) {
             const not_enough_charges = ability.charges_remaining < 1;
 
-            ability_button.ability_panel.SetHasClass("not_enough_charges", not_enough_charges);
+            ability_button.ability_panel.SetHasClass("not_enough_charges", is_available && not_enough_charges);
             ability_button.charges_label.text = ability.charges_remaining.toString();
+            ability_button.ability_panel.SetHasClass("silence", is_available && is_unit_silenced(unit));
         }
     }
 }
@@ -1458,7 +1463,7 @@ function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefin
 function try_attack_target(source: Unit, target: XY, flash_ground_on_error: boolean) {
     if (source.attack.type == Ability_Type.target_ground) {
         if (!ability_targeting_fits(source.attack.targeting, source.position, target)) {
-            show_ability_error(Ability_Error.invalid_target);
+            show_ability_error(source, source.attack.id, Ability_Error.invalid_target);
 
             if (flash_ground_on_error) {
                 const cell_index_to_highlight: boolean[] = [];
@@ -1541,7 +1546,7 @@ function setup_mouse_filter() {
                                     to: battle_position
                                 });
                             } else {
-                                show_ability_error(Ability_Error.invalid_target);
+                                show_ability_error(selected_unit, current_targeted_ability, Ability_Error.invalid_target);
 
                                 return true;
                             }
@@ -1558,7 +1563,7 @@ function setup_mouse_filter() {
                                     target_id: cursor_entity_unit.id
                                 });
                             } else {
-                                show_ability_error(Ability_Error.invalid_target);
+                                show_ability_error(selected_unit, current_targeted_ability, Ability_Error.invalid_target);
 
                                 return true;
                             }
@@ -1682,13 +1687,31 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
         case Ability_Error.stunned: return custom("Stunned");
         case Ability_Error.silenced: return native(24);
+        case Ability_Error.unusable: return custom("Can't be used");
 
         default: return unreachable(error);
     }
 }
 
-function show_ability_error(error: Ability_Error) {
-    GameEvents.SendEventClientSide("dota_hud_error_message", ability_error_to_reason(error));
+function show_error_ui(reason: Ability_Error_Reason) {
+    GameEvents.SendEventClientSide("dota_hud_error_message", reason);
+}
+
+function show_ability_error(unit: Unit, ability: Ability_Id, error: Ability_Error) {
+    show_error_ui(ability_error_to_reason(error));
+
+    if (error == Ability_Error.silenced) {
+        const row = control_panel.hero_rows.find(row => row.unit_id == unit.id);
+
+        if (!row) return;
+
+        const button = row.ability_buttons.find(button => button.ability == ability);
+
+        if (!button) return;
+
+        button.overlay.RemoveClass("animate_silence_try");
+        button.overlay.AddClass("animate_silence_try");
+    }
 }
 
 function show_generic_error(error: string) {
@@ -1991,7 +2014,7 @@ function try_select_unit_ability(unit: Unit, ability: Ability) {
             set_current_targeted_ability(ability.id);
         }
     } else {
-        show_ability_error(ability_use.error);
+        show_ability_error(unit, ability.id, ability_use.error);
     }
 }
 

@@ -221,6 +221,25 @@
                 width: 18px;
               }
 
+              #overlay {
+                width: 100%;
+                height: 100%;
+              }
+
+              &.silence {
+                #ability_image {
+                  saturation: 0.1;
+                  brightness: 0.2;
+                }
+
+                #overlay {
+                  background-image: url("file://{images}/custom_game/silence.png");
+                  background-size: auto 110%;
+                  background-position: center;
+                  background-color: #00000099;
+                }
+              }
+
               &:hover {
                 brightness: 1.5;
               }
@@ -453,6 +472,13 @@
   animation-name: heal_animation;
 }
 
+.animate_silence_try {
+  animation-duration: 0.2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: 1;
+  animation-name: silence_try_animation;
+}
+
 @damage_animation: 'damage_animation';
 @keyframes @damage_animation {
   0% {
@@ -478,6 +504,22 @@
   50% {
     transform: scale3d(1.2, 1.2, 1.2);
     color: #00d000;
+  }
+
+  100% {
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@silence_try_animation: 'silence_try_animation';
+@keyframes @silence_try_animation {
+  0% {
+    transform: scale3d(1, 1, 1);
+  }
+
+  50% {
+    transform: scale3d(1.2, 1.2, 1.2);
+    background-color: #ff000055;
   }
 
   100% {

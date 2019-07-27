@@ -8,7 +8,8 @@ declare const enum Ability_Error {
     already_acted_this_turn = 5,
     not_learned_yet = 6,
     stunned = 7,
-    silenced = 8
+    silenced = 8,
+    unusable = 9
 }
 
 type Ability_Authorization_Ok = {
@@ -378,16 +379,16 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
 
     const ability = find_unit_ability(unit, ability_id);
 
+    if (!ability) return error(Ability_Error.other);
+    if (ability.type == Ability_Type.passive) return error(Ability_Error.unusable);
+
     if (unit.dead) return error(Ability_Error.dead);
     if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
     if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
     if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
 
-    if (!ability) return error(Ability_Error.other);
-
     if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
 
-    if (ability.type == Ability_Type.passive) return error(Ability_Error.other);
     if (ability.charges_remaining < 1) return error(Ability_Error.no_charges);
 
     return {
