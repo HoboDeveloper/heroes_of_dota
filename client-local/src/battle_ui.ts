@@ -1937,33 +1937,42 @@ function update_hand() {
     }
 }
 
-function highlight_grid_for_basic_attack(event: Grid_Highlight_Basic_Attack_Event) {
-    const unit = find_unit_by_id(battle, event.unit_id);
+function highlight_grid_for_unit_ability_with_predicate(unit_id: number, ability_id: AbilityId, predicate: (ability: Ability_Active, cell: Cell) => boolean) {
+    const unit = find_unit_by_id(battle, unit_id);
 
-    if (unit) {
-        const attack = unit.attack as Ability_Basic_Attack;
-        const from = event.from;
-        const to = event.to;
-        const direction = direction_normal_between_points(battle, from, to);
-        const outline: boolean[] = [];
+    if (!unit) return;
 
-        let current_cell = xy(from.x, from.y);
+    const ability = find_unit_ability(unit, ability_id);
 
-        for (let scanned = 0; scanned < attack.targeting.line_length; scanned++) {
-            current_cell.x += direction.x;
-            current_cell.y += direction.y;
+    if (!ability) return;
 
-            const cell = grid_cell_at(battle, current_cell);
+    if (ability.type == Ability_Type.passive) return;
 
-            if (!cell) {
-                break;
-            }
+    const outline: boolean[] = [];
 
-            outline[grid_cell_index(battle, current_cell)] = true;
+    for (const cell of battle.cells) {
+        if (predicate(ability, cell)) {
+            outline[grid_cell_index(battle, cell.position)] = true;
         }
-
-        highlight_outline_temporarily(outline, color_red, 0.75);
     }
+
+    highlight_outline_temporarily(outline, color_red, 0.75);
+}
+
+function highlight_grid_for_targeted_ability(event: Grid_Highlight_Targeted_Ability_Event) {
+    highlight_grid_for_unit_ability_with_predicate(
+        event.unit_id,
+        event.ability_id,
+        (ability, cell) => ability_selector_fits(ability.targeting.selector, event.from, event.to, cell.position)
+    );
+}
+
+function highlight_grid_for_no_target_ability(event: Grid_Highlight_No_Target_Ability_Event) {
+    highlight_grid_for_unit_ability_with_predicate(
+        event.unit_id,
+        event.ability_id,
+        (ability, cell) => ability_targeting_fits(ability.targeting, event.from, cell.position)
+    );
 }
 
 function try_select_unit_ability(unit: Unit, ability: Ability) {
@@ -2036,4 +2045,5 @@ setup_custom_ability_hotkeys();
 periodically_update_ui();
 periodically_update_stat_bar_display();
 periodically_request_battle_deltas_when_in_battle();
-subscribe_to_custom_event<Grid_Highlight_Basic_Attack_Event>("grid_highlight_basic_attack", highlight_grid_for_basic_attack);
+subscribe_to_custom_event<Grid_Highlight_Targeted_Ability_Event>("grid_highlight_targeted_ability", highlight_grid_for_targeted_ability);
+subscribe_to_custom_event<Grid_Highlight_No_Target_Ability_Event>("grid_highlight_no_target_ability", highlight_grid_for_no_target_ability);

@@ -484,6 +484,27 @@ function try_play_sound_for_unit(unit: Battle_Unit, supplier: (type: Unit_Type) 
     }
 }
 
+function highlight_grid_for_targeted_ability(unit: Battle_Unit, ability: Ability_Id, to: XY) {
+    const event: Grid_Highlight_Targeted_Ability_Event = {
+        unit_id: unit.id,
+        ability_id: ability,
+        from: unit.position,
+        to: to
+    };
+
+    CustomGameEventManager.Send_ServerToAllClients("grid_highlight_targeted_ability", event)
+}
+
+function highlight_grid_for_no_target_ability(unit: Battle_Unit, ability: Ability_Id) {
+    const event: Grid_Highlight_No_Target_Ability_Event = {
+        unit_id: unit.id,
+        ability_id: ability,
+        from: unit.position,
+    };
+
+    CustomGameEventManager.Send_ServerToAllClients("grid_highlight_no_target_ability", event)
+}
+
 function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ability_Basic_Attack) {
     const target = cast.target_position;
 
@@ -532,18 +553,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
-    function highlight_grid() {
-        const event: Grid_Highlight_Basic_Attack_Event = {
-            unit_id: unit.id,
-            from: unit.position,
-            to: cast.target_position
-        };
-
-        CustomGameEventManager.Send_ServerToAllClients("grid_highlight_basic_attack", event)
-    }
-
     if (ranged_attack_spec) {
-        highlight_grid();
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
@@ -574,7 +584,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
-        highlight_grid();
         try_play_sound_for_unit(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
@@ -599,6 +608,8 @@ function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
 }
 
 function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ground_Target_Ability) {
+    highlight_grid_for_targeted_ability(unit, cast.ability_id, cast.target_position);
+
     switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
             perform_basic_attack(main_player, unit, cast);
@@ -801,6 +812,7 @@ function unit_emit_sound(unit: Battle_Unit, sound: string) {
 
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Unit_Target_Ability, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
+    highlight_grid_for_targeted_ability(unit, cast.ability_id, target.position);
 
     switch (cast.ability_id) {
         case Ability_Id.pudge_dismember: {
@@ -858,6 +870,8 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 }
 
 function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Use_No_Target_Ability) {
+    highlight_grid_for_no_target_ability(unit, cast.ability_id);
+
     switch (cast.ability_id) {
         case Ability_Id.pudge_rot: {
             const particle = fx("particles/units/heroes/hero_pudge/pudge_rot.vpcf")
