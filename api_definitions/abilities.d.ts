@@ -12,8 +12,9 @@ declare const enum Ability_Id {
     skywrath_concussive_shot = 12,
     skywrath_ancient_seal = 13,
     skywrath_mystic_flare = 14,
+    dragon_knight_breathe_fire = 15,
 
-    sniper_shrapnel = 15
+    sniper_shrapnel = 18
 }
 
 declare const enum Modifier_Id {
@@ -117,6 +118,13 @@ type Ability_Skywrath_Mystic_Flare = Ability_Definition_Active_Base & {
     damage: number
 }
 
+type Ability_Dragon_Knight_Breathe_Fire = Ability_Definition_Active_Base & {
+    id: Ability_Id.dragon_knight_breathe_fire
+    type: Ability_Type.target_ground
+    targeting: Ability_Targeting_Line
+    damage: number
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -135,7 +143,8 @@ type Ability_Definition_Active =
     Ability_Luna_Eclipse |
     Ability_Skywrath_Concussive_Shot |
     Ability_Skywrath_Ancient_Seal |
-    Ability_Skywrath_Mystic_Flare
+    Ability_Skywrath_Mystic_Flare |
+    Ability_Dragon_Knight_Breathe_Fire
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -148,7 +157,8 @@ type Ability_Effect =
 type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
     Delta_Ability_Pudge_Hook |
-    Delta_Ability_Skywrath_Mystic_Flare
+    Delta_Ability_Skywrath_Mystic_Flare |
+    Delta_Ability_Dragon_Knight_Breathe_Fire
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -293,6 +303,14 @@ type Ability_Effect_Luna_Moon_Glaive = {
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
     missed_beams: number
+    targets: {
+        target_unit_id: number
+        damage_dealt: Value_Change
+    }[]
+}
+
+type Delta_Ability_Dragon_Knight_Breathe_Fire = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.dragon_knight_breathe_fire
     targets: {
         target_unit_id: number
         damage_dealt: Value_Change

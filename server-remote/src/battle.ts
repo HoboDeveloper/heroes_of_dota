@@ -53,7 +53,7 @@ function scan_for_unit_in_direction(
     from_exclusive: XY,
     to: XY,
     max_scan_distance: number,
-    direction_normal: XY = direction_normal_between_points(battle, from_exclusive, to)
+    direction_normal: XY = direction_normal_between_points(from_exclusive, to)
 ): Scan_Result_Hit | Scan_Result_Missed {
     let current_cell = xy(from_exclusive.x, from_exclusive.y);
 
@@ -82,48 +82,6 @@ function scan_for_unit_in_direction(
     }
 
     return { hit: false, final_point: current_cell };
-}
-
-function query_units_in_line(
-    battle: Battle,
-    from_exclusive: XY,
-    to: XY,
-    max_scan_distance: number,
-    direction_normal: XY = direction_normal_between_points(battle, from_exclusive, to)
-): Unit[] {
-    const result: Unit[] = [];
-
-    let current_cell = xy(from_exclusive.x, from_exclusive.y);
-
-    for (let scanned = 0; scanned < max_scan_distance; scanned++) {
-        current_cell.x += direction_normal.x;
-        current_cell.y += direction_normal.y;
-
-        const unit = unit_at(battle, current_cell);
-
-        if (unit) {
-            result.push(unit);
-        }
-    }
-
-    return result;
-}
-
-function query_units_in_rectangular_area(battle: Battle, from: XY, distance_inclusive: number): Unit[] {
-    const units: Unit[] = [];
-
-    for (const unit of battle.units) {
-        if (unit.dead) continue;
-
-        const unit_position = unit.position;
-        const distance = rectangular(unit_position, from);
-
-        if (distance <= distance_inclusive) {
-            units.push(unit);
-        }
-    }
-
-    return units;
 }
 
 function query_units_in_rectangular_area_around_point(battle: Battle, from_exclusive: XY, distance_inclusive: number): Unit[] {
@@ -158,25 +116,17 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
 }
 
 function query_units_with_selector(battle: Battle, from: XY, target: XY, selector: Ability_Target_Selector): Unit[] {
-    switch (selector.type) {
-        case Ability_Target_Selector_Type.rectangle: {
-            return query_units_in_rectangular_area(battle, target, selector.area_radius);
-        }
+    const units: Unit[] = [];
 
-        case Ability_Target_Selector_Type.line: {
-            return query_units_in_line(battle, from, target, selector.length);
-        }
+    for (const unit of battle.units) {
+        if (unit.dead) continue;
 
-        case Ability_Target_Selector_Type.single_target: {
-            const unit = unit_at(battle, target);
-
-            if (unit) {
-                return [ unit ];
-            }
-
-            return [];
+        if (ability_selector_fits(selector, from, target, unit.position)) {
+            units.push(unit);
         }
     }
+
+    return units;
 }
 
 function query_units_for_point_target_ability(battle: Battle, caster: Unit, target: XY, targeting: Ability_Targeting): Unit[] {
@@ -245,7 +195,7 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
 
         case Ability_Id.pudge_hook: {
             const distance = ability.targeting.line_length;
-            const direction = direction_normal_between_points(battle, unit.position, target);
+            const direction = direction_normal_between_points(unit.position, target);
             const scan = scan_for_unit_in_direction(battle, unit.position, target, distance, direction);
 
             if (scan.hit) {
@@ -301,6 +251,19 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                     damage_dealt: health_change(target.unit, -target.damage_applied)
                 })),
                 damage_remaining: remaining_damage
+            }
+        }
+
+        case Ability_Id.dragon_knight_breathe_fire: {
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
+                target_unit_id: target.id,
+                damage_dealt: health_change(target, -ability.damage),
+            }));
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: targets
             }
         }
 

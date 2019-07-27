@@ -65,7 +65,8 @@ declare const enum Ability_Targeting_Type {
 declare const enum Ability_Target_Selector_Type {
     single_target = 0,
     rectangle = 1,
-    line = 2
+    line = 2,
+    t_shape = 3
 }
 
 declare const enum Ability_Type {
@@ -119,20 +120,27 @@ type Ability_Target_Selector_Single_Target = {
     type: Ability_Target_Selector_Type.single_target
 }
 
-type Ability_Target_Selector_In_Rectangle = {
+type Ability_Target_Selector_Rectangle = {
     type: Ability_Target_Selector_Type.rectangle
     area_radius: number
 }
 
-type Ability_Target_Selector_In_Line = {
+type Ability_Target_Selector_Line = {
     type: Ability_Target_Selector_Type.line
     length: number
 }
 
+type Ability_Target_Selector_T_Shape = {
+    type: Ability_Target_Selector_Type.t_shape
+    stem_length: number
+    arm_length: number
+}
+
 type Ability_Target_Selector =
     Ability_Target_Selector_Single_Target |
-    Ability_Target_Selector_In_Rectangle |
-    Ability_Target_Selector_In_Line
+    Ability_Target_Selector_Rectangle |
+    Ability_Target_Selector_Line |
+    Ability_Target_Selector_T_Shape
 
 type Ability_Targeting =
     Ability_Targeting_Line |

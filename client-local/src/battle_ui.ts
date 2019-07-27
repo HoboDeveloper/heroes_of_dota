@@ -1076,6 +1076,7 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.skywrath_concussive_shot: return `Deal ${a.damage} damage and slow random target (prioritizes enemies) by ${a.move_points_reduction} for ${a.duration} turns`;
         case Ability_Id.skywrath_ancient_seal: return `Silence target for ${a.duration} turns`;
         case Ability_Id.skywrath_mystic_flare: return `Deal ${a.damage} split between targets in an area`;
+        case Ability_Id.dragon_knight_breathe_fire: return `Deal ${a.damage} damage to all targets`;
     }
 }
 
@@ -1095,6 +1096,7 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.skywrath_concussive_shot: return "skywrath_mage_concussive_shot";
         case Ability_Id.skywrath_ancient_seal: return "skywrath_mage_ancient_seal";
         case Ability_Id.skywrath_mystic_flare: return "skywrath_mage_mystic_flare";
+        case Ability_Id.dragon_knight_breathe_fire: return "dragon_knight_breathe_fire";
     }
 }
 

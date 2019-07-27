@@ -117,10 +117,10 @@ function merge_delta_paths_from_client(delta_paths: Move_Delta_Paths) {
 }
 
 function battle_position_to_world_position_center(position: { x: number, y: number }): Vector {
-    return Vector(
-        battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2,
-        battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2
-    )
+    const x = battle.world_origin.x + position.x * battle_cell_size + battle_cell_size / 2;
+    const y = battle.world_origin.y + position.y * battle_cell_size + battle_cell_size / 2;
+
+    return Vector(x, y, GetGroundHeight(Vector(x, y), undefined));
 }
 
 function shake_screen(at: XY, strength: Shake) {
@@ -348,6 +348,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
     const particle_delay = 0.1;
     const deltas_by_distance: Ravage_Target[][] = [];
 
+    // @HardcodedConstant
     for (let distance = 1; distance <= 5; distance++) {
         fx.with_point_value(distance, distance * battle_cell_size * 0.85);
     }
@@ -646,11 +647,12 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 
             EmitSoundOnLocationWithCaster(world_target, "Hero_SkywrathMage.MysticFlare", unit.handle);
 
+            // @HardcodedConstant
             const square_side = 3;
             const circle_radius = square_side * battle_cell_size / 2;
             const arbitrary_long_duration = 100;
             const spell_fx = fx("particles/units/heroes/hero_skywrath_mage/skywrath_mage_mystic_flare_ambient.vpcf")
-                .with_point_value(0, world_target.x, world_target.y, GetGroundHeight(world_target, undefined))
+                .with_point_value(0, world_target.x, world_target.y, world_target.z)
                 .with_point_value(1, circle_radius, arbitrary_long_duration, tick_time);
 
             const damaged_units = targets.map(target => ({
@@ -686,6 +688,64 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
             spell_fx.destroy_and_release(false);
+
+            break;
+        }
+
+        case Ability_Id.dragon_knight_breathe_fire: {
+            turn_unit_towards_target(unit, cast.target_position);
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.3);
+            unit_emit_sound(unit, "Hero_DragonKnight.BreathFire");
+
+            function fire_breath_projectile(distance_in_cells: number, from: Vector, direction: Vector) {
+                const speed = 1500;
+                const travel_time = battle_cell_size * distance_in_cells  / speed;
+                const particle_velocity = direction * speed as Vector;
+
+                const particle = fx("particles/units/heroes/hero_dragon_knight/dragon_knight_breathe_fire.vpcf")
+                    .with_vector_value(0, from)
+                    .with_forward_vector(0, direction)
+                    .with_vector_value(1, particle_velocity);
+
+                wait(travel_time);
+
+                particle.destroy_and_release(false);
+            }
+
+            const stem_length = 3; // @HardcodedConstant
+            const world_from = battle_position_to_world_position_center(unit.position);
+            const world_to = battle_position_to_world_position_center(cast.target_position);
+            const direction = ((world_to - world_from) as Vector).Normalized();
+            const final_position = world_from + direction * (stem_length * battle_cell_size) as Vector;
+
+            fire_breath_projectile(stem_length, world_from, direction);
+
+            for (const target of from_client_array(cast.targets)) {
+                const target_unit = find_unit_by_id(target.target_unit_id);
+
+                if (target_unit) {
+                    change_health(main_player, unit, target_unit, target.damage_dealt);
+                }
+            }
+
+            const arm_length = 2; // @HardcodedConstant
+            const direction_left = Vector(-direction.y, direction.x, direction.z);
+
+            let left_complete = false, right_complete = false;
+
+            fork(() => {
+                fire_breath_projectile(arm_length, final_position, direction_left);
+                
+                left_complete = true;
+            });
+
+            fork(() => {
+                fire_breath_projectile(arm_length, final_position, -direction_left as Vector);
+
+                right_complete = true;
+            });
+            
+            wait_until(() => left_complete && right_complete);
 
             break;
         }
@@ -987,6 +1047,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             }
 
             if (cast.missed_beams > 0) {
+                // @HardcodedConstant
                 const distance = 4;
 
                 const cells: XY[] = [];

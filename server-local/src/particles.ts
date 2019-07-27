@@ -5,6 +5,7 @@ type FX = {
     to_location(control_point: number, point: XY): FX;
     with_point_value(control_point: number, x?: number, y?: number, z?: number): FX;
     with_vector_value(control_point: number, vec: Vector): FX;
+    with_forward_vector(control_point: number, vec: Vector): FX;
     follow_unit_origin(control_point: number, unit: Battle_Unit): FX;
     follow_unit_overhead(control_point: number, unit: Battle_Unit): FX;
     release(): void;
@@ -82,6 +83,13 @@ function native_fx(path: string, attach: ParticleAttachment_t, handle: CBaseEnti
             check_particle_validity();
 
             ParticleManager.SetParticleControl(fx, control_point, Vector(x, y, z));
+
+            return this;
+        },
+        with_forward_vector(control_point: number, vec: Vector): FX {
+            check_particle_validity();
+
+            ParticleManager.SetParticleControlForward(fx, control_point, vec);
 
             return this;
         },

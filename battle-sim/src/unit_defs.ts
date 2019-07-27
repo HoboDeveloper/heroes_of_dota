@@ -28,7 +28,7 @@ function single_target(): Ability_Target_Selector_Single_Target {
     }
 }
 
-function targets_in_rectangle(radius: number): Ability_Target_Selector_In_Rectangle {
+function targets_in_rectangle(radius: number): Ability_Target_Selector_Rectangle {
     return {
         type: Ability_Target_Selector_Type.rectangle,
         area_radius: radius
@@ -200,7 +200,18 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 health: 14,
                 move_points: 3,
                 attack: basic_attack(4, 1),
-                abilities: []
+                abilities: [
+                    active_ability<Ability_Dragon_Knight_Breathe_Fire>({
+                        available_since_level: 1,
+                        targeting: target_line(3, {
+                            type: Ability_Target_Selector_Type.t_shape,
+                            stem_length: 3,
+                            arm_length: 2
+                        }),
+                        charges: 1,
+                        damage: 5
+                    })
+                ]
             }
         }
 

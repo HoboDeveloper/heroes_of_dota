@@ -150,7 +150,7 @@ function grid_cell_neighbors(battle: Battle, at: XY): Array<Cell | undefined> {
 }
 
 // This will only work correctly if cells are on the same line
-function direction_normal_between_points(battle: Battle, from: XY, to: XY): XY {
+function direction_normal_between_points(from: XY, to: XY): XY {
     const delta = xy_sub(to, from);
 
     return xy(Math.sign(delta.x), Math.sign(delta.y));
@@ -291,6 +291,21 @@ function ability_targeting_fits(targeting: Ability_Targeting, from: XY, check_at
 }
 
 function ability_selector_fits(selector: Ability_Target_Selector, from: XY, to: XY, check_at: XY): boolean {
+    function points_on_the_same_line(a: XY, b: XY, c: XY) {
+        return are_points_on_the_same_line(a, b) && are_points_on_the_same_line(a, c) && are_points_on_the_same_line(b, c);
+    }
+
+    function get_line_segment_end(length: number, direction: XY = direction_normal_between_points(from, to)): XY {
+        return xy(from.x + direction.x * length, from.y + direction.y * length);
+    }
+
+    function fits_line(length: number): boolean {
+        const head = get_line_segment_end(length);
+        const from_tail_to_point = distance_between_points_on_the_same_line(check_at, from);
+        const from_head_to_point = distance_between_points_on_the_same_line(check_at, head);
+        return from_tail_to_point > 0 && from_tail_to_point <= length && from_head_to_point <= length;
+    }
+
     switch (selector.type) {
         case Ability_Target_Selector_Type.single_target: {
             return xy_equal(to, check_at);
@@ -301,8 +316,25 @@ function ability_selector_fits(selector: Ability_Target_Selector, from: XY, to: 
         }
 
         case Ability_Target_Selector_Type.line: {
-            if (are_points_on_the_same_line(from, check_at) && are_points_on_the_same_line(check_at, to)) {
-                return distance_between_points_on_the_same_line(from, check_at) <= selector.length;
+            if (points_on_the_same_line(from, to, check_at)) {
+                return fits_line(selector.length);
+            }
+
+            return false;
+        }
+
+        case Ability_Target_Selector_Type.t_shape: {
+            if (points_on_the_same_line(from, to, check_at)) {
+                return fits_line(selector.stem_length);
+            }
+
+            const direction = direction_normal_between_points(from, to);
+            const head = get_line_segment_end(selector.stem_length, direction);
+            const direction_left = xy(-direction.y, direction.x);
+            const left_arm_end = xy(head.x + direction_left.x * selector.arm_length, head.y + direction_left.y * selector.arm_length);
+
+            if (points_on_the_same_line(left_arm_end, check_at, head)) {
+                return distance_between_points_on_the_same_line(head, check_at) <= selector.arm_length;
             }
 
             return false;
@@ -342,15 +374,7 @@ function are_points_on_the_same_line(a: XY, b: XY): boolean {
 }
 
 function distance_between_points_on_the_same_line(a: XY, b: XY): number {
-    if (a.x == b.x) {
-        return Math.abs(a.y - b.y);
-    }
-
-    if (a.y == b.y) {
-        return Math.abs(a.x - b.x);
-    }
-
-    throw "Points are not on the same line";
+    return Math.abs(a.y - b.y) + Math.abs(a.x - b.x);
 }
 
 function catch_up_to_head(battle: Battle) {
@@ -657,7 +681,19 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
                 const target_unit = find_unit_by_id(battle, target.target_unit_id);
 
                 if (target_unit) {
-                    change_health_default(battle, source, target_unit, target.damage_dealt);
+                    change_health(battle, source, target_unit, target.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
+        case Ability_Id.dragon_knight_breathe_fire: {
+            for (const target of cast.targets) {
+                const target_unit = find_unit_by_id(battle, target.target_unit_id);
+
+                if (target_unit) {
+                    change_health(battle, source, target_unit, target.damage_dealt);
                 }
             }
 
