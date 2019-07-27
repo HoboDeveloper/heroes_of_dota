@@ -507,7 +507,7 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
     }
 }
 
-function apply_modifier(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application, duration?: number) {
+function apply_modifier(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
     const modifier_base: Modifier_Base = {
         id: modifier.modifier_id,
         handle_id: modifier.modifier_handle_id,
@@ -516,11 +516,11 @@ function apply_modifier(source: Unit, target: Unit, ability_id: Ability_Id, modi
         changes: modifier.changes
     };
 
-    if (duration) {
+    if (modifier.duration) {
         target.modifiers.push({
             ...modifier_base,
             permanent: false,
-            duration_remaining: duration,
+            duration_remaining: modifier.duration,
         });
     } else {
         target.modifiers.push({
@@ -566,13 +566,20 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 
         case Ability_Id.tide_gush: {
             change_health(battle, source, target, cast.damage_dealt);
-            apply_modifier(source, target, cast.ability_id, cast.modifier, cast.duration);
+            apply_modifier(source, target, cast.ability_id, cast.modifier);
 
             break;
         }
 
         case Ability_Id.skywrath_ancient_seal: {
-            apply_modifier(source, target, cast.ability_id, cast.modifier, cast.duration);
+            apply_modifier(source, target, cast.ability_id, cast.modifier);
+            break;
+        }
+
+        case Ability_Id.dragon_knight_dragon_tail: {
+            change_health(battle, source, target, cast.damage_dealt);
+            apply_modifier(source, target, cast.ability_id, cast.modifier);
+
             break;
         }
 
@@ -588,7 +595,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, effect.damage_dealt);
-                    apply_modifier(source, target, cast.ability_id, effect.modifier, cast.duration);
+                    apply_modifier(source, target, cast.ability_id, effect.modifier);
                 }
             }
 
@@ -613,7 +620,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, effect.damage_dealt);
-                    apply_modifier(source, target, cast.ability_id, effect.modifier, cast.duration);
+                    apply_modifier(source, target, cast.ability_id, effect.modifier);
                 }
             }
 
@@ -638,7 +645,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, cast.result.damage);
-                    apply_modifier(source, target, cast.ability_id, cast.result.modifier, cast.result.duration);
+                    apply_modifier(source, target, cast.ability_id, cast.result.modifier);
                 }
             }
 

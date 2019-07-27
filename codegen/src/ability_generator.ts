@@ -40,6 +40,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     });
 
                 const property_assignments = checker.getPropertiesOfType(type)
+                    .filter(property => property.valueDeclaration)
                     .map(symbol => symbol.valueDeclaration)
                     .map(declaration => {
                         if (declaration.kind == ts.SyntaxKind.PropertySignature) {
@@ -163,16 +164,20 @@ export default function run_transformer(program: ts.Program, options: Options): 
     }
 
     function process_and_update_source_file(context: ts.TransformationContext, file: ts.SourceFile) {
-        const updated_node = process_source_file(context, file);
+        try {
+            const updated_node = process_source_file(context, file);
 
-        return ts.updateSourceFileNode(
-            file,
-            updated_node.statements,
-            updated_node.isDeclarationFile,
-            updated_node.referencedFiles,
-            updated_node.typeReferenceDirectives,
-            updated_node.hasNoDefaultLib
-        );
+            return ts.updateSourceFileNode(
+                file,
+                updated_node.statements,
+                updated_node.isDeclarationFile,
+                updated_node.referencedFiles,
+                updated_node.typeReferenceDirectives,
+                updated_node.hasNoDefaultLib
+            );
+        } catch (e) {
+            console.error(e.stack);
+        }
     }
 
     return context => (node: ts.Node) => {

@@ -928,6 +928,22 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             break;
         }
 
+        case Ability_Id.dragon_knight_dragon_tail: {
+            fx("particles/units/heroes/hero_dragon_knight/dragon_knight_dragon_tail.vpcf")
+                .to_unit_attach_point(2, unit, "attach_attack2")
+                .with_vector_value(3, unit.handle.GetForwardVector())
+                .to_unit_attach_point(4, target, "attach_hitloc")
+                .release();
+
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2, 0.4);
+            unit_emit_sound(target, "Hero_DragonKnight.DragonTail.Target");
+            apply_modifier(main_player, target, cast.modifier);
+            change_health(main_player, unit, target, cast.damage_dealt);
+            shake_screen(target.position, Shake.medium);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }

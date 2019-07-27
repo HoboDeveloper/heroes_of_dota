@@ -1077,6 +1077,7 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.skywrath_ancient_seal: return `Silence target for ${a.duration} turns`;
         case Ability_Id.skywrath_mystic_flare: return `Deal ${a.damage} split between targets in an area`;
         case Ability_Id.dragon_knight_breathe_fire: return `Deal ${a.damage} damage to all targets`;
+        case Ability_Id.dragon_knight_dragon_tail: return `Deal ${a.damage} and stun chosen target`;
     }
 }
 
@@ -1097,6 +1098,7 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.skywrath_ancient_seal: return "skywrath_mage_ancient_seal";
         case Ability_Id.skywrath_mystic_flare: return "skywrath_mage_mystic_flare";
         case Ability_Id.dragon_knight_breathe_fire: return "dragon_knight_breathe_fire";
+        case Ability_Id.dragon_knight_dragon_tail: return "dragon_knight_dragon_tail";
     }
 }
 

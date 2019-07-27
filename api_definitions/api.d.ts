@@ -92,6 +92,7 @@ type Unit_Definition = {
 type Ability_Definition_Active_Base = {
     available_since_level: number
     charges: number
+    targeting: Ability_Targeting
 }
 
 type Ability_Definition_Passive_Base = {
@@ -364,6 +365,7 @@ type Modifier_Application = {
     modifier_handle_id: number
     modifier_id: Modifier_Id
     changes: Modifier_Change[]
+    duration?: number
 }
 
 type Movement_History_Entry = {

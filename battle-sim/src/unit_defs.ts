@@ -210,6 +210,12 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         }),
                         charges: 1,
                         damage: 5
+                    }),
+                    active_ability<Ability_Dragon_Knight_Dragon_Tail>({
+                        available_since_level: 2,
+                        targeting: target_in_manhattan_distance(1),
+                        charges: 1,
+                        damage: 3
                     })
                 ]
             }

@@ -158,6 +158,18 @@ function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modif
     }
 }
 
+function new_timed_modifier(battle: Battle_Record, id: Modifier_Id, duration: number, ...changes: [Modifier_Field, number][]): Modifier_Application {
+    return {
+        modifier_id: id,
+        modifier_handle_id: get_next_modifier_handle_id(battle),
+        changes: changes.map(change => ({
+            field: change[0],
+            delta: change[1]
+        })),
+        duration: duration
+    }
+}
+
 function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Delta_Ground_Target_Ability | undefined {
     const base: Delta_Ground_Target_Ability_Base = {
         type: Delta_Type.use_ground_target_ability,
@@ -295,14 +307,13 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 damage_dealt: health_change(target, -ability.damage),
-                modifier: new_modifier(battle, Modifier_Id.tide_anchor_smash, [Modifier_Field.attack_bonus, -ability.attack_reduction])
+                modifier: new_timed_modifier(battle, Modifier_Id.tide_anchor_smash, 1, [Modifier_Field.attack_bonus, -ability.attack_reduction])
             }));
 
             return {
                 ...base,
                 ability_id: ability.id,
-                targets: targets,
-                duration: 1
+                targets: targets
             };
         }
 
@@ -310,13 +321,12 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 damage_dealt: health_change(target, -ability.damage),
-                modifier: new_modifier(battle, Modifier_Id.tide_ravage, [Modifier_Field.state_stunned_counter, 1])
+                modifier: new_timed_modifier(battle, Modifier_Id.tide_ravage, 1, [Modifier_Field.state_stunned_counter, 1])
             }));
 
             return {
                 ...base,
                 ability_id: ability.id,
-                duration: 1,
                 targets: targets
             };
         }
@@ -417,9 +427,8 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             return {
                 ...base,
                 ability_id: ability.id,
-                modifier: new_modifier(battle, Modifier_Id.tide_gush, [Modifier_Field.move_points_bonus, -ability.move_points_reduction]),
+                modifier: new_timed_modifier(battle, Modifier_Id.tide_gush, 1, [Modifier_Field.move_points_bonus, -ability.move_points_reduction]),
                 damage_dealt: health_change(target, -ability.damage),
-                duration: 1,
             };
         }
 
@@ -435,8 +444,16 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             return {
                 ...base,
                 ability_id: ability.id,
-                modifier: new_modifier(battle, Modifier_Id.skywrath_ancient_seal, [Modifier_Field.state_silenced_counter, 1]),
-                duration: ability.duration
+                modifier: new_timed_modifier(battle, Modifier_Id.skywrath_ancient_seal, ability.duration, [Modifier_Field.state_silenced_counter, 1]),
+            }
+        }
+
+        case Ability_Id.dragon_knight_dragon_tail: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: new_timed_modifier(battle, Modifier_Id.dragon_knight_dragon_tail, 1, [Modifier_Field.state_stunned_counter, 1]),
+                damage_dealt: health_change(target, -ability.damage)
             }
         }
 

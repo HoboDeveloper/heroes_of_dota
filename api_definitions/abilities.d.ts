@@ -13,6 +13,7 @@ declare const enum Ability_Id {
     skywrath_ancient_seal = 13,
     skywrath_mystic_flare = 14,
     dragon_knight_breathe_fire = 15,
+    dragon_knight_dragon_tail = 16,
 
     sniper_shrapnel = 18
 }
@@ -22,7 +23,8 @@ declare const enum Modifier_Id {
     tide_anchor_smash = 1,
     tide_ravage = 2,
     skywrath_concussive_shot = 3,
-    skywrath_ancient_seal = 4
+    skywrath_ancient_seal = 4,
+    dragon_knight_dragon_tail = 5
 }
 
 type Ability_Basic_Attack = Ability_Definition_Active_Base & {
@@ -42,21 +44,18 @@ type Ability_Pudge_Hook = Ability_Definition_Active_Base & {
 type Ability_Pudge_Rot = Ability_Definition_Active_Base & {
     id: Ability_Id.pudge_rot
     type: Ability_Type.no_target
-    targeting: Ability_Targeting_Rectangular_Area_Around_Caster
     damage: number
 }
 
 type Ability_Pudge_Dismember = Ability_Definition_Active_Base & {
     id: Ability_Id.pudge_dismember
     type: Ability_Type.target_unit
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
 }
 
 type Ability_Tide_Gush = Ability_Definition_Active_Base & {
     id: Ability_Id.tide_gush
     type: Ability_Type.target_unit
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
     move_points_reduction: number
 }
@@ -64,7 +63,6 @@ type Ability_Tide_Gush = Ability_Definition_Active_Base & {
 type Ability_Tide_Anchor_Smash = Ability_Definition_Active_Base & {
     id: Ability_Id.tide_anchor_smash
     type: Ability_Type.no_target
-    targeting: Ability_Targeting_Rectangular_Area_Around_Caster
     damage: number
     attack_reduction: number
 }
@@ -72,14 +70,12 @@ type Ability_Tide_Anchor_Smash = Ability_Definition_Active_Base & {
 type Ability_Tide_Ravage = Ability_Definition_Active_Base & {
     id: Ability_Id.tide_ravage
     type: Ability_Type.no_target
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
 }
 
 type Ability_Luna_Lucent_Beam = Ability_Definition_Active_Base & {
     id: Ability_Id.luna_lucent_beam
     type: Ability_Type.target_unit
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
 }
 
@@ -91,14 +87,12 @@ type Ability_Luna_Moon_Glaive = Ability_Definition_Passive_Base & {
 type Ability_Luna_Eclipse = Ability_Definition_Active_Base & {
     id: Ability_Id.luna_eclipse
     type: Ability_Type.no_target
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     total_beams: number
 }
 
 type Ability_Skywrath_Concussive_Shot = Ability_Definition_Active_Base & {
     id: Ability_Id.skywrath_concussive_shot
     type: Ability_Type.no_target
-    targeting: Ability_Targeting_Rectangular_Area_Around_Caster
     damage: number
     move_points_reduction: number
     duration: number
@@ -107,28 +101,30 @@ type Ability_Skywrath_Concussive_Shot = Ability_Definition_Active_Base & {
 type Ability_Skywrath_Ancient_Seal = Ability_Definition_Active_Base & {
     id: Ability_Id.skywrath_ancient_seal
     type: Ability_Type.target_unit
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     duration: number
 }
 
 type Ability_Skywrath_Mystic_Flare = Ability_Definition_Active_Base & {
     id: Ability_Id.skywrath_mystic_flare
     type: Ability_Type.target_ground
-    targeting: Ability_Targeting_Target_In_Manhattan_Distance
     damage: number
 }
 
 type Ability_Dragon_Knight_Breathe_Fire = Ability_Definition_Active_Base & {
     id: Ability_Id.dragon_knight_breathe_fire
     type: Ability_Type.target_ground
-    targeting: Ability_Targeting_Line
+    damage: number
+}
+
+type Ability_Dragon_Knight_Dragon_Tail = Ability_Definition_Active_Base & {
+    id: Ability_Id.dragon_knight_dragon_tail
+    type: Ability_Type.target_unit
     damage: number
 }
 
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
-    targeting: Ability_Targeting_Rectangular_Area_Around_Caster
 }
 
 type Ability_Definition_Active =
@@ -144,7 +140,8 @@ type Ability_Definition_Active =
     Ability_Skywrath_Concussive_Shot |
     Ability_Skywrath_Ancient_Seal |
     Ability_Skywrath_Mystic_Flare |
-    Ability_Dragon_Knight_Breathe_Fire
+    Ability_Dragon_Knight_Breathe_Fire |
+    Ability_Dragon_Knight_Dragon_Tail
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -164,7 +161,8 @@ type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
     Delta_Ability_Tide_Gush |
     Delta_Ability_Luna_Lucent_Beam |
-    Delta_Ability_Skywrath_Ancient_Seal
+    Delta_Ability_Skywrath_Ancient_Seal |
+    Delta_Ability_Dragon_Knight_Dragon_Tail
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
@@ -229,13 +227,11 @@ type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
 type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
     modifier: Modifier_Application
-    duration: number
     damage_dealt: Value_Change
 }
 
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
-    duration: number
     targets: {
         target_unit_id: number
         modifier: Modifier_Application
@@ -251,7 +247,6 @@ type Ravage_Target = {
 
 type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
-    duration: number
     targets: Ravage_Target[]
 }
 
@@ -265,7 +260,6 @@ type Concussive_Shot_Hit = {
     target_unit_id: number
     damage: Value_Change
     modifier: Modifier_Application
-    duration: number
 }
 
 type Concussive_Shot_Miss = {
@@ -280,7 +274,6 @@ type Delta_Ability_Skywrath_Concussive_Shot = Delta_Use_No_Target_Ability_Base &
 type Delta_Ability_Skywrath_Ancient_Seal = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.skywrath_ancient_seal,
     modifier: Modifier_Application
-    duration: number
 }
 
 type Delta_Ability_Skywrath_Mystic_Flare = Delta_Ground_Target_Ability_Base & {
@@ -315,4 +308,10 @@ type Delta_Ability_Dragon_Knight_Breathe_Fire = Delta_Ground_Target_Ability_Base
         target_unit_id: number
         damage_dealt: Value_Change
     }[]
+}
+
+type Delta_Ability_Dragon_Knight_Dragon_Tail = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.dragon_knight_dragon_tail
+    damage_dealt: Value_Change
+    modifier: Modifier_Application
 }
