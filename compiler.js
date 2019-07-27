@@ -28,6 +28,8 @@ function compile_file(module) {
     });
 }
 
+exports.panorama_scripts_dir = "dist/content/panorama/scripts/custom_game";
+
 exports.compile = function(...modules) {
     return Promise.all(modules.map(compile_file)).then(values => {
         values.forEach(value => console.log(value));

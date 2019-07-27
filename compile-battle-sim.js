@@ -1,4 +1,4 @@
-const { compile, copy_sim, copy_unit_defs } = require("./compiler");
+const { compile, copy_sim, copy_unit_defs, panorama_scripts_dir } = require("./compiler");
 
 (async () => {
     console.time("Compile");
@@ -7,7 +7,7 @@ const { compile, copy_sim, copy_unit_defs } = require("./compiler");
 
     copy_sim("client-web/dist/battle_sim.js");
     copy_sim("server-remote/dist/battle_sim.js");
-    copy_sim("dist/content/panorama/scripts/custom_game/battle_sim.js");
+    copy_sim(`${panorama_scripts_dir}/battle_sim.js`);
 
     copy_unit_defs();
 
