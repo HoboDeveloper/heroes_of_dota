@@ -10,19 +10,19 @@ function compile_file(module) {
         const no_npm_update = Object.assign({ "NO_UPDATE_NOTIFIER": "1" }, process.env);
         const emitter = exec(`npx ttsc -p ../${module}/tsconfig.json --pretty`, { cwd: "codegen", env: no_npm_update });
 
-        emitter.stdout.on("data", function (data) {
-            process.stdout.write(data.toString());
-        });
-
-        emitter.stderr.on("data", function (data) {
-            process.stdout.write(data.toString());
-        });
+        emitter.stdout.on("data", data => process.stdout.write(data.toString()));
+        emitter.stderr.on("data", data => process.stderr.write(data.toString()));
 
         emitter.on("exit", function (code) {
             resolve(`${module}: ${Number((performance.now() - start_time) / 1000).toFixed(2)}s`);
 
             if (code !== 0) {
-                console.error(`\x1b[1m\x1b[31m${"Error"}\x1b[0m when compiling module \x1b[1m\x1b[33m${module}\x1b[0m`);
+                const bright = "\x1b[1m";
+                const red = "\x1b[31m";
+                const yellow = "\x1b[33m";
+                const reset = "\x1b[0m";
+
+                console.error(`${bright}${red}Error${reset} when compiling module ${bright}${yellow}${module}${reset}`);
             }
         });
     });
