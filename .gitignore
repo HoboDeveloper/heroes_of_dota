@@ -6,7 +6,6 @@ dist/game/maps
 dist/game/particles
 server-remote/dist
 battle-sim/dist
-client-local/**/unit_defs.ts
 dist/content/panorama/
 dist/game/materials
 dist/game/panorama
