@@ -147,14 +147,21 @@ function health_change(target: Unit, change: number): Value_Change {
     }
 }
 
+function convert_field_changes(changes: [Modifier_Field, number][]): Modifier_Change_Field_Change[] {
+    return changes.map(change => {
+        return <Modifier_Change_Field_Change> {
+            type: Modifier_Change_Type.field_change,
+            field: change[0],
+            delta: change[1]
+        };
+    });
+}
+
 function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modifier_Field, number][]): Modifier_Application {
     return {
         modifier_id: id,
         modifier_handle_id: get_next_modifier_handle_id(battle),
-        changes: changes.map(change => ({
-            field: change[0],
-            delta: change[1]
-        }))
+        changes: convert_field_changes(changes)
     }
 }
 
@@ -162,10 +169,7 @@ function new_timed_modifier(battle: Battle_Record, id: Modifier_Id, duration: nu
     return {
         modifier_id: id,
         modifier_handle_id: get_next_modifier_handle_id(battle),
-        changes: changes.map(change => ({
-            field: change[0],
-            delta: change[1]
-        })),
+        changes: convert_field_changes(changes),
         duration: duration
     }
 }
@@ -177,12 +181,16 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
         target_position: target,
     };
 
+    function calculate_basic_attack_damage_to_target(target: Unit) {
+        return Math.max(0, unit.attack_damage + unit.attack_bonus - target.armor);
+    }
+
     switch (ability.id) {
         case Ability_Id.basic_attack: {
             const scan = scan_for_unit_in_direction(battle, unit.position, target, ability.targeting.line_length);
 
             if (scan.hit) {
-                const damage = Math.max(0, ability.damage + unit.attack_bonus - scan.unit.armor);
+                const damage = calculate_basic_attack_damage_to_target(scan.unit);
 
                 return {
                     ...base,
@@ -270,6 +278,19 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
             const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 damage_dealt: health_change(target, -ability.damage),
+            }));
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: targets
+            }
+        }
+
+        case Ability_Id.dragon_knight_elder_dragon_form_attack: {
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
+                target_unit_id: target.id,
+                damage_dealt: health_change(target, -calculate_basic_attack_damage_to_target(target)),
             }));
 
             return {
@@ -399,6 +420,23 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                         hit: false
                     }
                 }
+            }
+        }
+
+        case Ability_Id.dragon_knight_elder_dragon_form: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: {
+                    modifier_id: Modifier_Id.dragon_knight_elder_dragon_form,
+                    modifier_handle_id: get_next_modifier_handle_id(battle),
+                    changes: [{
+                        type: Modifier_Change_Type.ability_swap,
+                        swap_to: Ability_Id.dragon_knight_elder_dragon_form_attack,
+                        original_ability: Ability_Id.basic_attack
+                    }],
+                    duration: ability.duration
+                },
             }
         }
 

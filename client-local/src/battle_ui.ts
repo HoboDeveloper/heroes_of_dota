@@ -1014,6 +1014,7 @@ function make_battle_snapshot(): Battle_Snapshot {
             .map(unit => ({
                 id: unit.id,
                 level: unit.level,
+                armor: unit.armor,
                 health: unit.health,
                 max_health: unit.max_health,
                 move_points: unit.move_points,
@@ -1021,9 +1022,10 @@ function make_battle_snapshot(): Battle_Snapshot {
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
-                stunned_counter: unit.state_stunned_counter,
-                silenced_counter: unit.state_silenced_counter,
+                state_stunned_counter: unit.state_stunned_counter,
+                state_silenced_counter: unit.state_silenced_counter,
                 owner_id: unit.owner_player_id,
+                attack_damage: unit.attack_damage,
                 attack_bonus: unit.attack_bonus,
                 modifiers: unit.modifiers.map(modifier => ({
                     modifier_id: modifier.id,
@@ -1063,7 +1065,7 @@ function clear_held_card() {
 
 function get_ability_tooltip(a: Ability): string {
     switch (a.id) {
-        case Ability_Id.basic_attack: return `Deal ${a.damage} damage`;
+        case Ability_Id.basic_attack: return `Basic attack`;
         case Ability_Id.pudge_hook: return `Hook, deals ${a.damage} damage`;
         case Ability_Id.pudge_rot: return `Deal ${a.damage} damage in an AoE`;
         case Ability_Id.pudge_dismember: return `Deal ${a.damage} damage<br/>Restore ${a.damage} health`;
@@ -1078,6 +1080,8 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.skywrath_mystic_flare: return `Deal ${a.damage} split between targets in an area`;
         case Ability_Id.dragon_knight_breathe_fire: return `Deal ${a.damage} damage to all targets`;
         case Ability_Id.dragon_knight_dragon_tail: return `Deal ${a.damage} and stun chosen target`;
+        case Ability_Id.dragon_knight_elder_dragon_form: return `Transform, gain additional attack range and splash attack for ${a.duration} turns`;
+        case Ability_Id.dragon_knight_elder_dragon_form_attack: return `Elder dragon form attack`;
     }
 }
 
@@ -1099,6 +1103,8 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.skywrath_mystic_flare: return "skywrath_mage_mystic_flare";
         case Ability_Id.dragon_knight_breathe_fire: return "dragon_knight_breathe_fire";
         case Ability_Id.dragon_knight_dragon_tail: return "dragon_knight_dragon_tail";
+        case Ability_Id.dragon_knight_elder_dragon_form: return "dragon_knight_elder_dragon_form";
+        case Ability_Id.dragon_knight_elder_dragon_form_attack: return "dragon_knight_elder_dragon_form";
     }
 }
 
@@ -1334,18 +1340,19 @@ function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
 
 function update_current_ability_based_on_cursor_state() {
     const click_behaviors = GameUI.GetClickBehaviors();
+    const selected = find_unit_by_entity_id(battle, current_selected_entity);
 
     switch (click_behaviors) {
         case CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK: {
-            if (current_selected_entity != undefined) {
-                set_current_targeted_ability(Ability_Id.basic_attack);
+            if (selected) {
+                set_current_targeted_ability(selected.attack.id);
             }
 
             break;
         }
 
         default: {
-            if (current_targeted_ability == Ability_Id.basic_attack) {
+            if (selected && current_targeted_ability == selected.attack.id) {
                 set_current_targeted_ability(undefined);
             }
 
@@ -1355,9 +1362,7 @@ function update_current_ability_based_on_cursor_state() {
 }
 
 function get_unit_attack_value(unit: Unit, bonus: number) {
-    const base_value = unit.attack.id == Ability_Id.basic_attack ? unit.attack.damage : 0;
-
-    return base_value + bonus;
+    return unit.attack_damage + bonus;
 }
 
 function try_update_stat_bar_display(ui_data: UI_Unit_Data, force = false) {
@@ -1751,7 +1756,7 @@ function create_card_ui(root: Panel, card: Card) {
             const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
 
             create_stat_container(stat_panel, "health", definition.health);
-            create_stat_container(stat_panel, "attack", (definition.attack as Ability_Basic_Attack).damage);
+            create_stat_container(stat_panel, "attack", definition.attack_damage);
             create_stat_container(stat_panel, "move_points", definition.move_points);
 
             break;

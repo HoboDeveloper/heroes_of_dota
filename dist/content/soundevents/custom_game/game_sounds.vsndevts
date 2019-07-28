@@ -369,6 +369,22 @@
         ]
     }
 
+    vo_dragon_knight_dragon_attack = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/dragon_knight/dragon_attack_01.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_02.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_03.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_04.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_05.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_06.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_07.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_08.vsnd",
+            "sounds/vo/dragon_knight/dragon_attack_09.vsnd",
+        ]
+    }
+
     vo_dragon_knight_deny = {
         type = "dota_update_vo_switch"
         vsnd_files =
@@ -381,6 +397,19 @@
             "sounds/vo/dragon_knight/drag_deny_06.vsnd",
             "sounds/vo/dragon_knight/drag_deny_07.vsnd",
             "sounds/vo/dragon_knight/drag_deny_09.vsnd",
+        ]
+    }
+
+    vo_dragon_knight_elder_dragon_form = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_01.vsnd",
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_02.vsnd",
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_03.vsnd",
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_04.vsnd",
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_05.vsnd",
+            "sounds/vo/dragon_knight/dragon_ability_eldrag_06.vsnd",
         ]
     }
 

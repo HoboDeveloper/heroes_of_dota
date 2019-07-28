@@ -14,8 +14,10 @@ declare const enum Ability_Id {
     skywrath_mystic_flare = 14,
     dragon_knight_breathe_fire = 15,
     dragon_knight_dragon_tail = 16,
+    dragon_knight_elder_dragon_form = 17,
+    dragon_knight_elder_dragon_form_attack = 18,
 
-    sniper_shrapnel = 18
+    sniper_shrapnel = 99
 }
 
 declare const enum Modifier_Id {
@@ -24,14 +26,24 @@ declare const enum Modifier_Id {
     tide_ravage = 2,
     skywrath_concussive_shot = 3,
     skywrath_ancient_seal = 4,
-    dragon_knight_dragon_tail = 5
+    dragon_knight_dragon_tail = 5,
+    dragon_knight_elder_dragon_form = 6,
+}
+
+type Ability_Definition_Active_Base = {
+    available_since_level: number
+    charges: number
+    targeting: Ability_Targeting
+}
+
+type Ability_Definition_Passive_Base = {
+    available_since_level: number
 }
 
 type Ability_Basic_Attack = Ability_Definition_Active_Base & {
     id: Ability_Id.basic_attack
     type: Ability_Type.target_ground
     targeting: Ability_Targeting_Line
-    damage: number
 }
 
 type Ability_Pudge_Hook = Ability_Definition_Active_Base & {
@@ -122,6 +134,17 @@ type Ability_Dragon_Knight_Dragon_Tail = Ability_Definition_Active_Base & {
     damage: number
 }
 
+type Ability_Dragon_Knight_Elder_Dragon_Form = Ability_Definition_Active_Base & {
+    id: Ability_Id.dragon_knight_elder_dragon_form
+    type: Ability_Type.no_target
+    duration: number
+}
+
+type Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Ability_Definition_Active_Base & {
+    id: Ability_Id.dragon_knight_elder_dragon_form_attack
+    type: Ability_Type.target_ground
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -141,7 +164,9 @@ type Ability_Definition_Active =
     Ability_Skywrath_Ancient_Seal |
     Ability_Skywrath_Mystic_Flare |
     Ability_Dragon_Knight_Breathe_Fire |
-    Ability_Dragon_Knight_Dragon_Tail
+    Ability_Dragon_Knight_Dragon_Tail |
+    Ability_Dragon_Knight_Elder_Dragon_Form |
+    Ability_Dragon_Knight_Elder_Dragon_Form_Attack
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -155,7 +180,8 @@ type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
     Delta_Ability_Pudge_Hook |
     Delta_Ability_Skywrath_Mystic_Flare |
-    Delta_Ability_Dragon_Knight_Breathe_Fire
+    Delta_Ability_Dragon_Knight_Breathe_Fire |
+    Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -169,7 +195,9 @@ type Delta_Use_No_Target_Ability =
     Delta_Ability_Tide_Anchor_Smash |
     Delta_Ability_Tide_Ravage |
     Delta_Ability_Luna_Eclipse |
-    Delta_Ability_Skywrath_Concussive_Shot
+    Delta_Ability_Skywrath_Concussive_Shot |
+    Delta_Ability_Dragon_Knight_Elder_Dragon_Form
+
 
 type Basic_Attack_Hit = {
     hit: true
@@ -314,4 +342,17 @@ type Delta_Ability_Dragon_Knight_Dragon_Tail = Delta_Unit_Target_Ability_Base & 
     ability_id: Ability_Id.dragon_knight_dragon_tail
     damage_dealt: Value_Change
     modifier: Modifier_Application
+}
+
+type Delta_Ability_Dragon_Knight_Elder_Dragon_Form = Delta_Use_No_Target_Ability_Base & {
+    ability_id: Ability_Id.dragon_knight_elder_dragon_form
+    modifier: Modifier_Application
+}
+
+type Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.dragon_knight_elder_dragon_form_attack
+    targets: {
+        target_unit_id: number
+        damage_dealt: Value_Change
+    }[]
 }

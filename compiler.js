@@ -40,6 +40,7 @@ exports.copy_sim = function(to) {
     copy("battle-sim/dist/battle_sim.js", to);
 };
 
-exports.copy_unit_defs = function() {
+exports.copy_code_shared_with_lua = function() {
+    copy("battle-sim/src/modifier_logic.ts", "server-local/src/modifier_logic.ts");
     copy("battle-sim/src/unit_defs.ts", "server-local/src/unit_defs.ts");
 };

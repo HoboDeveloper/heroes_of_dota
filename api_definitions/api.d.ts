@@ -82,21 +82,31 @@ declare const enum Card_Type {
     spell = 2
 }
 
+declare const enum Modifier_Change_Type {
+    field_change = 0,
+    ability_swap = 1
+}
+
+type Unit_Stats = {
+    armor: number
+    health: number
+    max_health: number
+    attack_damage: number
+    level: number
+    move_points: number
+    max_move_points: number
+    attack_bonus: number
+    state_stunned_counter: number
+    state_silenced_counter: number
+}
+
 type Unit_Definition = {
     health: number
+    attack_damage: number
     move_points: number
     attack: Ability_Definition_Active
     abilities: Ability_Definition[]
-}
-
-type Ability_Definition_Active_Base = {
-    available_since_level: number
-    charges: number
-    targeting: Ability_Targeting
-}
-
-type Ability_Definition_Passive_Base = {
-    available_since_level: number
+    ability_bench: Ability_Definition[]
 }
 
 type Ability_Targeting_Line = {
@@ -217,7 +227,7 @@ type Card_Spell = {
     id: number
 }
 
-type Card = Card_Unknown | Card_Hero | Card_Spell;
+type Card = Card_Unknown | Card_Hero | Card_Spell
 
 type Deployment_Zone = {
     min_x: number
@@ -356,10 +366,19 @@ type Delta =
     Delta_End_Turn |
     Delta_Game_Over
 
-type Modifier_Change = {
+type Modifier_Change_Field_Change = {
+    type: Modifier_Change_Type.field_change
     field: Modifier_Field
     delta: number
 }
+
+type Modifier_Change_Ability_Swap = {
+    type: Modifier_Change_Type.ability_swap
+    original_ability: Ability_Id
+    swap_to: Ability_Id
+}
+
+type Modifier_Change = Modifier_Change_Field_Change | Modifier_Change_Ability_Swap
 
 type Modifier_Application = {
     modifier_handle_id: number

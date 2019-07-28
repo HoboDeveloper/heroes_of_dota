@@ -95,14 +95,16 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                 // TODO some of those properties are not actually needed
                 entity_id_to_unit_data[unit.handle.entindex()] = {
                     id: unit.id,
+                    armor: unit.armor,
                     level: unit.level,
                     health: unit.health,
                     max_health: unit.max_health,
                     move_points: unit.move_points,
                     max_move_points: unit.max_move_points,
-                    stunned_counter: unit.stunned_counter,
-                    silenced_counter: unit.silenced_counter,
+                    state_stunned_counter: unit.state_stunned_counter,
+                    state_silenced_counter: unit.state_silenced_counter,
                     attack_bonus: unit.attack_bonus,
+                    attack_damage: unit.attack_damage,
                     modifiers: unit.modifiers
                 }
             }
@@ -254,6 +256,10 @@ function try_submit_state_transition(main_player: Main_Player, new_state: Player
 }
 
 function main() {
+    function link_modifier(name: string, path: string) {
+        LinkLuaModifier(name, path, LuaModifierType.LUA_MODIFIER_MOTION_NONE);
+    }
+
     const mode = GameRules.GetGameModeEntity();
 
     mode.SetCustomGameForceHero("npc_dota_hero_lina");
@@ -264,9 +270,10 @@ function main() {
     GameRules.SetCustomGameSetupTimeout(0);
     GameRules.SetCustomGameSetupRemainingTime(0);
 
-    LinkLuaModifier("Modifier_Battle_Unit", "modifiers/modifier_battle_unit", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
-    LinkLuaModifier("Modifier_Tide_Gush", "modifiers/modifier_tide_gush", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
-    LinkLuaModifier("Modifier_Damage_Effect", "modifiers/modifier_damage_effect", LuaModifierType.LUA_MODIFIER_MOTION_NONE);
+    link_modifier("Modifier_Battle_Unit", "modifiers/modifier_battle_unit");
+    link_modifier("Modifier_Tide_Gush", "modifiers/modifier_tide_gush");
+    link_modifier("Modifier_Damage_Effect", "modifiers/modifier_damage_effect");
+    link_modifier("Modifier_Dragon_Knight_Elder_Dragon", "modifiers/modifier_dragon_knight_elder_dragon");
 
     const scheduler: Scheduler = {
         tasks: new Map<Coroutine<any>, Task>()

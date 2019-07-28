@@ -1,6 +1,7 @@
 type Ability_Active_Discriminator = {
     id: Ability_Id,
     type: Ability_Type,
+    starts_inactive: boolean
 }
 
 type Ability_Passive_Discriminator = {
@@ -51,11 +52,10 @@ function target_rect_area_around_caster(area_radius: number, selector: Ability_T
     }
 }
 
-function basic_attack(damage: number, range: number): Ability_Basic_Attack {
+function basic_attack(range: number): Ability_Basic_Attack {
     return active_ability<Ability_Basic_Attack>({
         available_since_level: 0,
         targeting: target_line(range),
-        damage: damage,
         charges: 1
     });
 }
@@ -65,10 +65,12 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
         case Unit_Type.ursa: {
             return {
                 health: 15,
+                attack_damage: 5,
                 move_points: 4,
-                attack: basic_attack(5, 1),
+                attack: basic_attack(1),
                 abilities: [
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -76,9 +78,11 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 12,
                 move_points: 3,
-                attack: basic_attack(4, 4),
+                attack_damage: 4,
+                attack: basic_attack(4),
                 abilities: [
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -86,7 +90,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 16,
                 move_points: 2,
-                attack: basic_attack(5, 1),
+                attack_damage: 5,
+                attack: basic_attack(1),
                 abilities: [
                     active_ability<Ability_Pudge_Hook>({
                         available_since_level: 1,
@@ -106,7 +111,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         charges: 1,
                         damage: 10
                     })
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -114,7 +120,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 16,
                 move_points: 3,
-                attack: basic_attack(5, 1),
+                attack_damage: 5,
+                attack: basic_attack(1),
                 abilities: [
                     active_ability<Ability_Tide_Gush>({
                         available_since_level: 1,
@@ -136,7 +143,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         damage: 5,
                         charges: 1,
                     })
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -144,7 +152,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 12,
                 move_points: 4,
-                attack: basic_attack(4, 2),
+                attack_damage: 4,
+                attack: basic_attack(2),
                 abilities: [
                     active_ability<Ability_Luna_Lucent_Beam>({
                         available_since_level: 1,
@@ -161,7 +170,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         total_beams: 14,
                         charges: 1,
                     })
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -169,7 +179,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 10,
                 move_points: 3,
-                attack: basic_attack(3, 3),
+                attack_damage: 3,
+                attack: basic_attack(3),
                 abilities: [
                     active_ability<Ability_Skywrath_Concussive_Shot>({
                         available_since_level: 1,
@@ -191,7 +202,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         charges: 1,
                         damage: 10
                     })
-                ]
+                ],
+                ability_bench: []
             }
         }
 
@@ -199,7 +211,8 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             return {
                 health: 14,
                 move_points: 3,
-                attack: basic_attack(4, 1),
+                attack_damage: 4,
+                attack: basic_attack(1),
                 abilities: [
                     active_ability<Ability_Dragon_Knight_Breathe_Fire>({
                         available_since_level: 1,
@@ -216,6 +229,19 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         targeting: target_in_manhattan_distance(1),
                         charges: 1,
                         damage: 3
+                    }),
+                    active_ability<Ability_Dragon_Knight_Elder_Dragon_Form>({
+                        available_since_level: 3,
+                        targeting: target_in_manhattan_distance(0),
+                        charges: 1,
+                        duration: 3
+                    })
+                ],
+                ability_bench: [
+                    active_ability<Ability_Dragon_Knight_Elder_Dragon_Form_Attack>({
+                        available_since_level: 0,
+                        targeting: target_line(4, targets_in_rectangle(1)),
+                        charges: 1
                     })
                 ]
             }

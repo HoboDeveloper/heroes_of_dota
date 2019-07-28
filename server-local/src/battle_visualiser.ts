@@ -158,17 +158,22 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type): string {
     }
 }
 
-function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
-    const definition = unit_definition_by_type(unit_type);
+function create_world_handle_for_battle_unit(type: Unit_Type, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
     const world_location = battle_position_to_world_position_center(at);
-    const handle = CreateUnitByName(unit_type_to_dota_unit_name(unit_type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
+    const handle = CreateUnitByName(unit_type_to_dota_unit_name(type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
     handle.SetForwardVector(Vector(facing.x, facing.y));
 
-    const unit: Battle_Unit = {
-        handle: handle,
+    return handle;
+}
+
+function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
+    const definition = unit_definition_by_type(unit_type);
+
+    return {
+        handle: create_world_handle_for_battle_unit(unit_type, at, facing),
         id: unit_id,
         type: unit_type,
         position: at,
@@ -177,17 +182,15 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         level: 1,
         health: definition.health,
         max_health: definition.health,
+        attack_damage: definition.attack_damage,
         attack_bonus: 0,
-        stunned_counter: 0,
-        silenced_counter: 0,
+        armor: 0,
+        state_stunned_counter: 0,
+        state_silenced_counter: 0,
         move_points: definition.move_points,
         max_move_points: definition.move_points,
         modifiers: []
     };
-
-    battle.units.push(unit);
-
-    return unit;
 }
 
 function tracking_projectile_to_unit(source: Battle_Unit, target: Battle_Unit, particle_path: string, speed: number, out_attach: string = "attach_attack1") {
@@ -750,53 +753,51 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             break;
         }
 
+        case Ability_Id.dragon_knight_elder_dragon_form_attack: {
+            unit_emit_sound(unit, "vo_dragon_knight_dragon_attack");
+            turn_unit_towards_target(unit, cast.target_position);
+            wait(0.2);
+            unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonShoot3.Attack");
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
+            // try_play_sound_for_unit(unit, get_unit_attack_sound);
+            tracking_projectile_to_point(unit, cast.target_position, "particles/units/heroes/hero_dragon_knight/dragon_knight_dragon_tail_dragonform_proj.vpcf", 1200);
+
+            for (const target of from_client_array(cast.targets)) {
+                const target_unit = find_unit_by_id(target.target_unit_id);
+
+                if (target_unit) {
+                    change_health(main_player, unit, target_unit, target.damage_dealt);
+                }
+            }
+
+            unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonShoot3.Attack");
+
+            EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(cast.target_position), "Hero_DragonKnight.ProjectileImpact", unit.handle);
+
+            shake_screen(cast.target_position, Shake.medium);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
 
 function apply_modifier_changes(main_player: Main_Player, target: Battle_Unit, changes: Modifier_Change[], invert: boolean) {
     for (const change of changes) {
-        const delta = invert ? -change.delta : change.delta;
-
-        switch (change.field) {
-            case Modifier_Field.move_points_bonus: {
-                target.max_move_points += delta;
-                target.move_points = Math.min(target.move_points, target.max_move_points);
+        switch (change.type) {
+            case Modifier_Change_Type.field_change: {
+                apply_modifier_field_change(target, change, invert);
                 break;
             }
-
-            case Modifier_Field.attack_bonus: {
-                target.attack_bonus += delta;
+            
+            case Modifier_Change_Type.ability_swap: {
                 break;
             }
-
-            case Modifier_Field.health_bonus: {
-                target.max_health += delta;
-                target.health = Math.min(target.health, target.max_health);
-                break;
-            }
-
-            case Modifier_Field.state_stunned_counter: {
-                target.stunned_counter += delta;
-
-                update_state_visuals(target);
-                break;
-            }
-
-            case Modifier_Field.state_silenced_counter: {
-                target.silenced_counter += delta;
-
-                update_state_visuals(target);
-                break;
-            }
-
-            case Modifier_Field.armor_bonus: {
-                break;
-            }
-
-            default: unreachable(change.field);
         }
     }
+
+    update_state_visuals(target);
 }
 
 type Modifier_Visuals_Complex = {
@@ -830,7 +831,8 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
             fx("particles/units/heroes/hero_skywrath_mage/skywrath_mage_ancient_seal_debuff.vpcf")
                 .follow_unit_overhead(0, target)
                 .follow_unit_origin(1, target)
-        )
+        );
+        case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
     }
 }
 
@@ -1142,6 +1144,16 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             break;
         }
 
+        case Ability_Id.dragon_knight_elder_dragon_form: {
+            unit_emit_sound(unit, "vo_dragon_knight_elder_dragon_form");
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.8);
+            fx_by_unit("particles/units/heroes/hero_dragon_knight/dragon_knight_transform_red.vpcf", unit).release();
+            unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonForm");
+            apply_modifier(main_player, unit, cast.modifier);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -1209,8 +1221,8 @@ function update_specific_state_visuals(unit: Battle_Unit, counter: number, assoc
 }
 
 function update_state_visuals(unit: Battle_Unit) {
-    update_specific_state_visuals(unit, unit.stunned_counter, "modifier_stunned");
-    update_specific_state_visuals(unit, unit.silenced_counter, "modifier_silenced");
+    update_specific_state_visuals(unit, unit.state_stunned_counter, "modifier_stunned");
+    update_specific_state_visuals(unit, unit.state_silenced_counter, "modifier_silenced");
 }
 
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
@@ -1296,6 +1308,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const owner = array_find(battle.players, player => player.id == delta.owner_id)!;
             const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
+
+            battle.units.push(unit);
 
             unit_emit_sound(unit, unit_type_to_spawn_sound(unit.type));
             unit_emit_sound(unit, "hero_spawn");
@@ -1551,23 +1565,33 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     }
 
     battle.units = snapshot.units.map(unit => {
-        const new_unit = spawn_unit_for_battle(unit.type, unit.id, unit.owner_id, unit.position, unit.facing);
+        const restored_unit: Battle_Unit = {
+            id: unit.id,
+            type: unit.type,
+            armor: unit.armor,
+            health: unit.health,
+            max_health: unit.max_health,
+            move_points: unit.move_points,
+            max_move_points: unit.max_move_points,
+            attack_damage: unit.attack_damage,
+            attack_bonus: unit.attack_bonus,
+            level: unit.level,
+            state_stunned_counter: unit.state_stunned_counter,
+            state_silenced_counter: unit.state_silenced_counter,
+            modifiers: from_client_array(unit.modifiers).map(modifier => ({
+                modifier_id: modifier.modifier_id,
+                modifier_handle_id: modifier.modifier_handle_id,
+                changes: from_client_array(modifier.changes)
+            })),
+            position: unit.position,
+            owner_remote_id: unit.owner_id,
+            is_playing_a_delta: false,
+            handle: create_world_handle_for_battle_unit(unit.type, unit.position, unit.facing)
+        };
 
-        // TODO we need this to be typesafe, codegen a copy<T extends U, U>(source: T, target: U) function
-        new_unit.health = unit.health;
-        new_unit.level = unit.level;
-        new_unit.stunned_counter = unit.stunned_counter;
-        new_unit.attack_bonus = unit.attack_bonus;
-        new_unit.max_health = unit.max_health;
-        new_unit.move_points = unit.move_points;
-        new_unit.max_move_points = unit.max_move_points;
-        new_unit.modifiers = from_client_array(unit.modifiers).map(modifier => ({
-            modifier_id: modifier.modifier_id,
-            modifier_handle_id: modifier.modifier_handle_id,
-            changes: from_client_array(modifier.changes)
-        }));
+        battle.units.push(restored_unit);
 
-        return new_unit;
+        return restored_unit;
     });
 
     battle.delta_head = snapshot.delta_head;

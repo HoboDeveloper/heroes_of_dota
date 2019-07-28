@@ -42,24 +42,17 @@ type Cell = {
     position: XY;
 }
 
-type Unit = {
+type Unit = Unit_Stats & {
     type: Unit_Type;
     id: number;
     owner_player_id: number;
     dead: boolean;
     position: XY;
-    health: number;
-    move_points: number;
     has_taken_an_action_this_turn: boolean;
     attack: Ability;
-    armor: number;
-    max_health: number;
-    level: number;
-    max_move_points: number;
-    attack_bonus: number;
-    state_stunned_counter: number
-    state_silenced_counter: number
-    abilities: Ability[];
+    level: number
+    abilities: Ability[]
+    ability_bench: Ability[]
     modifiers: Modifier[]
 }
 
@@ -393,6 +386,28 @@ function find_unit_ability(unit: Unit, ability_id: Ability_Id): Ability | undefi
     return unit.abilities.find(ability => ability.id == ability_id);
 }
 
+function replace_ability(unit: Unit, ability_id_to_bench: Ability_Id, currently_benched_ability_id: Ability_Id) {
+    const benched_ability_index = unit.ability_bench.findIndex(ability => ability.id == currently_benched_ability_id);
+
+    if (benched_ability_index == -1) return;
+
+    if (ability_id_to_bench == unit.attack.id) {
+        const old_attack = unit.attack;
+        unit.attack = unit.ability_bench[benched_ability_index];
+        unit.ability_bench[benched_ability_index] = old_attack;
+        return;
+    } else {
+        const ability_to_bench_index = unit.abilities.findIndex(ability => ability.id == ability_id_to_bench);
+
+        if (ability_to_bench_index == -1) return;
+
+        const ability_to_bench = unit.abilities[ability_to_bench_index];
+
+        unit.abilities[ability_to_bench_index] = unit.ability_bench[benched_ability_index];
+        unit.ability_bench[benched_ability_index] = ability_to_bench;
+    }
+}
+
 function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Ability_Authorization {
     function error(err: Ability_Error): Ability_Authorization_Error {
         return {
@@ -409,7 +424,12 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     if (unit.dead) return error(Ability_Error.dead);
     if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
     if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
-    if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
+
+    if (ability == unit.attack) {
+
+    } else {
+        if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
+    }
 
     if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
 
@@ -467,42 +487,23 @@ function change_health(battle: Battle, source: Unit, target: Unit, change: Value
 
 function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert: boolean) {
     for (const change of changes) {
-        const delta = invert ? -change.delta : change.delta;
+        switch (change.type) {
+            case Modifier_Change_Type.field_change: {
+                apply_modifier_field_change(target, change, invert);
 
-        switch (change.field) {
-            case Modifier_Field.move_points_bonus: {
-                target.max_move_points += delta;
-                target.move_points = Math.min(target.move_points, target.max_move_points);
                 break;
             }
 
-            case Modifier_Field.armor_bonus: {
-                target.armor += delta;
+            case Modifier_Change_Type.ability_swap: {
+                const swap_from = invert ? change.swap_to : change.original_ability;
+                const swap_to = invert ? change.original_ability : change.swap_to;
+
+                replace_ability(target, swap_from, swap_to);
+
                 break;
             }
 
-            case Modifier_Field.attack_bonus: {
-                target.attack_bonus += delta;
-                break;
-            }
-
-            case Modifier_Field.health_bonus: {
-                target.max_health += delta;
-                target.health = Math.min(target.health, target.max_health);
-                break;
-            }
-
-            case Modifier_Field.state_stunned_counter: {
-                target.state_stunned_counter += delta;
-                break;
-            }
-
-            case Modifier_Field.state_silenced_counter: {
-                target.state_silenced_counter += delta;
-                break;
-            }
-
-            default: unreachable(change.field);
+            default: unreachable(change);
         }
     }
 }
@@ -652,6 +653,12 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
             break;
         }
 
+        case Ability_Id.dragon_knight_elder_dragon_form: {
+            apply_modifier(source, source, cast.ability_id, cast.modifier);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -707,6 +714,18 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
             break;
         }
 
+        case Ability_Id.dragon_knight_elder_dragon_form_attack: {
+            for (const target of cast.targets) {
+                const target_unit = find_unit_by_id(battle, target.target_unit_id);
+
+                if (target_unit) {
+                    change_health(battle, source, target_unit, target.damage_dealt);
+                }
+            }
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -734,11 +753,13 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 owner_player_id: delta.owner_id,
                 position: delta.at_position,
                 attack: ability_definition_to_ability(definition.attack),
+                attack_damage: definition.attack_damage,
                 move_points: definition.move_points,
                 health: definition.health,
                 dead: false,
                 has_taken_an_action_this_turn: false,
                 abilities: definition.abilities.map(ability_definition_to_ability),
+                ability_bench: definition.ability_bench.map(ability_definition_to_ability),
                 modifiers: [],
                 attack_bonus: 0,
                 level: 1,

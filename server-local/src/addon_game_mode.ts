@@ -6,6 +6,7 @@ require("requests");
 require("calls");
 require("unit_defs");
 require("particles");
+require("modifier_logic");
 
 function Activate() { main(); }
 function Precache(context: CScriptPrecacheContext) {
