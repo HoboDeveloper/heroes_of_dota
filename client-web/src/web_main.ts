@@ -430,13 +430,7 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
 
 function get_hero_name(type: Unit_Type): string {
     switch (type) {
-        case Unit_Type.sniper: return "sniper";
-        case Unit_Type.pudge: return "pudge";
-        case Unit_Type.ursa: return "ursa";
-        case Unit_Type.tidehunter: return "tidehunter";
-        case Unit_Type.luna: return "luna";
-        case Unit_Type.skywrath_mage: return "skywrath_mage";
-        case Unit_Type.dragon_knight: return "dragon_knight";
+        default: return enum_to_string(type);
     }
 }
 
