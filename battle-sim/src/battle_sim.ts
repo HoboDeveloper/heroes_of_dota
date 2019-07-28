@@ -32,7 +32,8 @@ type Battle = {
     turning_player_index: number
     cells: Cell[]
     grid_size: XY
-    change_health: (battle: Battle, source: Unit, target: Unit, change: Value_Change) => boolean,
+    change_health: (battle: Battle, source: Unit, target: Unit, change: Health_Change) => boolean,
+    apply_modifier: (source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) => void,
     end_turn: (battle: Battle) => void
 }
 
@@ -210,6 +211,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         deltas: [],
         grid_size: xy(grid_width, grid_height),
         change_health: change_health_default,
+        apply_modifier: apply_modifier_default,
         end_turn: end_turn_default
     }
 }
@@ -441,7 +443,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
-function change_health_default(battle: Battle, source: Unit, target: Unit, change: Value_Change): boolean {
+function change_health_default(battle: Battle, source: Unit, target: Unit, change: Health_Change): boolean {
     target.health = change.new_value;
 
     if (!target.dead && change.new_value == 0) {
@@ -481,7 +483,7 @@ function end_turn_default(battle: Battle) {
     }
 }
 
-function change_health(battle: Battle, source: Unit, target: Unit, change: Value_Change) {
+function change_health(battle: Battle, source: Unit, target: Unit, change: Health_Change) {
     return battle.change_health(battle, source, target, change);
 }
 
@@ -508,7 +510,11 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
     }
 }
 
-function apply_modifier(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
+function apply_modifier(battle: Battle, source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
+    battle.apply_modifier(source, target, ability_id, modifier);
+}
+
+function apply_modifier_default(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
     const modifier_base: Modifier_Base = {
         id: modifier.modifier_id,
         handle_id: modifier.modifier_handle_id,
@@ -550,6 +556,37 @@ function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
     }
 }
 
+function change_health_multiple(battle: Battle, source: Unit, changes: Unit_Health_Change[]) {
+    for (const change of changes) {
+        const target = find_unit_by_id(battle, change.target_unit_id);
+
+        if (target) {
+            change_health(battle, source, target, change.change);
+        }
+    }
+}
+
+function apply_modifier_multiple(battle: Battle, source: Unit, ability_id: Ability_Id, applications: Unit_Modifier_Application[]) {
+    for (const application of applications) {
+        const target = find_unit_by_id(battle, application.target_unit_id);
+
+        if (target) {
+            apply_modifier(battle, source, target, ability_id, application.modifier);
+        }
+    }
+}
+
+function change_health_and_apply_modifier_multiple(battle: Battle, source: Unit, ability_id: Ability_Id, changes: (Unit_Health_Change & Unit_Modifier_Application)[]) {
+    for (const change of changes) {
+        const target = find_unit_by_id(battle, change.target_unit_id);
+
+        if (target) {
+            change_health(battle, source, target, change.change);
+            apply_modifier(battle, source, target, ability_id, change.modifier);
+        }
+    }
+}
+
 function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: Unit, cast: Delta_Unit_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.pudge_dismember: {
@@ -567,19 +604,19 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 
         case Ability_Id.tide_gush: {
             change_health(battle, source, target, cast.damage_dealt);
-            apply_modifier(source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
 
             break;
         }
 
         case Ability_Id.skywrath_ancient_seal: {
-            apply_modifier(source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
             break;
         }
 
         case Ability_Id.dragon_knight_dragon_tail: {
             change_health(battle, source, target, cast.damage_dealt);
-            apply_modifier(source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
 
             break;
         }
@@ -591,51 +628,25 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delta_Use_No_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.tide_ravage: {
-            for (const effect of cast.targets) {
-                const target = find_unit_by_id(battle, effect.target_unit_id);
-
-                if (target) {
-                    change_health(battle, source, target, effect.damage_dealt);
-                    apply_modifier(source, target, cast.ability_id, effect.modifier);
-                }
-            }
+            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
 
             break;
         }
 
         case Ability_Id.luna_eclipse: {
-            for (const effect of cast.targets) {
-                const target = find_unit_by_id(battle, effect.target_unit_id);
-
-                if (target) {
-                    change_health(battle, source, target, effect.damage_dealt);
-                }
-            }
+            change_health_multiple(battle, source, cast.targets);
 
             break;
         }
 
         case Ability_Id.tide_anchor_smash: {
-            for (const effect of cast.targets) {
-                const target = find_unit_by_id(battle, effect.target_unit_id);
-
-                if (target) {
-                    change_health(battle, source, target, effect.damage_dealt);
-                    apply_modifier(source, target, cast.ability_id, effect.modifier);
-                }
-            }
+            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
 
             break;
         }
 
         case Ability_Id.pudge_rot: {
-            for (const effect of cast.targets) {
-                const target = find_unit_by_id(battle, effect.target_unit_id);
-
-                if (target) {
-                    change_health(battle, source, target, effect.damage_dealt);
-                }
-            }
+            change_health_multiple(battle, source, cast.targets);
 
             break;
         }
@@ -646,7 +657,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, cast.result.damage);
-                    apply_modifier(source, target, cast.ability_id, cast.result.modifier);
+                    apply_modifier(battle, source, target, cast.ability_id, cast.result.modifier);
                 }
             }
 
@@ -654,7 +665,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form: {
-            apply_modifier(source, source, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, source, cast.ability_id, cast.modifier);
 
             break;
         }
@@ -691,38 +702,17 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
         }
 
         case Ability_Id.skywrath_mystic_flare: {
-            for (const target of cast.targets) {
-                const target_unit = find_unit_by_id(battle, target.target_unit_id);
-
-                if (target_unit) {
-                    change_health(battle, source, target_unit, target.damage_dealt);
-                }
-            }
-
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 
         case Ability_Id.dragon_knight_breathe_fire: {
-            for (const target of cast.targets) {
-                const target_unit = find_unit_by_id(battle, target.target_unit_id);
-
-                if (target_unit) {
-                    change_health(battle, source, target_unit, target.damage_dealt);
-                }
-            }
-
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form_attack: {
-            for (const target of cast.targets) {
-                const target_unit = find_unit_by_id(battle, target.target_unit_id);
-
-                if (target_unit) {
-                    change_health(battle, source, target_unit, target.damage_dealt);
-                }
-            }
-
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 

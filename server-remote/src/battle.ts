@@ -140,7 +140,14 @@ function apply_ability_effect_delta<T extends Ability_Effect>(effect: T): Delta_
     }
 }
 
-function health_change(target: Unit, change: number): Value_Change {
+function unit_health_change(target: Unit, change: number): Unit_Health_Change {
+    return {
+        change: health_change(target, change),
+        target_unit_id: target.id
+    }
+}
+
+function health_change(target: Unit, change: number): Health_Change {
     return {
         new_value: Math.max(0, Math.min(target.max_health, target.health + change)),
         value_delta: change
@@ -266,19 +273,14 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
             return {
                 ...base,
                 ability_id: ability.id,
-                targets: targets.map(target => ({
-                    target_unit_id: target.unit.id,
-                    damage_dealt: health_change(target.unit, -target.damage_applied)
-                })),
+                targets: targets.map(target => unit_health_change(target.unit, -target.damage_applied)),
                 damage_remaining: remaining_damage
             }
         }
 
         case Ability_Id.dragon_knight_breathe_fire: {
-            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
-                target_unit_id: target.id,
-                damage_dealt: health_change(target, -ability.damage),
-            }));
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting)
+                .map(target => unit_health_change(target, -ability.damage));
 
             return {
                 ...base,
@@ -288,10 +290,8 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form_attack: {
-            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
-                target_unit_id: target.id,
-                damage_dealt: health_change(target, -calculate_basic_attack_damage_to_target(target)),
-            }));
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting)
+                .map(target => unit_health_change(target, -calculate_basic_attack_damage_to_target(target)));
 
             return {
                 ...base,
@@ -312,10 +312,8 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
 
     switch (ability.id) {
         case Ability_Id.pudge_rot: {
-            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
-                target_unit_id: target.id,
-                damage_dealt: health_change(target, -ability.damage)
-            }));
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting)
+                .map(target => unit_health_change(target, -ability.damage));
 
             return {
                 ...base,
@@ -327,7 +325,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
         case Ability_Id.tide_anchor_smash: {
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
-                damage_dealt: health_change(target, -ability.damage),
+                change: health_change(target, -ability.damage),
                 modifier: new_timed_modifier(battle, Modifier_Id.tide_anchor_smash, 1, [Modifier_Field.attack_bonus, -ability.attack_reduction])
             }));
 
@@ -341,7 +339,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
         case Ability_Id.tide_ravage: {
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting).map(target => ({
                 target_unit_id: target.id,
-                damage_dealt: health_change(target, -ability.damage),
+                change: health_change(target, -ability.damage),
                 modifier: new_timed_modifier(battle, Modifier_Id.tide_ravage, 1, [Modifier_Field.state_stunned_counter, 1])
             }));
 
@@ -377,10 +375,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 }
             }
 
-            const effects = targets.map(target => ({
-                target_unit_id: target.unit.id,
-                damage_dealt: health_change(target.unit, -target.beams_applied)
-            }));
+            const effects = targets.map(target => unit_health_change(target.unit, -target.beams_applied));
 
             return {
                 ...base,
@@ -758,7 +753,7 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     return last_alive_unit_player_id;
 }
 
-function server_change_health(battle: Battle_Record, source: Unit, target: Unit, change: Value_Change) {
+function server_change_health(battle: Battle_Record, source: Unit, target: Unit, change: Health_Change) {
     const killed = change_health_default(battle, source, target, change);
 
     if (killed) {

@@ -347,6 +347,8 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
     unit_emit_sound(caster, "Ability.Ravage");
     shake_screen(caster.position, Shake.strong);
 
+    type Ravage_Target = (Unit_Health_Change & Unit_Modifier_Application);
+
     const fx = fx_by_unit("particles/tide_ravage/tide_ravage.vpcf", caster);
     const particle_delay = 0.1;
     const deltas_by_distance: Ravage_Target[][] = [];
@@ -433,7 +435,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
                 delta_completion_status[delta_id] = true;
             });
 
-            change_health(main_player, caster, target, target_data.damage_dealt);
+            change_health(main_player, caster, target, target_data.change);
             apply_modifier(main_player, target, target_data.modifier);
         }
 
@@ -643,7 +645,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             let total_time = cast.damage_remaining * tick_time;
 
             for (const target of targets) {
-                total_time += tick_time * (-target.damage_dealt.value_delta);
+                total_time += tick_time * (-target.change.value_delta);
             }
 
             const world_target = battle_position_to_world_position_center(cast.target_position);
@@ -660,7 +662,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 
             const damaged_units = targets.map(target => ({
                 unit_id: target.target_unit_id,
-                damage_remaining: -target.damage_dealt.value_delta
+                damage_remaining: -target.change.value_delta
             }));
 
             while (damaged_units.length > 0) {
@@ -727,7 +729,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
                 const target_unit = find_unit_by_id(target.target_unit_id);
 
                 if (target_unit) {
-                    change_health(main_player, unit, target_unit, target.damage_dealt);
+                    change_health(main_player, unit, target_unit, target.change);
                 }
             }
 
@@ -766,7 +768,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
                 const target_unit = find_unit_by_id(target.target_unit_id);
 
                 if (target_unit) {
-                    change_health(main_player, unit, target_unit, target.damage_dealt);
+                    change_health(main_player, unit, target_unit, target.change);
                 }
             }
 
@@ -970,7 +972,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 const target = find_unit_by_id(target_data.target_unit_id);
 
                 if (target) {
-                    change_health(main_player, unit, target, target_data.damage_dealt);
+                    change_health(main_player, unit, target, target_data.change);
                 }
             }
 
@@ -999,7 +1001,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 const target = find_unit_by_id(effect.target_unit_id);
 
                 if (target) {
-                    change_health(main_player, unit, target, effect.damage_dealt);
+                    change_health(main_player, unit, target, effect.change);
                     apply_modifier(main_player, unit, effect.modifier);
                 }
             }
@@ -1035,7 +1037,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
             const beam_targets = from_client_array(cast.targets).map(delta => ({
                 delta: delta,
-                beams_remaining: -delta.damage_dealt.value_delta
+                beams_remaining: -delta.change.value_delta
             }));
 
             while (beam_targets.length > 0) {
@@ -1247,7 +1249,7 @@ function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up
     return sequence_duration - time_passed;
 }
 
-function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, change: Value_Change) {
+function change_health(main_player: Main_Player, source: Battle_Unit, target: Battle_Unit, change: Health_Change) {
     function number_particle(amount: number, r: number, g: number, b: number) {
         fx("particles/msg_damage.vpcf")
             .to_unit_origin(0, target)
@@ -1443,7 +1445,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const target = find_unit_by_id(delta.target_unit_id);
 
             if (source && target) {
-                change_health(main_player, source, target, delta); // TODO use Value_Change
+                change_health(main_player, source, target, delta); // TODO use Health_Change
             }
 
             break;

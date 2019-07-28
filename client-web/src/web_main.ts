@@ -647,6 +647,23 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             ]
         }
 
+        case Delta_Type.modifier_removed: {
+            for (const unit of game.battle.units) {
+                for (const modifier of unit.modifiers) {
+                    if (modifier.handle_id == delta.modifier_handle_id) {
+                        return [
+                            clr.unit_name(unit),
+                            clr.plain(" loses "),
+                            clr.txt(enum_to_string(modifier.id), "gray"),
+                            clr.plain(" modifier")
+                        ];
+                    }
+                }
+            }
+
+            break;
+        }
+
         /* TODO repurpose this for modifiers
         case Delta_Type.unit_field_change: {
             const source = find_unit_by_id(game.battle, delta.source_unit_id);
@@ -1096,7 +1113,7 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
             const battle_log: Colored_Line[] = [];
             const battle = {
                 ...make_battle(player_state.participants, player_state.grid_size.width, player_state.grid_size.height),
-                change_health: (battle: Battle, source: Unit, target: Unit, change: Value_Change) => {
+                change_health: (battle: Battle, source: Unit, target: Unit, change: Health_Change) => {
                     if (change.value_delta > 0) {
                         battle_log.push([
                             clr.unit_name(source),
@@ -1125,6 +1142,27 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                     }
 
                     return died;
+                },
+                apply_modifier: (source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) => {
+                    apply_modifier_default(source, target, ability_id, modifier);
+
+                    const lines = [
+                        clr.unit_name(source),
+                        clr.plain(" applies "),
+                        clr.txt(enum_to_string(modifier.modifier_id), "gray"),
+                        clr.plain(" to "),
+                        clr.unit_name(target)
+                    ];
+
+                    if (modifier.duration) {
+                        lines.push(
+                            clr.plain(" for "),
+                            clr.txt(modifier.duration.toString(), "gray"),
+                            clr.plain(" turns")
+                        );
+                    }
+
+                    battle_log.push(lines);
                 }
             };
 

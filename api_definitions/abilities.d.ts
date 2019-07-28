@@ -202,7 +202,7 @@ type Delta_Use_No_Target_Ability =
 type Basic_Attack_Hit = {
     hit: true
     target_unit_id: number
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
 }
 
 type Delta_Ability_Basic_Attack = Delta_Ground_Target_Ability_Base & {
@@ -213,7 +213,7 @@ type Delta_Ability_Basic_Attack = Delta_Ground_Target_Ability_Base & {
 type Pudge_Hook_Hit = {
     hit: true
     target_unit_id: number
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
     move_target_to: {
         x: number
         y: number
@@ -235,58 +235,55 @@ type Delta_Ability_Pudge_Hook = Delta_Ground_Target_Ability_Base & {
 
 type Delta_Ability_Pudge_Rot = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_rot
-    targets: {
-        target_unit_id: number
-        damage_dealt: Value_Change
-    }[]
+    targets: Unit_Health_Change[]
 }
 
-type Value_Change = {
+type Health_Change = {
     new_value: number
     value_delta: number
 }
 
+type Unit_Health_Change = {
+    target_unit_id: number;
+    change: Health_Change;
+}
+
+type Unit_Modifier_Application = {
+    target_unit_id: number
+    modifier: Modifier_Application
+}
+
 type Delta_Ability_Pudge_Dismember = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.pudge_dismember
-    health_restored: Value_Change
-    damage_dealt: Value_Change
+    health_restored: Health_Change
+    damage_dealt: Health_Change
 }
 
 type Delta_Ability_Tide_Gush = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.tide_gush
     modifier: Modifier_Application
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
 }
 
 type Delta_Ability_Tide_Anchor_Smash = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_anchor_smash
-    targets: {
-        target_unit_id: number
-        modifier: Modifier_Application
-        damage_dealt: Value_Change
-    }[]
-}
-
-type Ravage_Target = {
-    target_unit_id: number
-    damage_dealt: Value_Change
-    modifier: Modifier_Application
+    targets: (Unit_Health_Change & Unit_Modifier_Application)[]
 }
 
 type Delta_Ability_Tide_Ravage = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.tide_ravage
-    targets: Ravage_Target[]
+    targets: (Unit_Health_Change & Unit_Modifier_Application)[]
 }
 
 type Delta_Ability_Luna_Lucent_Beam = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.luna_lucent_beam,
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
 }
 
 type Concussive_Shot_Hit = {
     hit: true
     target_unit_id: number
-    damage: Value_Change
+    damage: Health_Change
     modifier: Modifier_Application
 }
 
@@ -307,10 +304,7 @@ type Delta_Ability_Skywrath_Ancient_Seal = Delta_Unit_Target_Ability_Base & {
 type Delta_Ability_Skywrath_Mystic_Flare = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.skywrath_mystic_flare
     damage_remaining: number
-    targets: {
-        target_unit_id: number
-        damage_dealt: Value_Change
-    }[]
+    targets: Unit_Health_Change[]
 }
 
 type Ability_Effect_Luna_Moon_Glaive = {
@@ -318,29 +312,23 @@ type Ability_Effect_Luna_Moon_Glaive = {
     source_unit_id: number
     target_unit_id: number
     original_target_id: number
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
 }
 
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
     missed_beams: number
-    targets: {
-        target_unit_id: number
-        damage_dealt: Value_Change
-    }[]
+    targets: Unit_Health_Change[]
 }
 
 type Delta_Ability_Dragon_Knight_Breathe_Fire = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.dragon_knight_breathe_fire
-    targets: {
-        target_unit_id: number
-        damage_dealt: Value_Change
-    }[]
+    targets: Unit_Health_Change[]
 }
 
 type Delta_Ability_Dragon_Knight_Dragon_Tail = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.dragon_knight_dragon_tail
-    damage_dealt: Value_Change
+    damage_dealt: Health_Change
     modifier: Modifier_Application
 }
 
@@ -351,8 +339,5 @@ type Delta_Ability_Dragon_Knight_Elder_Dragon_Form = Delta_Use_No_Target_Ability
 
 type Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.dragon_knight_elder_dragon_form_attack
-    targets: {
-        target_unit_id: number
-        damage_dealt: Value_Change
-    }[]
+    targets: Unit_Health_Change[]
 }
