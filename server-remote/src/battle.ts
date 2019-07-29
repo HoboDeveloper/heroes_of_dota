@@ -490,6 +490,18 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             }
         }
 
+        case Ability_Id.lion_hex: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: new_timed_modifier(battle, Modifier_Id.lion_hex, ability.duration,
+                    [Modifier_Field.state_silenced_counter, 1],
+                    [Modifier_Field.state_disarmed_counter, 1],
+                    [Modifier_Field.move_points_bonus, -ability.move_points_reduction]
+                )
+            }
+        }
+
         default: unreachable(ability.type);
     }
 }

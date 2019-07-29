@@ -253,7 +253,15 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                 move_points: 3,
                 attack_damage: 3,
                 attack: basic_attack(3),
-                abilities: [],
+                abilities: [
+                    active_ability<Ability_Lion_Hex>({
+                        available_since_level: 1,
+                        targeting: target_in_manhattan_distance(3),
+                        charges: 1,
+                        duration: 2,
+                        move_points_reduction: 1
+                    })
+                ],
                 ability_bench: []
             }
         }

@@ -48,7 +48,8 @@ declare const enum Modifier_Field {
     armor_bonus = 3,
     move_points_bonus = 4,
     state_silenced_counter = 5,
-    state_stunned_counter = 6
+    state_stunned_counter = 6,
+    state_disarmed_counter = 7
 }
 
 declare const enum Unit_State {
@@ -99,6 +100,7 @@ type Unit_Stats = {
     attack_bonus: number
     state_stunned_counter: number
     state_silenced_counter: number
+    state_disarmed_counter: number
 }
 
 type Unit_Definition = {

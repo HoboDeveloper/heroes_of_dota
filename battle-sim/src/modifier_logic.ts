@@ -34,6 +34,11 @@ function apply_modifier_field_change(target: Unit_Stats, change: Modifier_Change
             break;
         }
 
+        case Modifier_Field.state_disarmed_counter: {
+            target.state_disarmed_counter += delta;
+            break;
+        }
+
         default: unreachable(change.field);
     }
 }

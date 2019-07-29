@@ -188,6 +188,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         armor: 0,
         state_stunned_counter: 0,
         state_silenced_counter: 0,
+        state_disarmed_counter: 0,
         move_points: definition.move_points,
         max_move_points: definition.move_points,
         modifiers: []
@@ -467,6 +468,12 @@ function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined
             particle_path: "particles/units/heroes/hero_skywrath_mage/skywrath_mage_base_attack.vpcf",
             projectile_speed: 800,
             attack_point: 0.5
+        };
+
+        case Unit_Type.lion: return {
+            particle_path: "particles/units/heroes/hero_lion/lion_base_attack.vpcf",
+            projectile_speed: 1200,
+            attack_point: 0.4
         }
     }
 }
@@ -840,6 +847,7 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
                 .follow_unit_origin(1, target)
         );
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
+        case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
     }
 }
 
@@ -949,6 +957,17 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             apply_modifier(main_player, target, cast.modifier);
             change_health(main_player, unit, target, cast.damage_dealt);
             shake_screen(target.position, Shake.medium);
+
+            break;
+        }
+
+        case Ability_Id.lion_hex: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2, 0.4);
+            unit_emit_sound(target, "Hero_Lion.Voodoo");
+            unit_emit_sound(target, "Hero_Lion.Hex.Target");
+            apply_modifier(main_player, target, cast.modifier);
+            shake_screen(target.position, Shake.weak);
+            fx_by_unit("particles/units/heroes/hero_lion/lion_spell_voodoo.vpcf", target).release();
 
             break;
         }
@@ -1229,7 +1248,7 @@ function update_specific_state_visuals(unit: Battle_Unit, counter: number, assoc
 
 function update_state_visuals(unit: Battle_Unit) {
     update_specific_state_visuals(unit, unit.state_stunned_counter, "modifier_stunned");
-    update_specific_state_visuals(unit, unit.state_silenced_counter, "modifier_silenced");
+    update_specific_state_visuals(unit, unit.state_silenced_counter, "modifier_silence");
 }
 
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
@@ -1586,6 +1605,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             level: unit.level,
             state_stunned_counter: unit.state_stunned_counter,
             state_silenced_counter: unit.state_silenced_counter,
+            state_disarmed_counter: unit.state_disarmed_counter,
             modifiers: from_client_array(unit.modifiers).map(modifier => ({
                 modifier_id: modifier.modifier_id,
                 modifier_handle_id: modifier.modifier_handle_id,

@@ -16,6 +16,9 @@ declare const enum Ability_Id {
     dragon_knight_dragon_tail = 16,
     dragon_knight_elder_dragon_form = 17,
     dragon_knight_elder_dragon_form_attack = 18,
+    lion_hex = 19,
+    lion_impale = 20,
+    lion_finger_of_death = 21,
 
     sniper_shrapnel = 99
 }
@@ -28,6 +31,7 @@ declare const enum Modifier_Id {
     skywrath_ancient_seal = 4,
     dragon_knight_dragon_tail = 5,
     dragon_knight_elder_dragon_form = 6,
+    lion_hex = 7
 }
 
 type Ability_Definition_Active_Base = {
@@ -145,6 +149,13 @@ type Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Ability_Definition_Active_
     type: Ability_Type.target_ground
 }
 
+type Ability_Lion_Hex = Ability_Definition_Active_Base & {
+    id: Ability_Id.lion_hex
+    type: Ability_Type.target_unit
+    duration: number
+    move_points_reduction: number
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -166,7 +177,8 @@ type Ability_Definition_Active =
     Ability_Dragon_Knight_Breathe_Fire |
     Ability_Dragon_Knight_Dragon_Tail |
     Ability_Dragon_Knight_Elder_Dragon_Form |
-    Ability_Dragon_Knight_Elder_Dragon_Form_Attack
+    Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
+    Ability_Lion_Hex
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -188,7 +200,8 @@ type Delta_Unit_Target_Ability =
     Delta_Ability_Tide_Gush |
     Delta_Ability_Luna_Lucent_Beam |
     Delta_Ability_Skywrath_Ancient_Seal |
-    Delta_Ability_Dragon_Knight_Dragon_Tail
+    Delta_Ability_Dragon_Knight_Dragon_Tail |
+    Delta_Ability_Lion_Hex
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
@@ -340,4 +353,9 @@ type Delta_Ability_Dragon_Knight_Elder_Dragon_Form = Delta_Use_No_Target_Ability
 type Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.dragon_knight_elder_dragon_form_attack
     targets: Unit_Health_Change[]
+}
+
+type Delta_Ability_Lion_Hex = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.lion_hex
+    modifier: Modifier_Application
 }

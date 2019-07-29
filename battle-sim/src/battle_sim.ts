@@ -9,7 +9,8 @@ declare const enum Ability_Error {
     not_learned_yet = 6,
     stunned = 7,
     silenced = 8,
-    unusable = 9
+    disarmed = 9,
+    unusable = 10
 }
 
 type Ability_Authorization_Ok = {
@@ -171,6 +172,10 @@ function is_unit_stunned(unit: Unit) {
 
 function is_unit_silenced(unit: Unit) {
     return unit.state_silenced_counter > 0;
+}
+
+function is_unit_disarmed(unit: Unit) {
+    return unit.state_disarmed_counter > 0;
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
@@ -428,7 +433,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
 
     if (ability == unit.attack) {
-
+        if (is_unit_disarmed(unit)) return error(Ability_Error.disarmed);
     } else {
         if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
     }
@@ -621,6 +626,11 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
             break;
         }
 
+        case Ability_Id.lion_hex: {
+            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -757,6 +767,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 max_move_points: definition.move_points,
                 state_stunned_counter: 0,
                 state_silenced_counter: 0,
+                state_disarmed_counter: 0,
                 armor: 0
             });
 

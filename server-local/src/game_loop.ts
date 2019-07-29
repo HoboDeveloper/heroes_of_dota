@@ -103,6 +103,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     max_move_points: unit.max_move_points,
                     state_stunned_counter: unit.state_stunned_counter,
                     state_silenced_counter: unit.state_silenced_counter,
+                    state_disarmed_counter: unit.state_disarmed_counter,
                     attack_bonus: unit.attack_bonus,
                     attack_damage: unit.attack_damage,
                     modifiers: unit.modifiers
@@ -274,6 +275,7 @@ function main() {
     link_modifier("Modifier_Tide_Gush", "modifiers/modifier_tide_gush");
     link_modifier("Modifier_Damage_Effect", "modifiers/modifier_damage_effect");
     link_modifier("Modifier_Dragon_Knight_Elder_Dragon", "modifiers/modifier_dragon_knight_elder_dragon");
+    link_modifier("Modifier_Lion_Hex", "modifiers/modifier_lion_hex");
 
     const scheduler: Scheduler = {
         tasks: new Map<Coroutine<any>, Task>()

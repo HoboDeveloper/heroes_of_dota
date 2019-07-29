@@ -1024,6 +1024,7 @@ function make_battle_snapshot(): Battle_Snapshot {
                 facing: battle.unit_id_to_facing[unit.id],
                 state_stunned_counter: unit.state_stunned_counter,
                 state_silenced_counter: unit.state_silenced_counter,
+                state_disarmed_counter: unit.state_disarmed_counter,
                 owner_id: unit.owner_player_id,
                 attack_damage: unit.attack_damage,
                 attack_bonus: unit.attack_bonus,
@@ -1082,6 +1083,7 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.dragon_knight_dragon_tail: return `Deal ${a.damage} and stun chosen target`;
         case Ability_Id.dragon_knight_elder_dragon_form: return `Transform, gain additional attack range and splash attack for ${a.duration} turns`;
         case Ability_Id.dragon_knight_elder_dragon_form_attack: return `Elder dragon form attack`;
+        case Ability_Id.lion_hex: return `Hex target enemy, silencing, disarming and slowing them by ${a.move_points_reduction} for ${a.duration} turns`;
     }
 }
 
@@ -1105,6 +1107,9 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.dragon_knight_dragon_tail: return "dragon_knight_dragon_tail";
         case Ability_Id.dragon_knight_elder_dragon_form: return "dragon_knight_elder_dragon_form";
         case Ability_Id.dragon_knight_elder_dragon_form_attack: return "dragon_knight_elder_dragon_form";
+        case Ability_Id.lion_hex: return "lion_voodoo";
+        case Ability_Id.lion_impale: return "lion_impale";
+        case Ability_Id.lion_finger_of_death: return "lion_finger_of_death";
     }
 }
 
@@ -1489,6 +1494,12 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
             }
 
             return;
+        } else {
+            const auth = authorize_ability_use_by_unit(source, source.attack.id);
+
+            if (!auth.success) {
+                show_ability_error(source, source.attack.id, auth.error);
+            }
         }
     }
 
@@ -1697,6 +1708,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.stunned: return custom("Stunned");
         case Ability_Error.silenced: return native(24);
         case Ability_Error.unusable: return custom("Can't be used");
+        case Ability_Error.disarmed: return custom("Disarmed");
 
         default: return unreachable(error);
     }
