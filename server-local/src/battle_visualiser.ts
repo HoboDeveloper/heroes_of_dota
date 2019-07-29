@@ -227,6 +227,30 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
     particle.destroy_and_release(false);
 }
 
+function toss_target_up(target: Battle_Unit) {
+    const toss_start_time = GameRules.GetGameTime();
+    const toss_time = 0.4;
+    const start_origin = target.handle.GetAbsOrigin();
+
+    target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
+
+    while (true) {
+        const now = GameRules.GetGameTime();
+        const progress = Math.min(1, (now - toss_start_time) / toss_time);
+        const current_height = Math.sin(progress * Math.PI) * 260;
+
+        target.handle.SetAbsOrigin(start_origin + Vector(0, 0, current_height) as Vector);
+
+        if (now >= toss_start_time + toss_time) {
+            break;
+        }
+
+        wait_one_frame();
+    }
+
+    target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
+}
+
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ability_Pudge_Hook) {
     function is_hook_hit(cast: Pudge_Hook_Hit | Line_Ability_Miss): cast is Pudge_Hook_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
@@ -384,33 +408,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
         by_distance.push(target_data);
     }
 
-    function toss_target_up(target: Battle_Unit) {
-        const toss_start_time = GameRules.GetGameTime();
-        const toss_time = 0.4;
-        const start_origin = target.handle.GetAbsOrigin();
-
-        target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
-
-        while (true) {
-            const now = GameRules.GetGameTime();
-            const progress = Math.min(1, (now - toss_start_time) / toss_time);
-            const current_height = Math.sin(progress * Math.PI) * 260;
-
-            target.handle.SetAbsOrigin(start_origin + Vector(0, 0, current_height) as Vector);
-
-            if (now >= toss_start_time + toss_time) {
-                break;
-            }
-
-            wait_one_frame();
-        }
-
-        target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
-    }
-
-    let delta_id_counter = 0;
-
-    const delta_completion_status: boolean[] = [];
+    const forks: Fork[] = [];
 
     for (let distance = 1; distance <= 5; distance++) {
         const by_distance = deltas_by_distance[distance];
@@ -425,17 +423,11 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
                 continue;
             }
 
-            const delta_id = delta_id_counter++;
-
-            delta_completion_status[delta_id] = false;
-
-            fork(() => {
+            forks.push(fork(() => {
                 fx_by_unit("particles/units/heroes/hero_tidehunter/tidehunter_spell_ravage_hit.vpcf", target).release();
                 unit_emit_sound(target, "Hero_Tidehunter.RavageDamage");
                 toss_target_up(target);
-
-                delta_completion_status[delta_id] = true;
-            });
+            }));
 
             change_health(main_player, caster, target, target_data.change);
             apply_modifier(main_player, target, target_data.modifier);
@@ -446,7 +438,7 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
 
     caster.handle.FadeGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
-    wait_until(() => delta_completion_status.every(value => value));
+    wait_for_all_forks(forks);
 }
 
 function get_ranged_attack_spec(type: Unit_Type): Ranged_Attack_Spec | undefined {
@@ -631,6 +623,10 @@ function attachment_world_origin(unit: CDOTA_BaseNPC, attachment_name: string) {
 function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Ground_Target_Ability) {
     highlight_grid_for_targeted_ability(unit, cast.ability_id, cast.target_position);
 
+    const world_from = battle_position_to_world_position_center(unit.position);
+    const world_to = battle_position_to_world_position_center(cast.target_position);
+    const direction = ((world_to - world_from) as Vector).Normalized();
+
     switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
             perform_basic_attack(main_player, unit, cast);
@@ -730,9 +726,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             }
 
             const stem_length = 3; // @HardcodedConstant
-            const world_from = battle_position_to_world_position_center(unit.position);
-            const world_to = battle_position_to_world_position_center(cast.target_position);
-            const direction = ((world_to - world_from) as Vector).Normalized();
             const final_position = world_from + direction * (stem_length * battle_cell_size) as Vector;
 
             fire_breath_projectile(stem_length, world_from, direction);
@@ -773,7 +766,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             wait(0.2);
             unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonShoot3.Attack");
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
-            // try_play_sound_for_unit(unit, get_unit_attack_sound);
             tracking_projectile_to_point(unit, cast.target_position, "particles/units/heroes/hero_dragon_knight/dragon_knight_dragon_tail_dragonform_proj.vpcf", 1200);
 
             for (const target of from_client_array(cast.targets)) {
@@ -789,6 +781,79 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             EmitSoundOnLocationWithCaster(battle_position_to_world_position_center(cast.target_position), "Hero_DragonKnight.ProjectileImpact", unit.handle);
 
             shake_screen(cast.target_position, Shake.medium);
+
+            break;
+        }
+
+        case Ability_Id.lion_impale: {
+            turn_unit_towards_target(unit, cast.target_position);
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.3);
+            unit_emit_sound(unit, "Hero_Lion.Impale");
+
+            // @HardcodedConstant
+            const distance_to_travel = 3;
+            const travel_speed = 1500;
+            const start_time = GameRules.GetGameTime();
+            const time_to_travel = distance_to_travel * battle_cell_size / travel_speed;
+            const particle = fx("particles/units/heroes/hero_lion/lion_spell_impale.vpcf")
+                .with_vector_value(0, battle_position_to_world_position_center(unit.position))
+                .with_vector_value(1, direction * travel_speed as Vector);
+
+            type Impale_Target = {
+                unit: Battle_Unit
+                change: Health_Change
+                modifier: Modifier_Application
+                was_hit: boolean
+            }
+
+            const targets: Impale_Target[] = [];
+
+            for (const target of from_client_array(cast.targets)) {
+                const target_unit = find_unit_by_id(target.target_unit_id);
+
+                if (target_unit) {
+                    targets.push({
+                        unit: target_unit,
+                        change: target.change,
+                        modifier: target.modifier,
+                        was_hit: false
+                    })
+                }
+            }
+
+            const forks: Fork[] = [];
+
+            while (true) {
+                const travelled_for = GameRules.GetGameTime() - start_time;
+                const distance_travelled = travelled_for * travel_speed;
+
+                if (travelled_for >= time_to_travel && targets.every(target => target.was_hit)) {
+                    break;
+                }
+
+                for (const target of targets) {
+                    if (target.was_hit) continue;
+
+                    if (target.unit && distance_travelled > (target.unit.handle.GetAbsOrigin() - world_from as Vector).Length2D()) {
+                        change_health(main_player, unit, target.unit, target.change);
+                        apply_modifier(main_player, target.unit, target.modifier);
+
+                        forks.push(fork(() => {
+                            unit_emit_sound(target.unit, "Hero_Lion.ImpaleHitTarget");
+                            toss_target_up(target.unit);
+                            unit_emit_sound(target.unit, "Hero_Lion.ImpaleTargetLand");
+                        }));
+
+                        target.was_hit = true;
+                    }
+                }
+
+                wait_one_frame();
+            }
+
+            particle.destroy_and_release(false);
+
+            wait_for_all_forks(forks);
 
             break;
         }

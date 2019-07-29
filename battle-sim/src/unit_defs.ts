@@ -36,6 +36,13 @@ function targets_in_rectangle(radius: number): Ability_Target_Selector_Rectangle
     }
 }
 
+function targets_in_line(length: number): Ability_Target_Selector_Line {
+    return {
+        type: Ability_Target_Selector_Type.line,
+        length: length
+    }
+}
+
 function target_in_manhattan_distance(distance: number, selector: Ability_Target_Selector = single_target()): Ability_Targeting_Target_In_Manhattan_Distance {
     return {
         type: Ability_Targeting_Type.unit_in_manhattan_distance,
@@ -260,6 +267,12 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         charges: 1,
                         duration: 2,
                         move_points_reduction: 1
+                    }),
+                    active_ability<Ability_Lion_Impale>({
+                        available_since_level: 2,
+                        targeting: target_line(3, targets_in_line(3)),
+                        charges: 1,
+                        damage: 4
                     })
                 ],
                 ability_bench: []

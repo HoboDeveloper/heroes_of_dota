@@ -8,6 +8,10 @@ type Task = {
     is_waiting: boolean;
 }
 
+type Fork = {
+    has_finished: boolean
+}
+
 function update_scheduler(scheduler: Scheduler) {
     context_scheduler = scheduler;
     
@@ -32,16 +36,25 @@ function update_scheduler(scheduler: Scheduler) {
     });
 }
 
-function fork(code: () => void) {
+function fork(code: () => void): Fork {
     const task: Task = {
         is_waiting: false
     };
 
-    const routine = coroutine.create(code);
+    const fork: Fork = {
+        has_finished: false
+    };
+
+    const routine = coroutine.create(() => {
+        code();
+        fork.has_finished = true;
+    });
 
     context_scheduler.tasks.set(routine, task);
 
     coroutine.resume(routine);
+
+    return fork;
 }
 
 function wait_one_frame() {
@@ -73,6 +86,10 @@ function wait_until(condition: () => boolean) {
     while (!condition()) {
         wait_one_frame();
     }
+}
+
+function wait_for_all_forks(forks: Fork[]) {
+    wait_until(() => forks.every(fork => fork.has_finished));
 }
 
 function guarded_wait_until(limit_seconds: number, condition: () => boolean): boolean {

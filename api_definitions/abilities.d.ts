@@ -156,6 +156,12 @@ type Ability_Lion_Hex = Ability_Definition_Active_Base & {
     move_points_reduction: number
 }
 
+type Ability_Lion_Impale = Ability_Definition_Active_Base & {
+    id: Ability_Id.lion_impale
+    type: Ability_Type.target_ground
+    damage: number
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -178,7 +184,8 @@ type Ability_Definition_Active =
     Ability_Dragon_Knight_Dragon_Tail |
     Ability_Dragon_Knight_Elder_Dragon_Form |
     Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
-    Ability_Lion_Hex
+    Ability_Lion_Hex |
+    Ability_Lion_Impale
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -193,7 +200,8 @@ type Delta_Ground_Target_Ability =
     Delta_Ability_Pudge_Hook |
     Delta_Ability_Skywrath_Mystic_Flare |
     Delta_Ability_Dragon_Knight_Breathe_Fire |
-    Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack
+    Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
+    Delta_Ability_Lion_Impale
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -358,4 +366,9 @@ type Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack = Delta_Ground_Target_
 type Delta_Ability_Lion_Hex = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.lion_hex
     modifier: Modifier_Application
+}
+
+type Delta_Ability_Lion_Impale = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.lion_impale
+    targets: (Unit_Health_Change & Unit_Modifier_Application)[]
 }

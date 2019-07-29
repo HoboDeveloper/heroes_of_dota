@@ -181,7 +181,7 @@ function new_timed_modifier(battle: Battle_Record, id: Modifier_Id, duration: nu
     }
 }
 
-function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Delta_Ground_Target_Ability | undefined {
+function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Delta_Ground_Target_Ability | undefined {
     const base: Delta_Ground_Target_Ability_Base = {
         type: Delta_Type.use_ground_target_ability,
         unit_id: unit.id,
@@ -298,6 +298,20 @@ function perform_ability_cast_ground(battle: Battle, unit: Unit, ability: Abilit
                 ability_id: ability.id,
                 targets: targets
             }
+        }
+
+        case Ability_Id.lion_impale: {
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
+                target_unit_id: target.id,
+                change: health_change(target, -ability.damage),
+                modifier: new_timed_modifier(battle, Modifier_Id.tide_ravage, 1, [Modifier_Field.state_stunned_counter, 1])
+            }));
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: targets
+            };
         }
 
         default: unreachable(ability.type);

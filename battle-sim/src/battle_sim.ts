@@ -726,6 +726,11 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
             break;
         }
 
+        case Ability_Id.lion_impale: {
+            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
