@@ -155,6 +155,7 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type): string {
         case Unit_Type.luna: return "npc_dota_hero_luna";
         case Unit_Type.skywrath_mage: return "npc_dota_hero_skywrath_mage";
         case Unit_Type.dragon_knight: return "npc_dota_hero_dragon_knight";
+        case Unit_Type.lion: return "npc_dota_hero_lion";
     }
 }
 
@@ -479,6 +480,7 @@ function get_unit_deny_voice_line(type: Unit_Type): string {
         case Unit_Type.skywrath_mage: return "vo_skywrath_mage_deny";
         case Unit_Type.ursa: return "vo_ursa_deny";
         case Unit_Type.dragon_knight: return "vo_dragon_knight_deny";
+        case Unit_Type.lion: return "vo_lion_deny";
     }
 }
 
@@ -533,6 +535,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Unit_Type.tidehunter: return "hero_tidehunter.Attack";
             case Unit_Type.skywrath_mage: return "Hero_SkywrathMage.Attack";
             case Unit_Type.dragon_knight: return "Hero_DragonKnight.Attack";
+            case Unit_Type.lion: return "Hero_Lion.Attack";
         }
     }
 
@@ -541,6 +544,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Unit_Type.sniper: return "Hero_Sniper.ProjectileImpact";
             case Unit_Type.luna: return "Hero_Luna.ProjectileImpact";
             case Unit_Type.skywrath_mage: return "Hero_SkywrathMage.ProjectileImpact";
+            case Unit_Type.lion: return "Hero_Lion.ProjectileImpact";
         }
     }
 
@@ -553,6 +557,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Unit_Type.ursa: return "vo_ursa_attack";
             case Unit_Type.skywrath_mage: return "vo_skywrath_mage_attack";
             case Unit_Type.dragon_knight: return "vo_dragon_knight_attack";
+            case Unit_Type.lion: return "vo_lion_attack";
         }
     }
 
@@ -1296,6 +1301,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                     case Unit_Type.tidehunter: return "vo_tide_spawn";
                     case Unit_Type.ursa: return "vo_ursa_spawn";
                     case Unit_Type.dragon_knight: return "vo_dragon_knight_spawn";
+                    case Unit_Type.lion: return "vo_lion_spawn";
                 }
             }
 

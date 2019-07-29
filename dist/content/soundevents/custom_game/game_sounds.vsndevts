@@ -413,4 +413,44 @@
         ]
     }
 
+    vo_lion_spawn = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/lion/lion_spawn_01.vsnd",
+            "sounds/vo/lion/lion_spawn_02.vsnd",
+            "sounds/vo/lion/lion_spawn_03.vsnd",
+            "sounds/vo/lion/lion_spawn_04.vsnd",
+            "sounds/vo/lion/lion_spawn_05.vsnd",
+            "sounds/vo/lion/lion_spawn_06.vsnd",
+        ]
+    }
+
+    vo_lion_attack = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/lion/lion_attack_01.vsnd",
+            "sounds/vo/lion/lion_attack_04.vsnd",
+            "sounds/vo/lion/lion_attack_06.vsnd",
+            "sounds/vo/lion/lion_attack_07.vsnd",
+            "sounds/vo/lion/lion_attack_11.vsnd",
+            "sounds/vo/lion/lion_attack_12.vsnd",
+        ]
+    }
+
+    vo_lion_deny = {
+        type = "dota_update_vo_switch"
+        vsnd_files =
+        [
+            "sounds/vo/lion/lion_deny_01.vsnd",
+            "sounds/vo/lion/lion_deny_02.vsnd",
+            "sounds/vo/lion/lion_deny_03.vsnd",
+            "sounds/vo/lion/lion_deny_04.vsnd",
+            "sounds/vo/lion/lion_deny_05.vsnd",
+            "sounds/vo/lion/lion_deny_06.vsnd",
+            "sounds/vo/lion/lion_deny_09.vsnd",
+            "sounds/vo/lion/lion_deny_10.vsnd",
+        ]
+    }
 }
