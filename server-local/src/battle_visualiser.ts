@@ -971,15 +971,14 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 
         case Ability_Id.tide_gush: {
             const fx = "particles/units/heroes/hero_tidehunter/tidehunter_gush.vpcf";
-            const { damage_dealt, modifier } = cast;
 
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.2);
             unit_emit_sound(unit, "Ability.GushCast");
             tracking_projectile_to_unit(unit, target, fx, 3000, "attach_attack2");
             unit_emit_sound(unit, "Ability.GushImpact");
             shake_screen(target.position, Shake.medium);
-            apply_modifier(main_player, target, modifier);
-            change_health(main_player, unit, target, damage_dealt);
+            apply_modifier(main_player, target, cast.modifier);
+            change_health(main_player, unit, target, cast.damage_dealt);
 
             break;
         }
