@@ -961,10 +961,33 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
 
     switch (cast.ability_id) {
         case Ability_Id.pudge_dismember: {
-            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
+            function loop_health_change(target: Battle_Unit, change: Health_Change) {
+                const loops = 4;
+                const length = Math.abs(change.new_value - target.health);
+                const direction = change.value_delta / length;
+                const change_per_loop = Math.ceil(length / loops);
 
-            change_health(main_player, unit, target, cast.damage_dealt);
-            change_health(main_player, unit, unit, cast.health_restored);
+                let remaining = length;
+
+                while (remaining != 0) {
+                    const delta = (remaining > change_per_loop ? change_per_loop : remaining) * direction;
+
+                    change_health(main_player, unit, target, { new_value: target.health + delta, value_delta: delta });
+
+                    remaining = Math.max(0, remaining - change_per_loop);
+
+                    wait(0.6);
+                }
+            }
+
+            unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
+
+            wait_for_all_forks([
+                fork(() => loop_health_change(target, cast.damage_dealt)),
+                fork(() => loop_health_change(unit, cast.health_restored))
+            ]);
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_CHANNEL_ABILITY_4);
 
             break;
         }
