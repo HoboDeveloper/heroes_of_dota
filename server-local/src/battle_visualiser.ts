@@ -1037,6 +1037,25 @@ function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_U
             break;
         }
 
+        case Ability_Id.lion_finger_of_death: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_4, 0.4);
+            unit_emit_sound(unit, "Hero_Lion.FingerOfDeath");
+
+            fx("particles/units/heroes/hero_lion/lion_spell_finger_of_death.vpcf")
+                .to_unit_attach_point(0, unit, "attach_attack2")
+                .to_unit_attach_point(1, target, "attach_hitloc")
+                .to_unit_attach_point(2, target, "attach_hitloc")
+                .release();
+
+            wait(0.1);
+
+            unit_emit_sound(target, "Hero_Lion.FingerOfDeathImpact");
+            change_health(main_player, unit, target, cast.damage_dealt);
+            shake_screen(target.position, Shake.medium);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }

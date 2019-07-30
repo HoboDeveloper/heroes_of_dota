@@ -162,6 +162,12 @@ type Ability_Lion_Impale = Ability_Definition_Active_Base & {
     damage: number
 }
 
+type Ability_Lion_Finger_Of_Death = Ability_Definition_Active_Base & {
+    id: Ability_Id.lion_finger_of_death
+    type: Ability_Type.target_unit
+    damage: number
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -185,7 +191,8 @@ type Ability_Definition_Active =
     Ability_Dragon_Knight_Elder_Dragon_Form |
     Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
     Ability_Lion_Hex |
-    Ability_Lion_Impale
+    Ability_Lion_Impale |
+    Ability_Lion_Finger_Of_Death
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive
@@ -209,7 +216,8 @@ type Delta_Unit_Target_Ability =
     Delta_Ability_Luna_Lucent_Beam |
     Delta_Ability_Skywrath_Ancient_Seal |
     Delta_Ability_Dragon_Knight_Dragon_Tail |
-    Delta_Ability_Lion_Hex
+    Delta_Ability_Lion_Hex |
+    Delta_Ability_Lion_Finger_Of_Death
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
@@ -371,4 +379,9 @@ type Delta_Ability_Lion_Hex = Delta_Unit_Target_Ability_Base & {
 type Delta_Ability_Lion_Impale = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.lion_impale
     targets: (Unit_Health_Change & Unit_Modifier_Application)[]
+}
+
+type Delta_Ability_Lion_Finger_Of_Death = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.lion_finger_of_death
+    damage_dealt: Health_Change
 }

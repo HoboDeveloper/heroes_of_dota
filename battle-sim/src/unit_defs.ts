@@ -273,6 +273,12 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
                         targeting: target_line(3, targets_in_line(3)),
                         charges: 1,
                         damage: 4
+                    }),
+                    active_ability<Ability_Lion_Finger_Of_Death>({
+                        available_since_level: 3,
+                        targeting: target_in_manhattan_distance(4),
+                        charges: 1,
+                        damage: 8
                     })
                 ],
                 ability_bench: []

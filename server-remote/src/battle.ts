@@ -516,6 +516,14 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             }
         }
 
+        case Ability_Id.lion_finger_of_death: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                damage_dealt: health_change(target, -ability.damage)
+            }
+        }
+
         default: unreachable(ability.type);
     }
 }

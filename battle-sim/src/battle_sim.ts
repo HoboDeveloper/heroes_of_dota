@@ -631,6 +631,11 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
             break;
         }
 
+        case Ability_Id.lion_finger_of_death: {
+            change_health(battle, source, target, cast.damage_dealt);
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
