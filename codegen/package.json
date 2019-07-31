@@ -2,7 +2,9 @@
   "name": "codegen",
   "version": "1.0.0",
   "description": "",
-  "dependencies": {},
+  "dependencies": {
+    "ts-simple-type": "^0.3.5"
+  },
   "devDependencies": {
     "ttypescript": "^1.5.5",
     "typescript": "3.3.3",

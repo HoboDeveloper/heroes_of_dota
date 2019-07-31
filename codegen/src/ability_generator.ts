@@ -95,56 +95,6 @@ export default function run_transformer(program: ts.Program, options: Options): 
 
             return;
         }
-
-
-        if (node.kind == ts.SyntaxKind.FunctionDeclaration) {
-            const declaration = node as ts.FunctionDeclaration;
-
-            const function_name = "ability_definition_to_ability";
-
-            if (declaration.name.escapedText == function_name) {
-                const identifier = declaration.parameters[0].name as ts.Identifier;
-
-                // TODO fill all the data + additional data automatically
-                const return_statement = ts.createReturn(ts.createObjectLiteral([
-                    ts.createPropertyAssignment("id", ts.createPropertyAccess(identifier, "id")),
-                    ts.createPropertyAssignment("type", ts.createPropertyAccess(identifier, "type")),
-                    ts.createPropertyAssignment("targeting", ts.createPropertyAccess(identifier, "targeting")),
-                    ts.createPropertyAssignment("available_since_level", ts.createPropertyAccess(identifier, "available_since_level")),
-                    ts.createPropertyAssignment("cooldown", ts.createPropertyAccess(identifier, "cooldown")),
-                    ts.createPropertyAssignment("mana_cost", ts.createPropertyAccess(identifier, "mana_cost")),
-
-                    // Specials
-                    ts.createPropertyAssignment("damage", ts.createPropertyAccess(identifier, "damage")),
-                    ts.createPropertyAssignment("health_per_kill", ts.createPropertyAccess(identifier, "health_per_kill")),
-                    ts.createPropertyAssignment("attack_reduction", ts.createPropertyAccess(identifier, "attack_reduction")),
-                    ts.createPropertyAssignment("move_points_reduction", ts.createPropertyAccess(identifier, "move_points_reduction")),
-                    ts.createPropertyAssignment("total_beams", ts.createPropertyAccess(identifier, "total_beams")),
-                    ts.createPropertyAssignment("attack_bonus", ts.createPropertyAccess(identifier, "attack_bonus")),
-                    ts.createPropertyAssignment("duration", ts.createPropertyAccess(identifier, "duration")),
-                    ts.createPropertyAssignment("radius", ts.createPropertyAccess(identifier, "radius")),
-
-                    // Defaults
-                    ts.createPropertyAssignment("charges", ts.createPropertyAccess(identifier, "charges")),
-                    ts.createPropertyAssignment("charges_remaining", ts.createPropertyAccess(identifier, "charges")),
-                ], true));
-
-                const block = ts.createBlock([
-                    return_statement
-                ], true);
-
-                return ts.createFunctionDeclaration(
-                    [],
-                    [],
-                    undefined,
-                    function_name,
-                    [],
-                    declaration.parameters,
-                    declaration.type,
-                    block
-                );
-            }
-        }
     }
 
     function process_source_file(context: ts.TransformationContext, file: ts.SourceFile) {

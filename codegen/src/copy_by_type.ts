@@ -1,5 +1,11 @@
 import * as ts from "typescript";
-import {SimpleType, SimpleTypeEnumMember, SimpleTypeKind, toSimpleType} from "ts-simple-type";
+import {
+    SimpleType,
+    SimpleTypeKind,
+    SimpleTypeMemberNamed,
+    SimpleTypeObject,
+    toSimpleType
+} from "ts-simple-type";
 
 export interface Options {
     some?: string;
@@ -14,11 +20,33 @@ export default function run_transformer(program: ts.Program, options: Options): 
         throw new Error(`ERROR: ${source.fileName}:${line + 1},${character + 1} / ${error}`);
     }
 
-    function resolve_alias(type: SimpleType): SimpleType {
-        return type.kind == SimpleTypeKind.ALIAS ? type.target : type;
-    }
-
     function process_node(node: ts.Node): ts.Node | undefined {
+        function copy_object(expression: ts.Expression, type: SimpleTypeObject) {
+            return ts.createObjectLiteral(type.members.map(member => ts.createPropertyAssignment(member.name, ts.createPropertyAccess(expression, member.name))), true)
+        }
+
+        function resolve_alias(type: SimpleType): SimpleType {
+            return type.kind == SimpleTypeKind.ALIAS ? type.target : type;
+        }
+
+        function extract_members(types: SimpleType[]): SimpleTypeMemberNamed[]{
+            const result: SimpleTypeMemberNamed[] = [];
+
+            for (const child of types) {
+                const resolved = resolve_alias(child);
+
+                if (resolved.kind == SimpleTypeKind.OBJECT) {
+                    resolved.members.forEach(member => result.push(member));
+                } else if (resolved.kind == SimpleTypeKind.INTERSECTION || resolved.kind == SimpleTypeKind.UNION) {
+                    result.push(...extract_members(resolved.types));
+                } else {
+                    console.log("Can't extract from", resolved);
+                }
+            }
+
+            return result;
+        }
+
         if (node.kind == ts.SyntaxKind.CallExpression) {
             const call = node as ts.CallExpression;
             const signature = checker.getResolvedSignature(call);
@@ -26,51 +54,25 @@ export default function run_transformer(program: ts.Program, options: Options): 
 
             if (!decl) return;
 
-            if (decl.kind == ts.SyntaxKind.FunctionDeclaration && decl.name.escapedText == "enum_to_string") {
+            if (decl.kind == ts.SyntaxKind.FunctionDeclaration && decl.name.escapedText == "copy") {
                 const argument = call.arguments[0];
                 const type = resolve_alias(toSimpleType(checker.getTypeAtLocation(argument), checker));
-                const enum_members: SimpleTypeEnumMember[] = [];
 
-                if (type.kind == SimpleTypeKind.ENUM) {
-                    enum_members.push(...type.types);
+                if (type.kind == SimpleTypeKind.UNION || type.kind == SimpleTypeKind.INTERSECTION) {
+                    const set: Record<string, undefined> = {};
+
+                    extract_members(type.types).map(member => member.name).forEach(name => set[name] = undefined);
+
+                    const member_names = Object.keys(set);
+
+                    return ts.createObjectLiteral(member_names.map(name => ts.createPropertyAssignment(name, ts.createPropertyAccess(argument, name))), true)
                 }
 
-                if (type.kind == SimpleTypeKind.UNION) {
-                    for (const union_member of type.types) {
-                        if (union_member.kind == SimpleTypeKind.ENUM_MEMBER) {
-                            enum_members.push(union_member);
-                        }
-                    }
+                if (type.kind == SimpleTypeKind.OBJECT) {
+                    return copy_object(argument, type);
                 }
 
-                const cases = enum_members.map(member => {
-                    if (member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
-                        return ts.createCaseClause(ts.createLiteral(member.type.value), [
-                            ts.createReturn(ts.createStringLiteral(member.name))
-                        ]);
-                    }
-
-                    error_out(argument, "Unsupported member type " + member.type);
-                });
-
-                const inline_function_argument_name = "value";
-                const switch_expression = ts.createSwitch(ts.createIdentifier(inline_function_argument_name), ts.createCaseBlock(cases));
-                const code_block = ts.createBlock([
-                    switch_expression
-                ]);
-
-                const arrow_function = ts.createArrowFunction(
-                    undefined,
-                    undefined,
-                    [
-                        ts.createParameter(undefined, undefined, undefined, inline_function_argument_name)
-                    ],
-                    undefined,
-                    undefined,
-                    code_block
-                );
-
-                return ts.createCall(arrow_function, undefined, [argument]);
+                error_out(argument, "Unsupported argument type " + type.kind);
             }
 
             return;
