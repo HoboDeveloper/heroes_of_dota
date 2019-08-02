@@ -541,3 +541,5 @@ type Battle_Cheat_Command_Request = {
     cheat: string
     selected_unit_id: number
 }
+
+declare function copy<T>(arg: T): T;

@@ -1,5 +1,3 @@
-declare function ability_definition_to_ability<T>(definition: Ability_Definition): Ability;
-
 declare const enum Ability_Error {
     other = 0,
     dead = 1,
@@ -741,6 +739,17 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
 }
 
 function collapse_delta(battle: Battle, delta: Delta): void {
+    function ability_definition_to_ability(definition: Ability_Definition): Ability {
+        if (definition.type == Ability_Type.passive) {
+            return copy(definition);
+        }
+
+        return {
+            ...copy(definition),
+            charges_remaining: definition.charges
+        }
+    }
+
     switch (delta.type) {
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
