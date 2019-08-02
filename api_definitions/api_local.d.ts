@@ -38,7 +38,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
             width: number
             height: number
         }
-        entity_id_to_unit_data: Record<EntityId, Shared_Visualizer_Unit_Data>
+        entity_id_to_unit_data: Record<number, Shared_Visualizer_Unit_Data>
         current_visual_head: number
     }
 }
