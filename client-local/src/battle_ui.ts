@@ -43,8 +43,8 @@ type UI_Unit_Data = {
 type UI_Battle = Battle & {
     id: number
     world_origin: XY;
-    entity_id_to_unit_data: { [entity_id: number]: UI_Unit_Data },
-    unit_id_to_facing: { [unit_id: number]: XY };
+    entity_id_to_unit_data: Record<EntityId, UI_Unit_Data>
+    unit_id_to_facing: Record<number, XY>;
     cells: UI_Cell[];
     cell_index_to_unit: Unit[];
     outline_particles: ParticleId[];

@@ -89,7 +89,7 @@ function log_chat_debug_message(message: string) {
 function player_state_to_player_net_table(main_player: Main_Player): Player_Net_Table {
     switch (main_player.state) {
         case Player_State.in_battle: {
-            const entity_id_to_unit_data: { [entity_id:number]: Shared_Visualizer_Unit_Data } = {};
+            const entity_id_to_unit_data: Record<EntityID, Shared_Visualizer_Unit_Data> = {};
 
             for (const unit of battle.units) {
                 // TODO some of those properties are not actually needed

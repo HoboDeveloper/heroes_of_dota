@@ -15,7 +15,7 @@ type Main_Player = {
     state: Player_State;
 }
 
-type Player_Map = { [id: number]: Player };
+type Player_Map = Record<number, Player>;
 
 const movement_history_submit_rate = 0.7;
 const movement_history_length = 30;
