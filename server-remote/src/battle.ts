@@ -8,6 +8,7 @@ let battle_id_auto_increment = 0;
 export type Battle_Record = Battle & {
     id: number
     unit_id_auto_increment: number
+    rune_id_auto_increment: number
     modifier_handle_id_auto_increment: number
     card_id_auto_increment: number
     finished: boolean
@@ -15,6 +16,56 @@ export type Battle_Record = Battle & {
 }
 
 const battles: Battle_Record[] = [];
+
+const default_bg = {
+    grid_size: xy(12, 8),
+    deployment_zone_width: 3
+};
+
+const battlegrounds: Battleground_Definition[] = [
+    {
+        grid_size: default_bg.grid_size,
+        deployment_zones: [
+            {
+                min_x: 0,
+                min_y: 0,
+                max_x: default_bg.deployment_zone_width,
+                max_y: default_bg.grid_size.y,
+                face_x: 1,
+                face_y: 0
+            },
+            {
+                min_x: default_bg.grid_size.x - default_bg.deployment_zone_width,
+                min_y: 0,
+                max_x: default_bg.grid_size.x,
+                max_y: default_bg.grid_size.y,
+                face_x: -1,
+                face_y: 0
+            }
+        ],
+        spawns: [
+            {
+                type: Spawn_Type.rune,
+                at: xy(5, 6)
+            }
+        ]
+    }
+];
+
+declare const enum Spawn_Type {
+    rune = 0
+}
+
+type Battleground_Spawn = {
+    type: Spawn_Type
+    at: XY
+}
+
+type Battleground_Definition = {
+    grid_size: XY
+    deployment_zones: Deployment_Zone[]
+    spawns: Battleground_Spawn[]
+}
 
 export function random_int_range(lower_bound: number, upper_bound: number) {
     const range = upper_bound - lower_bound;
@@ -30,12 +81,6 @@ export function random_in_array<T>(array: T[], length = array.length): T | undef
     if (length == 0) return;
 
     return array[random_int_up_to(length)];
-}
-
-type Aura = {
-    source: Unit
-    active_modifier_ids: number[]
-    change: number
 }
 
 type Scan_Result_Hit = {
@@ -767,6 +812,10 @@ function get_next_card_id(battle: Battle_Record) {
     return battle.card_id_auto_increment++;
 }
 
+function get_next_rune_id(battle: Battle_Record) {
+    return battle.rune_id_auto_increment++;
+}
+
 function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
     if (battle.turn_index < 5) {
         return undefined;
@@ -871,38 +920,20 @@ export function find_battle_by_id(id: number): Battle_Record | undefined {
 }
 
 export function start_battle(players: Player[]): number {
-    const grid_size = xy(12, 8);
-    const deployment_zone_width = 3;
-
-    const left_player_zone = {
-        min_x: 0,
-        min_y: 0,
-        max_x: deployment_zone_width,
-        max_y: grid_size.y,
-        face_x: 1,
-        face_y: 0
-    };
-
-    const top_player_zone = {
-        min_x: grid_size.x - deployment_zone_width,
-        min_y: 0,
-        max_x: grid_size.x,
-        max_y: grid_size.y,
-        face_x: -1,
-        face_y: 0
-    };
+    const battleground = random_in_array(battlegrounds)!;
 
     const battle_players: Battle_Participant_Info[] = players.map(player => ({
         id: player.id,
         name: player.name,
-        deployment_zone: player == players[0] ? left_player_zone : top_player_zone
+        deployment_zone: player == players[0] ? battleground.deployment_zones[0] : battleground.deployment_zones[1]
     }));
 
     const battle: Battle_Record = {
-        ...make_battle(battle_players, grid_size.x, grid_size.y),
+        ...make_battle(battle_players, battleground.grid_size.x, battleground.grid_size.y),
         id: battle_id_auto_increment++,
         turn_index: 0,
         unit_id_auto_increment: 0,
+        rune_id_auto_increment: 0,
         modifier_handle_id_auto_increment: 0,
         card_id_auto_increment: 0,
         finished: false,
@@ -912,21 +943,42 @@ export function start_battle(players: Player[]): number {
 
     fill_grid(battle);
 
-    const spawn_deltas = [
-        draw_hero_card(battle, battle.players[0], Unit_Type.dragon_knight),
-        draw_hero_card(battle, battle.players[0], Unit_Type.pudge),
-        draw_hero_card(battle, battle.players[0], Unit_Type.tidehunter),
-        draw_hero_card(battle, battle.players[0], Unit_Type.luna),
-        draw_hero_card(battle, battle.players[0], Unit_Type.skywrath_mage),
-        draw_hero_card(battle, battle.players[0], Unit_Type.lion),
-
-        draw_hero_card(battle, battle.players[1], Unit_Type.dragon_knight),
-        draw_hero_card(battle, battle.players[1], Unit_Type.pudge),
-        draw_hero_card(battle, battle.players[1], Unit_Type.tidehunter),
-        draw_hero_card(battle, battle.players[1], Unit_Type.luna),
-        draw_hero_card(battle, battle.players[1], Unit_Type.skywrath_mage),
-        draw_hero_card(battle, battle.players[1], Unit_Type.lion),
+    const card_collection = [
+        Unit_Type.dragon_knight,
+        Unit_Type.pudge,
+        Unit_Type.tidehunter,
+        Unit_Type.luna,
+        Unit_Type.skywrath_mage,
+        Unit_Type.lion
     ];
+
+    const spawn_deltas: Delta[] = [];
+
+    for (const unit_type of card_collection) {
+        spawn_deltas.push(
+            draw_hero_card(battle, battle.players[0], unit_type),
+            draw_hero_card(battle, battle.players[1], unit_type)
+        );
+    }
+
+    for (const spawn of battleground.spawns) {
+        switch (spawn.type) {
+            case Spawn_Type.rune: {
+                const random_rune = random_in_array(enum_values<Rune_Type>())!;
+
+                spawn_deltas.push({
+                    type: Delta_Type.rune_spawn,
+                    rune_type: random_rune,
+                    rune_id: get_next_rune_id(battle),
+                    at: spawn.at
+                });
+
+                break;
+            }
+
+            default: unreachable(spawn.type);
+        }
+    }
 
     battle.deltas.push(...spawn_deltas);
 

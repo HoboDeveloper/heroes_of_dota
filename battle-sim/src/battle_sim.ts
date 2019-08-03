@@ -26,6 +26,7 @@ type Ability_Authorization = Ability_Authorization_Ok | Ability_Authorization_Er
 type Battle = {
     delta_head: number
     units: Unit[]
+    runes: Rune[]
     players: Battle_Player[]
     deltas: Delta[]
     turning_player_index: number
@@ -54,6 +55,12 @@ type Unit = Unit_Stats & {
     abilities: Ability[]
     ability_bench: Ability[]
     modifiers: Modifier[]
+}
+
+type Rune = {
+    type: Rune_Type
+    id: number
+    position: XY
 }
 
 type Modifier_Base = {
@@ -203,6 +210,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         delta_head: 0,
         turning_player_index: 0,
         units: [],
+        runes: [],
         cells: [],
         players: participants.map(participant => ({
             id: participant.id,
@@ -802,6 +810,18 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             if (source && target) {
                 change_health(battle, source, target, delta);
             }
+
+            break;
+        }
+
+        case Delta_Type.rune_spawn: {
+            battle.runes.push({
+                id: delta.rune_id,
+                type: delta.rune_type,
+                position: delta.at
+            });
+
+            grid_cell_at_unchecked(battle, delta.at).occupied = true;
 
             break;
         }

@@ -9,7 +9,12 @@
     "alwaysStrict" : false,
     "noImplicitUseStrict": true,
     "strictNullChecks" : true,
-    "types": [ "node" ]
+    "types": [ "node" ],
+    "plugins": [
+      {
+        "transform": "../codegen/src/meta.ts"
+      }
+    ]
   },
   "include": [
     "src/**/*.ts",

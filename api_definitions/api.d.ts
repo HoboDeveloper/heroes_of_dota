@@ -19,7 +19,9 @@ declare const enum Delta_Type {
     ability_effect_applied = 15,
     draw_card = 16,
     use_card = 17,
-    game_over = 18
+    rune_spawn = 18,
+    rune_pickup = 19,
+    game_over = 20
 }
 
 declare const enum Action_Type {
@@ -52,10 +54,11 @@ declare const enum Modifier_Field {
     state_disarmed_counter = 7
 }
 
-declare const enum Unit_State {
-    stunned = 0,
-    silenced = 1,
-    rooted = 2
+declare const enum Rune_Type {
+    double_damage = 0,
+    regeneration = 1,
+    bounty = 2,
+    haste = 3
 }
 
 declare const enum Ability_Targeting_Type {
@@ -347,6 +350,16 @@ type Delta_Use_Card = {
     card_id: number
 }
 
+type Delta_Rune_Spawn = {
+    type: Delta_Type.rune_spawn
+    rune_type: Rune_Type
+    rune_id: number,
+    at: {
+        x: number
+        y: number
+    }
+}
+
 type Delta_Game_Over = {
     type: Delta_Type.game_over
     winner_player_id: number
@@ -365,6 +378,7 @@ type Delta =
     Delta_Ability_Effect_Applied<Ability_Effect> |
     Delta_Draw_Card |
     Delta_Use_Card |
+    Delta_Rune_Spawn |
     Delta_Start_Turn |
     Delta_End_Turn |
     Delta_Game_Over
@@ -543,3 +557,5 @@ type Battle_Cheat_Command_Request = {
 }
 
 declare function copy<T>(arg: T): T;
+declare function enum_to_string(enum_member: any): string;
+declare function enum_values<T>(): T[];

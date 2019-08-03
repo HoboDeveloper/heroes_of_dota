@@ -1,18 +1,19 @@
 type XY = {
-    x: number,
+    x: number
     y: number
 }
 
 type Battle = {
-    id: number,
-    players: Battle_Participant_Info[],
-    deltas: Delta[];
-    delta_paths: Move_Delta_Paths;
-    delta_head: number;
-    world_origin: Vector;
-    units: Battle_Unit[];
+    id: number
+    players: Battle_Participant_Info[]
+    deltas: Delta[]
+    delta_paths: Move_Delta_Paths
+    delta_head: number
+    world_origin: Vector
+    units: Battle_Unit[]
+    runes: Rune[]
     grid_size: {
-        width: number,
+        width: number
         height: number
     };
     is_over: boolean
@@ -20,12 +21,20 @@ type Battle = {
     modifier_tied_fxs: Modifier_Tied_Fx[]
 }
 
-type Battle_Unit = Shared_Visualizer_Unit_Data & {
-    type: Unit_Type;
+type Battle_Unit = Visualizer_Unit_Data & {
+    type: Unit_Type
     owner_remote_id: number
-    handle: CDOTA_BaseNPC_Hero;
+    handle: CDOTA_BaseNPC_Hero
     position: XY;
-    is_playing_a_delta: boolean;
+    is_playing_a_delta: boolean
+    modifiers: Modifier_Data[]
+}
+
+type Rune = {
+    id: number
+    type: Rune_Type
+    handle: CDOTA_BaseNPC
+    position: XY
 }
 
 declare const enum Shake {
@@ -35,11 +44,11 @@ declare const enum Shake {
 }
 
 type Ranged_Attack_Spec = {
-    particle_path: string;
-    projectile_speed: number;
-    attack_point: number;
-    shake_on_attack?: Shake;
-    shake_on_impact?: Shake;
+    particle_path: string
+    projectile_speed: number
+    attack_point: number
+    shake_on_attack?: Shake
+    shake_on_impact?: Shake
 }
 
 type Modifier_Tied_Fx = {
@@ -162,10 +171,32 @@ function unit_type_to_dota_unit_name(unit_type: Unit_Type): string {
 function create_world_handle_for_battle_unit(type: Unit_Type, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(unit_type_to_dota_unit_name(type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
-    handle.SetControllableByPlayer(0, true);
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
     handle.SetForwardVector(Vector(facing.x, facing.y));
+
+    return handle;
+}
+
+function create_world_handle_for_rune(type: Rune_Type, at: XY) {
+    const world_location = battle_position_to_world_position_center(at);
+    const handle = CreateUnitByName("npc_dummy_unit", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+    handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
+
+    function rune_model(): string {
+        switch (type) {
+            case Rune_Type.regeneration: return "models/props_gameplay/rune_regeneration01.vmdl";
+            case Rune_Type.bounty: return "models/props_gameplay/rune_regeneration01.vmdl";
+            case Rune_Type.double_damage: return "models/props_gameplay/rune_doubledamage01.vmdl";
+            case Rune_Type.haste: return "models/props_gameplay/rune_regeneration01.vmdl";
+        }
+    }
+
+    const model = rune_model();
+
+    handle.SetModel(model);
+    handle.SetOriginalModel(model);
+    handle.StartGesture(GameActivity_t.ACT_DOTA_IDLE);
 
     return handle;
 }
@@ -1460,6 +1491,17 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
+        case Delta_Type.rune_spawn: {
+            battle.runes.push({
+                id: delta.rune_id,
+                type: delta.rune_type,
+                position: delta.at,
+                handle: create_world_handle_for_rune(delta.rune_type, delta.at)
+            });
+
+            break;
+        }
+
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(delta.unit_id);
 
@@ -1680,6 +1722,7 @@ function load_battle_data() {
         delta_head: 0,
         world_origin: origin,
         units: [],
+        runes: [],
         grid_size: {
             width: 0,
             height: 0
@@ -1693,8 +1736,14 @@ function load_battle_data() {
 function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_Snapshot) {
     print("Fast forwarding from snapshot, new head", snapshot.delta_head);
 
+    // TODO remove particles
     for (const unit of battle.units) {
         unit.handle.RemoveSelf();
+    }
+
+    // TODO remove particles
+    for (const rune of battle.runes) {
+        rune.handle.RemoveSelf();
     }
 
     battle.units = snapshot.units.map(unit => {
@@ -1726,6 +1775,15 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         battle.units.push(restored_unit);
 
         return restored_unit;
+    });
+
+    battle.runes = snapshot.runes.map(rune => {
+        return {
+            id: rune.id,
+            type: rune.type,
+            handle: create_world_handle_for_rune(rune.type, rune.position),
+            position: rune.position
+        };
     });
 
     battle.delta_head = snapshot.delta_head;

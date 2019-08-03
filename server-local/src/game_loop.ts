@@ -89,7 +89,7 @@ function log_chat_debug_message(message: string) {
 function player_state_to_player_net_table(main_player: Main_Player): Player_Net_Table {
     switch (main_player.state) {
         case Player_State.in_battle: {
-            const entity_id_to_unit_data: Record<EntityID, Shared_Visualizer_Unit_Data> = {};
+            const entity_id_to_unit_data: Record<EntityID, Visualizer_Unit_Data> = {};
 
             for (const unit of battle.units) {
                 // TODO some of those properties are not actually needed
@@ -105,8 +105,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     state_silenced_counter: unit.state_silenced_counter,
                     state_disarmed_counter: unit.state_disarmed_counter,
                     attack_bonus: unit.attack_bonus,
-                    attack_damage: unit.attack_damage,
-                    modifiers: unit.modifiers
+                    attack_damage: unit.attack_damage
                 }
             }
 
@@ -355,6 +354,7 @@ function game_loop() {
     on_custom_event_async<Fast_Forward_Event>("fast_forward", event => {
         fast_forward_from_snapshot(main_player, {
             units: from_client_array(event.units),
+            runes: from_client_array(event.runes),
             delta_head: event.delta_head
         });
     });

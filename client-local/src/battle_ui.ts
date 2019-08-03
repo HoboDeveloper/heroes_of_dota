@@ -776,7 +776,7 @@ function end_turn() {
     });
 }
 
-function create_ui_unit_data(data: Shared_Visualizer_Unit_Data): UI_Unit_Data {
+function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
     const panel = $.CreatePanel("Panel", $("#stat_bar_container"), "");
     panel.AddClass("unit_stat_bar");
 
@@ -1033,6 +1033,12 @@ function make_battle_snapshot(): Battle_Snapshot {
                     modifier_handle_id: modifier.handle_id,
                     changes: modifier.changes
                 }))
+            })),
+        runes: battle.runes
+            .map(rune => ({
+                id: rune.id,
+                position: rune.position,
+                type: rune.type
             })),
         delta_head: battle.delta_head
     }
@@ -1704,7 +1710,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.other: return native(0); // TODO
         case Ability_Error.dead: return native(20);
         case Ability_Error.no_charges: return custom("Ability has no more charges");
-        case Ability_Error.invalid_target: return custom("Target is out of range");
+        case Ability_Error.invalid_target: return custom("Invalid target");
         case Ability_Error.not_learned_yet: return native(16);
         case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
         case Ability_Error.stunned: return custom("Stunned");

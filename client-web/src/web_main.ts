@@ -96,7 +96,7 @@ const cell_size = 36;
 const grid_top_left_x = 120;
 const grid_top_left_y = 120;
 
-declare function enum_to_string(enum_member: any): string;
+declare function embed_base64(from_path: string): string;
 
 function image_from_url(url: string): Image_Resource {
     const resource = image_cache.get(url);
@@ -110,12 +110,25 @@ function image_from_url(url: string): Image_Resource {
         loaded: false
     };
 
-    new_resource.img.src = url;
     new_resource.img.onload = () => new_resource.loaded = true;
+    new_resource.img.src = url;
 
     image_cache.set(url, new_resource);
 
     return new_resource;
+}
+
+function rune_image(type: Rune_Type): Image_Resource {
+    function rune_type_to_base64_image(): string {
+        switch (type) {
+            case Rune_Type.haste: return embed_base64("images/rune_haste.png");
+            case Rune_Type.bounty: return embed_base64("images/rune_bounty.png");
+            case Rune_Type.double_damage: return embed_base64("images/rune_double_damage.png");
+            case Rune_Type.regeneration: return embed_base64("images/rune_regeneration.png");
+        }
+    }
+
+    return image_from_url(`data:image/png;base64,${rune_type_to_base64_image()}`)
 }
 
 async function api_request<Request, Response>(path: string, data: Request): Promise<Response> {
@@ -913,6 +926,23 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
                 ctx.arc(pip_x, pip_y, radius, 0, Math.PI * 2);
                 ctx.fill();
             }
+        }
+    }
+
+    for (const rune of game.battle.runes) {
+        const image = rune_image(rune.type);
+        const xy = rune.position;
+
+        if (image.loaded) {
+            ctx.drawImage(
+                image.img,
+                0, 0,
+                image.img.width, image.img.height,
+                xy.x * cell_size + icon_offset,
+                xy.y * cell_size + icon_offset,
+                icon_size,
+                icon_size
+            );
         }
     }
 

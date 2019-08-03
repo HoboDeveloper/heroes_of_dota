@@ -1,9 +1,8 @@
 type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
 
-type Shared_Visualizer_Unit_Data = Unit_Stats & {
+type Visualizer_Unit_Data = Unit_Stats & {
     id: number
     level: number
-    modifiers: Modifier_Data[]
 }
 
 type Modifier_Data = {
@@ -38,7 +37,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
             width: number
             height: number
         }
-        entity_id_to_unit_data: Record<number, Shared_Visualizer_Unit_Data>
+        entity_id_to_unit_data: Record<number, Visualizer_Unit_Data>
         current_visual_head: number
     }
 }
@@ -83,9 +82,12 @@ type Game_Over_Event = {
     winner_player_id: number
 }
 
-type Unit_Snapshot = Shared_Visualizer_Unit_Data & {
+type Unit_Snapshot = Unit_Stats & {
+    id: number
+    level: number
     owner_id: number
     type: Unit_Type
+    modifiers: Modifier_Data[]
     position: {
         x: number
         y: number
@@ -96,7 +98,17 @@ type Unit_Snapshot = Shared_Visualizer_Unit_Data & {
     }
 }
 
+type Rune_Snapshot = {
+    id: number
+    type: Rune_Type
+    position: {
+        x: number
+        y: number
+    }
+}
+
 type Battle_Snapshot = {
     units: Unit_Snapshot[]
+    runes: Rune_Snapshot[]
     delta_head: number
 }

@@ -9,7 +9,7 @@
     "strictNullChecks": true,
     "plugins": [
       {
-        "transform": "../codegen/src/enum_to_string.ts"
+        "transform": "../codegen/src/meta.ts"
       }
     ]
   },
