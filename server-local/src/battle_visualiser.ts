@@ -1379,10 +1379,7 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, del
 
             unit_emit_sound(unit, "Rune.Regen");
 
-            print(unit.health, target);
-
             while (unit.health != target) {
-                print("Go change");
                 change_health(main_player, unit, unit, { value_delta: direction, new_value: unit.health + direction });
 
                 wait(0.25);
