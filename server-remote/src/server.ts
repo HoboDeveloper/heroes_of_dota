@@ -1,11 +1,10 @@
 import {createServer} from "http";
 import {randomBytes} from "crypto"
 import {
-    Battle_Record,
+    Battle_Record, cheat,
     find_battle_by_id,
     get_battle_deltas_after, random_in_array, random_int_range,
     start_battle,
-    submit_battle_deltas,
     try_take_turn_action
 } from "./battle";
 import {unreachable, XY, xy} from "./common";
@@ -583,109 +582,11 @@ handlers.set("/battle_cheat", body => {
 
     const request = JSON.parse(body) as Battle_Cheat_Command_Request;
     const result = try_do_with_player<true>(request.access_token, player => {
-        const parts = request.cheat.split(" ");
         const battle = find_battle_by_id(player.current_battle_id);
 
         if (!battle) return;
 
-        function refresh_unit(battle: Battle_Record, unit: Unit) {
-            const deltas: Delta[] = [
-                {
-                    type: Delta_Type.health_change,
-                    source_unit_id: unit.id,
-                    target_unit_id: unit.id,
-                    new_value: unit.max_health,
-                    value_delta: unit.max_health - unit.health
-                }
-            ];
-
-            const cooldown_deltas = unit.abilities
-                .filter(ability => ability.type != Ability_Type.passive && ability.charges_remaining < 1)
-                .map(ability => ({
-                    type: Delta_Type.set_ability_charges_remaining,
-                    unit_id: unit.id,
-                    ability_id: ability.id,
-                    charges_remaining: (ability as Ability_Active).charges
-                }) as Delta_Set_Ability_Charges_Remaining); // WTF typescript
-
-            submit_battle_deltas(battle, deltas.concat(cooldown_deltas));
-        }
-
-        switch (parts[0]) {
-            case "dbg": {
-                const messages = [
-                    `=========DEBUG=======`,
-                    `Battle ${battle.id}`,
-                    `Participants: ${battle.players[0].name} (id${battle.players[0].id}) and ${battle.players[1].name} (id${battle.players[1].id})`,
-                    `Deltas: ${battle.deltas.length} total, head at ${battle.delta_head}`,
-                    `Turning player: index ${battle.turning_player_index} (${battle.players[battle.turning_player_index].name})`,
-                ];
-
-                for (const message of messages) {
-                    submit_chat_message(player, message);
-                }
-
-                break;
-            }
-
-            case "skipturn": {
-                submit_battle_deltas(battle, [ { type: Delta_Type.end_turn } ]);
-
-                break;
-            }
-
-            case "lvl": {
-                const unit = find_unit_by_id(battle, request.selected_unit_id);
-
-                if (!unit) break;
-
-                const new_lvl = parseInt(parts[1]);
-
-                submit_battle_deltas(battle, [{
-                    type: Delta_Type.level_change,
-                    unit_id: request.selected_unit_id,
-                    new_level: new_lvl,
-                }]);
-
-                break;
-            }
-
-            case "ref": {
-                const unit = find_unit_by_id(battle, request.selected_unit_id);
-
-                if (!unit) break;
-
-                refresh_unit(battle, unit);
-
-                break;
-            }
-
-            case "refall": {
-                for (const unit of battle.units) {
-                    if (!unit.dead) {
-                        refresh_unit(battle, unit);
-                    }
-                }
-
-                break;
-            }
-
-            case "killall": {
-                for (const unit of battle.units) {
-                    if (!unit.dead) {
-                        const delta: Delta_Health_Change = {
-                            type: Delta_Type.health_change,
-                            source_unit_id: unit.id,
-                            target_unit_id: unit.id,
-                            new_value: 0,
-                            value_delta: -unit.health
-                        };
-
-                        submit_battle_deltas(battle, [ delta ]);
-                    }
-                }
-            }
-        }
+        cheat(battle, player, request.cheat, request.selected_unit_id);
 
         return true;
     });

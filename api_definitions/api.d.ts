@@ -20,7 +20,7 @@ declare const enum Delta_Type {
     draw_card = 16,
     use_card = 17,
     rune_spawn = 18,
-    rune_pickup = 19,
+    rune_pick_up = 19,
     game_over = 20
 }
 
@@ -30,7 +30,8 @@ declare const enum Action_Type {
     ground_target_ability = 4,
     unit_target_ability = 5,
     use_no_target_ability = 6,
-    use_hero_card = 7
+    use_hero_card = 7,
+    pick_up_rune = 8
 }
 
 declare const enum Unit_Type {
@@ -209,12 +210,19 @@ type Action_Use_Hero_Card = {
     }
 }
 
+type Action_Pick_Up_Rune = {
+    type: Action_Type.pick_up_rune
+    unit_id: number
+    rune_id: number
+}
+
 type Turn_Action =
     Action_Move |
     Action_Ground_Target_Ability |
     Action_Unit_Target_Ability |
     Action_No_Target_Ability |
     Action_Use_Hero_Card |
+    Action_Pick_Up_Rune |
     Action_End_Turn
 
 type Card_Unknown = {
@@ -254,6 +262,7 @@ type Battle_Player = {
     id: number
     name: string
     hand: Card[]
+    gold: number
     has_used_a_card_this_turn: boolean
     deployment_zone: Deployment_Zone
 }
@@ -360,6 +369,38 @@ type Delta_Rune_Spawn = {
     }
 }
 
+type Delta_Rune_Pick_Up_Base = {
+    type: Delta_Type.rune_pick_up
+    unit_id: number
+    rune_id: number
+}
+
+type Delta_Regeneration_Rune_Pick_Up = Delta_Rune_Pick_Up_Base & {
+    rune_type: Rune_Type.regeneration
+    heal: Health_Change
+}
+
+type Delta_Double_Damage_Rune_Pick_Up = Delta_Rune_Pick_Up_Base & {
+    rune_type: Rune_Type.double_damage
+    modifier: Modifier_Application
+}
+
+type Delta_Haste_Rune_Pick_Up = Delta_Rune_Pick_Up_Base & {
+    rune_type: Rune_Type.haste
+    modifier: Modifier_Application
+}
+
+type Delta_Bounty_Rune_Pick_Up = Delta_Rune_Pick_Up_Base & {
+    rune_type: Rune_Type.bounty
+    gold_gained: number
+}
+
+type Delta_Rune_Pick_Up =
+    Delta_Regeneration_Rune_Pick_Up |
+    Delta_Double_Damage_Rune_Pick_Up |
+    Delta_Haste_Rune_Pick_Up |
+    Delta_Bounty_Rune_Pick_Up
+
 type Delta_Game_Over = {
     type: Delta_Type.game_over
     winner_player_id: number
@@ -376,6 +417,7 @@ type Delta =
     Delta_Modifier_Removed |
     Delta_Set_Ability_Charges_Remaining |
     Delta_Ability_Effect_Applied<Ability_Effect> |
+    Delta_Rune_Pick_Up |
     Delta_Draw_Card |
     Delta_Use_Card |
     Delta_Rune_Spawn |

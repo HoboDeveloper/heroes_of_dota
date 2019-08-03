@@ -42,12 +42,14 @@ type UI_Unit_Data = {
 
 type UI_Battle = Battle & {
     id: number
-    world_origin: XY;
+    world_origin: XY
     entity_id_to_unit_data: Record<EntityId, UI_Unit_Data>
-    unit_id_to_facing: Record<number, XY>;
-    cells: UI_Cell[];
-    cell_index_to_unit: Unit[];
-    outline_particles: ParticleId[];
+    entity_id_to_rune_id: Record<number, number>
+    unit_id_to_facing: Record<number, XY>
+    cells: UI_Cell[]
+    cell_index_to_unit: Unit[]
+    cell_index_to_rune: Rune[]
+    outline_particles: ParticleId[]
 }
 
 type UI_Cell = Cell & {
@@ -106,6 +108,16 @@ function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefin
     return find_unit_by_id(battle, unit_data.id);
 }
 
+function find_rune_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Rune | undefined {
+    if (entity_id == undefined) return;
+
+    const rune_id = battle.entity_id_to_rune_id[entity_id];
+
+    if (rune_id == undefined) return;
+
+    return find_rune_by_id(battle, rune_id);
+}
+
 function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [ EntityId, UI_Unit_Data ] | undefined {
     for (const entity_id in battle.entity_id_to_unit_data) {
         const data = battle.entity_id_to_unit_data[entity_id];
@@ -117,6 +129,14 @@ function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [
 }
 
 function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_Delta_Paths) {
+    function fill_movement_data(unit: Unit, moved_to: XY, path: XY[]) {
+        delta_paths[battle.delta_head] = path;
+
+        battle.unit_id_to_facing[unit.id] = path.length > 1
+            ? xy_sub(moved_to, path[path.length - 2])
+            : xy_sub(moved_to, unit.position);
+    }
+
     switch (delta.type) {
         case Delta_Type.unit_spawn: {
             const owner = find_player_by_id(battle, delta.owner_id);
@@ -131,22 +151,34 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             break;
         }
 
+        case Delta_Type.rune_pick_up: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+
+            if (!unit) break;
+
+            const rune = find_rune_by_id(battle, delta.rune_id);
+
+            if (!rune) break;
+
+            const path = find_grid_path(unit.position, rune.position, true);
+
+            if (!path) break;
+
+            fill_movement_data(unit, rune.position, path);
+
+            break;
+        }
+
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
-            if (unit) {
-                const path = find_grid_path(unit.position, delta.to_position);
+            if (!unit) break;
 
-                if (path) {
-                    delta_paths[battle.delta_head] = path;
+            const path = find_grid_path(unit.position, delta.to_position);
 
-                    const to = delta.to_position;
+            if (!path) break;
 
-                    battle.unit_id_to_facing[unit.id] = path.length > 1
-                        ? xy_sub(to, path[path.length - 2])
-                        : xy_sub(to, unit.position);
-                }
-            }
+            fill_movement_data(unit, delta.to_position, path);
 
             break;
         }
@@ -197,13 +229,18 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
     }
 }
 
-function rebuild_cell_index_to_unit() {
+function rebuild_cell_indexes() {
     battle.cell_index_to_unit = [];
+    battle.cell_index_to_rune = [];
 
     for (const unit of battle.units) {
         if (!unit.dead) {
             battle.cell_index_to_unit[grid_cell_index(battle, unit.position)] = unit;
         }
+    }
+
+    for (const rune of battle.runes) {
+        battle.cell_index_to_rune[grid_cell_index(battle, rune.position)] = rune;
     }
 }
 
@@ -254,7 +291,7 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     }
 
     if (deltas.length > 0) {
-        rebuild_cell_index_to_unit();
+        rebuild_cell_indexes();
         update_grid_visuals();
     }
 }
@@ -323,7 +360,9 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             world_origin: new_data.world_origin,
             cells: [],
             cell_index_to_unit: [],
+            cell_index_to_rune: [],
             entity_id_to_unit_data: {},
+            entity_id_to_rune_id: {},
             unit_id_to_facing: {},
             outline_particles: [],
             change_health: change_health_default
@@ -362,7 +401,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
     }
 }
 
-function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Population_Result | undefined {
+function populate_path_costs(from: XY, to: XY | undefined = undefined, ignore_runes = false): Cost_Population_Result | undefined {
     const cell_index_to_cost: number[] = [];
     const cell_index_to_parent_index: number[] = [];
     const indices_already_checked: boolean[] = [];
@@ -398,7 +437,16 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
                 const neighbor_cell_index = grid_cell_index(battle, neighbor.position);
 
                 if (indices_already_checked[neighbor_cell_index]) continue;
-                if (neighbor.occupied) {
+
+                let neighbor_occupied = neighbor.occupied;
+
+                if (ignore_runes) {
+                    const occupied_by_rune = !!rune_at(battle, neighbor.position);
+
+                    neighbor_occupied = neighbor.occupied && !occupied_by_rune;
+                }
+
+                if (neighbor_occupied) {
                     indices_already_checked[neighbor_cell_index] = true;
                     continue;
                 }
@@ -423,7 +471,7 @@ function populate_path_costs(from: XY, to: XY | undefined = undefined): Cost_Pop
     }
 }
 
-function find_grid_path(from: XY, to: XY): XY[] | undefined {
+function find_grid_path(from: XY, to: XY, ignore_runes = false): XY[] | undefined {
     const cell_from = grid_cell_at(battle, from);
     const cell_to = grid_cell_at(battle, to);
 
@@ -431,7 +479,7 @@ function find_grid_path(from: XY, to: XY): XY[] | undefined {
         return;
     }
 
-    const populated = populate_path_costs(from, to);
+    const populated = populate_path_costs(from, to, ignore_runes);
 
     if (!populated) {
         return;
@@ -670,6 +718,16 @@ function update_grid_visuals() {
             }
         }
 
+        const rune_in_cell = battle.cell_index_to_rune[index];
+
+        if (rune_in_cell && selected_unit) {
+            const [can_go] = can_find_path(battle, selected_unit.position, rune_in_cell.position, selected_unit.move_points, true);
+
+            if (can_go) {
+                cell_color = color_green;
+            }
+        }
+
         if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
             if (held_card) {
                 cell_index_to_highlight[index] = true;
@@ -890,6 +948,12 @@ function process_state_update(state: Player_Net_Table) {
     this_player_id = state.id;
 
     if (battle && state.state == Player_State.in_battle) {
+        battle.entity_id_to_rune_id = {};
+
+        for (const entity_id in state.battle.entity_id_to_rune_id) {
+            battle.entity_id_to_rune_id[entity_id] = state.battle.entity_id_to_rune_id[entity_id];
+        }
+
         const leftover_entity_ids = Object.keys(battle.entity_id_to_unit_data);
 
         for (const entity_id in state.battle.entity_id_to_unit_data) {
@@ -1532,6 +1596,7 @@ function setup_mouse_filter() {
             const battle_position = world_position_to_battle_position(world_position);
             const cursor_entity = get_entity_under_cursor(cursor);
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
+            const cursor_entity_rune = find_rune_by_entity_id(battle, cursor_entity);
             const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
             if (button == MouseButton.LEFT && current_selected_entity == undefined && cursor_entity == null) {
@@ -1663,6 +1728,12 @@ function setup_mouse_filter() {
                     if (cursor_entity != current_selected_entity) {
                         try_attack_target(selected_unit, cursor_entity_unit.position, true);
                     }
+                } else if (cursor_entity_rune) {
+                    take_battle_action({
+                        type: Action_Type.pick_up_rune,
+                        unit_id: selected_unit.id,
+                        rune_id: cursor_entity_rune.id
+                    })
                 } else {
                     try_order_unit_to_move(selected_unit, battle_position);
                     move_order_particle(world_position);

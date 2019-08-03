@@ -1,5 +1,6 @@
 import {Player, report_battle_over} from "./server";
 import {readFileSync} from "fs";
+import {submit_chat_message} from "./chat";
 
 eval(readFileSync("dist/battle_sim.js", "utf8"));
 
@@ -756,6 +757,68 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             ]
         }
 
+        case Action_Type.pick_up_rune: {
+            const unit = find_valid_unit_for_action(action.unit_id);
+            const rune = battle.runes.find(rune => rune.id == action.rune_id);
+
+            if (!unit) break;
+            if (!rune) break;
+
+            const [could_find_path] = can_find_path(battle, unit.position, rune.position, unit.move_points, true);
+
+            if (!could_find_path) {
+                return;
+            }
+
+            const base = {
+                unit_id: unit.id,
+                rune_id: rune.id,
+                at: rune.position
+            };
+
+            switch (rune.type) {
+                case Rune_Type.bounty: {
+                    return [{
+                        ...base,
+                        type: Delta_Type.rune_pick_up,
+                        rune_type: rune.type,
+                        gold_gained: 10
+                    }];
+                }
+
+                case Rune_Type.regeneration: {
+                    return [{
+                        ...base,
+                        type: Delta_Type.rune_pick_up,
+                        rune_type: rune.type,
+                        heal: health_change(unit, unit.max_health - unit.health)
+                    }];
+                }
+
+                case Rune_Type.haste: {
+                    return [{
+                        ...base,
+                        type: Delta_Type.rune_pick_up,
+                        rune_type: rune.type,
+                        modifier: new_timed_modifier(battle, Modifier_Id.rune_haste, 3, [Modifier_Field.move_points_bonus, 3])
+                    }];
+                }
+
+                case Rune_Type.double_damage: {
+                    return [{
+                        ...base,
+                        type: Delta_Type.rune_pick_up,
+                        rune_type: rune.type,
+                        modifier: new_timed_modifier(battle, Modifier_Id.rune_double_damage, 3, [Modifier_Field.attack_bonus, unit.attack_damage])
+                    }];
+                }
+
+                default: unreachable(rune.type);
+            }
+
+            break;
+        }
+
         case Action_Type.end_turn: {
             battle.turn_index++;
 
@@ -905,7 +968,7 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
     }
 }
 
-export function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
+function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     battle.deltas.push(...battle_deltas);
 
     catch_up_to_head(battle);
@@ -987,4 +1050,138 @@ export function start_battle(players: Player[]): number {
     battles.push(battle);
 
     return battle.id;
+}
+
+export function cheat(battle: Battle_Record, player: Player, cheat: string, selected_unit_id: number) {
+    const parts = cheat.split(" ");
+
+    function refresh_unit(battle: Battle_Record, unit: Unit) {
+        const deltas: Delta[] = [
+            {
+                type: Delta_Type.health_change,
+                source_unit_id: unit.id,
+                target_unit_id: unit.id,
+                new_value: unit.max_health,
+                value_delta: unit.max_health - unit.health
+            }
+        ];
+
+        const cooldown_deltas = unit.abilities
+            .filter(ability => ability.type != Ability_Type.passive && ability.charges_remaining < 1)
+            .map(ability => ({
+                type: Delta_Type.set_ability_charges_remaining,
+                unit_id: unit.id,
+                ability_id: ability.id,
+                charges_remaining: (ability as Ability_Active).charges
+            }) as Delta_Set_Ability_Charges_Remaining); // WTF typescript
+
+        submit_battle_deltas(battle, deltas.concat(cooldown_deltas));
+    }
+
+    switch (parts[0]) {
+        case "dbg": {
+            const messages = [
+                `=========DEBUG=======`,
+                `Battle ${battle.id}`,
+                `Participants: ${battle.players[0].name} (id${battle.players[0].id}) and ${battle.players[1].name} (id${battle.players[1].id})`,
+                `Deltas: ${battle.deltas.length} total, head at ${battle.delta_head}`,
+                `Turning player: index ${battle.turning_player_index} (${battle.players[battle.turning_player_index].name})`,
+            ];
+
+            for (const message of messages) {
+                submit_chat_message(player, message);
+            }
+
+            break;
+        }
+
+        case "skipturn": {
+            submit_battle_deltas(battle, [ { type: Delta_Type.end_turn } ]);
+
+            break;
+        }
+
+        case "lvl": {
+            const unit = find_unit_by_id(battle, selected_unit_id);
+
+            if (!unit) break;
+
+            const new_lvl = parseInt(parts[1]);
+
+            submit_battle_deltas(battle, [{
+                type: Delta_Type.level_change,
+                unit_id: selected_unit_id,
+                new_level: new_lvl,
+            }]);
+
+            break;
+        }
+
+        case "ref": {
+            const unit = find_unit_by_id(battle, selected_unit_id);
+
+            if (!unit) break;
+
+            refresh_unit(battle, unit);
+
+            break;
+        }
+
+        case "refall": {
+            for (const unit of battle.units) {
+                if (!unit.dead) {
+                    refresh_unit(battle, unit);
+                }
+            }
+
+            break;
+        }
+
+        case "killall": {
+            for (const unit of battle.units) {
+                if (!unit.dead) {
+                    const delta: Delta_Health_Change = {
+                        type: Delta_Type.health_change,
+                        source_unit_id: unit.id,
+                        target_unit_id: unit.id,
+                        new_value: 0,
+                        value_delta: -unit.health
+                    };
+
+                    submit_battle_deltas(battle, [ delta ]);
+                }
+            }
+
+            break;
+        }
+
+        case "rune": {
+            function rune_type(): Rune_Type {
+                switch (parts[1]) {
+                    case "h": return Rune_Type.haste;
+                    case "r": return Rune_Type.regeneration;
+                    case "d": return Rune_Type.double_damage;
+                    case "b": return Rune_Type.bounty;
+                    default: return random_in_array(enum_values<Rune_Type>())!
+                }
+            }
+
+            const at = xy(4, 4);
+
+            if (grid_cell_at_unchecked(battle, at).occupied) {
+                break;
+            }
+
+            const delta: Delta_Rune_Spawn = {
+                type: Delta_Type.rune_spawn,
+                rune_id: get_next_rune_id(battle),
+                rune_type: rune_type(),
+                at: at
+            };
+
+            submit_battle_deltas(battle, [ delta ]);
+
+            break;
+        }
+    }
 }

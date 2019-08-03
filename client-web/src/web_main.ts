@@ -348,13 +348,14 @@ function on_cell_right_clicked(game: Game_In_Battle, player: Battle_Player, x: n
 
         case Selection_Type.unit: {
             const selected_unit = find_unit_by_id(game.battle, game.selection.unit_id);
-            const attacked_unit = unit_at(game.battle, xy(x, y));
+            const right_clicked_unit = unit_at(game.battle, xy(x, y));
+            const right_clicked_rune = rune_at(game.battle, xy(x, y));
 
             if (!selected_unit) {
                 break;
             }
 
-            if (attacked_unit) {
+            if (right_clicked_unit) {
                 if (selected_unit.attack.type == Ability_Type.target_ground) {
                     if (ability_targeting_fits(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
                         take_battle_action(game, {
@@ -364,6 +365,16 @@ function on_cell_right_clicked(game: Game_In_Battle, player: Battle_Player, x: n
                             to: xy(x, y)
                         });
                     }
+                }
+            } else if (right_clicked_rune) {
+                const [can_go] = can_find_path(game.battle, selected_unit.position, xy(x, y), selected_unit.move_points, true);
+
+                if (can_go) {
+                    take_battle_action(game, {
+                        type: Action_Type.pick_up_rune,
+                        unit_id: selected_unit.id,
+                        rune_id: right_clicked_rune.id
+                    });
                 }
             } else {
                 const [can_go] = can_find_path(game.battle, selected_unit.position, xy(x, y), selected_unit.move_points);
@@ -933,6 +944,19 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
         const image = rune_image(rune.type);
         const xy = rune.position;
 
+        if (is_unit_selection(game.selection)) {
+            const unit = find_unit_by_id(game.battle, game.selection.unit_id);
+
+            if (unit) {
+                const [can_go] = can_find_path(game.battle, unit.position, xy, unit.move_points, true);
+
+                if (can_go) {
+                    game.ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
+                    game.ctx.fillRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
+                }
+            }
+        }
+
         if (image.loaded) {
             ctx.drawImage(
                 image.img,
@@ -1167,8 +1191,8 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
 
                     return died;
                 },
-                apply_modifier: (source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) => {
-                    apply_modifier_default(source, target, ability_id, modifier);
+                apply_modifier: (source: Unit, target: Unit, modifier: Modifier_Application) => {
+                    apply_modifier_default(source, target, modifier);
 
                     const lines = [
                         clr.unit_name(source),

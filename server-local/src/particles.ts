@@ -1,3 +1,7 @@
+type Handle_Provider = {
+    handle: CDOTA_BaseNPC
+}
+
 type FX = {
     to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string, offset?: Vector): FX;
     to_unit_origin(control_point: number, unit: Battle_Unit): FX;
@@ -6,8 +10,8 @@ type FX = {
     with_point_value(control_point: number, x?: number, y?: number, z?: number): FX;
     with_vector_value(control_point: number, vec: Vector): FX;
     with_forward_vector(control_point: number, vec: Vector): FX;
-    follow_unit_origin(control_point: number, unit: Battle_Unit): FX;
-    follow_unit_overhead(control_point: number, unit: Battle_Unit): FX;
+    follow_unit_origin(control_point: number, unit: Handle_Provider): FX;
+    follow_unit_overhead(control_point: number, unit: Handle_Provider): FX;
     release(): void;
     destroy_and_release(instant: boolean): void;
 }
@@ -37,35 +41,35 @@ function native_fx(path: string, attach: ParticleAttachment_t, handle: CBaseEnti
 
             return this;
         },
-        to_unit_attach_point(control_point: number, unit: Battle_Unit, attach_point: string, offset: Vector = unit.handle.GetOrigin()): FX {
+        to_unit_attach_point(control_point: number, unit: Handle_Provider, attach_point: string, offset: Vector = unit.handle.GetOrigin()): FX {
             check_particle_validity();
 
             ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_POINT_FOLLOW, attach_point, offset, true);
 
             return this;
         },
-        to_unit_origin(control_point: number, unit: Battle_Unit): FX {
+        to_unit_origin(control_point: number, unit: Handle_Provider): FX {
             check_particle_validity();
 
             ParticleManager.SetParticleControl(fx, control_point, unit.handle.GetAbsOrigin());
 
             return this;
         },
-        to_unit_custom_origin(control_point: number, unit: Battle_Unit): FX {
+        to_unit_custom_origin(control_point: number, unit: Handle_Provider): FX {
             check_particle_validity();
 
             ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_CUSTOMORIGIN, undefined, unit.handle.GetOrigin(), true);
 
             return this;
         },
-        follow_unit_origin(control_point: number, unit: Battle_Unit): FX {
+        follow_unit_origin(control_point: number, unit: Handle_Provider): FX {
             check_particle_validity();
 
             ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, undefined, unit.handle.GetOrigin(), true);
 
             return this;
         },
-        follow_unit_overhead(control_point: number, unit: Battle_Unit): FX {
+        follow_unit_overhead(control_point: number, unit: Handle_Provider): FX {
             check_particle_validity();
 
             ParticleManager.SetParticleControlEnt(fx, control_point, unit.handle, ParticleAttachment_t.PATTACH_OVERHEAD_FOLLOW, undefined, unit.handle.GetOrigin(), true);

@@ -24,6 +24,8 @@ declare const enum Ability_Id {
 }
 
 declare const enum Modifier_Id {
+    rune_double_damage = -2,
+    rune_haste = -1,
     tide_gush = 0,
     tide_anchor_smash = 1,
     tide_ravage = 2,

@@ -67,6 +67,16 @@ function array_find<T>(array: Array<T>, predicate: (element: T) => boolean): T |
     return undefined;
 }
 
+function array_find_index<T>(array: Array<T>, predicate: (element: T) => boolean): number {
+    for (let index = 0; index < array.length; index++) {
+        if (predicate(array[index])) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
 function game_time_formatted() {
     return string.format("%.2f", GameRules.GetGameTime());
 }
@@ -90,6 +100,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
     switch (main_player.state) {
         case Player_State.in_battle: {
             const entity_id_to_unit_data: Record<EntityID, Visualizer_Unit_Data> = {};
+            const entity_id_to_rune_id: Record<number, number> = {};
 
             for (const unit of battle.units) {
                 // TODO some of those properties are not actually needed
@@ -109,6 +120,10 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                 }
             }
 
+            for (const rune of battle.runes) {
+                entity_id_to_rune_id[rune.handle.entindex()] = rune.id;
+            }
+
             return {
                 state: main_player.state,
                 id: main_player.remote_id,
@@ -122,7 +137,8 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     },
                     grid_size: battle.grid_size,
                     current_visual_head: battle.delta_head,
-                    entity_id_to_unit_data: entity_id_to_unit_data
+                    entity_id_to_unit_data: entity_id_to_unit_data,
+                    entity_id_to_rune_id: entity_id_to_rune_id
                 }
             };
         }

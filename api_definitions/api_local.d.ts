@@ -1,4 +1,4 @@
-type Move_Delta_Paths = { [delta_index: number]: { x: number, y: number }[] }
+type Move_Delta_Paths = Record<number, { x: number, y: number }[]>
 
 type Visualizer_Unit_Data = Unit_Stats & {
     id: number
@@ -38,6 +38,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
             height: number
         }
         entity_id_to_unit_data: Record<number, Visualizer_Unit_Data>
+        entity_id_to_rune_id: Record<number, number>
         current_visual_head: number
     }
 }

@@ -33,7 +33,7 @@ type Battle = {
     cells: Cell[]
     grid_size: XY
     change_health: (battle: Battle, source: Unit, target: Unit, change: Health_Change) => boolean,
-    apply_modifier: (source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) => void,
+    apply_modifier: (source: Unit, target: Unit, modifier: Modifier_Application) => void,
     end_turn: (battle: Battle) => void
 }
 
@@ -67,7 +67,6 @@ type Modifier_Base = {
     id: Modifier_Id
     handle_id: number
     source: Unit
-    source_ability: Ability_Id
     changes: Modifier_Change[]
 }
 
@@ -171,6 +170,10 @@ function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
+function rune_at(battle: Battle, at: XY) : Rune| undefined {
+    return battle.runes.find(rune => xy_equal(rune.position, at));
+}
+
 function is_unit_stunned(unit: Unit) {
     return unit.state_stunned_counter > 0;
 }
@@ -189,6 +192,10 @@ function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
 
 function find_player_by_id(battle: Battle, id: number): Battle_Player | undefined {
     return battle.players.find(player => player.id == id);
+}
+
+function find_rune_by_id(battle: Battle, id: number): Rune | undefined {
+    return battle.runes.find(rune => rune.id == id);
 }
 
 function find_player_card_by_id(player: Battle_Player, card_id: number): Card | undefined {
@@ -216,6 +223,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
             id: participant.id,
             name: participant.name,
             deployment_zone: participant.deployment_zone,
+            gold: 0,
             has_used_a_card_this_turn: false,
             hand: []
         })),
@@ -228,7 +236,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
 }
 
 // TODO replace with a more efficient A* implementation
-function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: number): [boolean, number] {
+function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: number, ignore_runes = false): [boolean, number] {
     const indices_already_checked: boolean[] = [];
     const from_index = grid_cell_index(battle, from);
 
@@ -256,7 +264,16 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
                 const neighbor_index = grid_cell_index(battle, neighbor.position);
 
                 if (indices_already_checked[neighbor_index]) continue;
-                if (neighbor.occupied) {
+
+                let neighbor_occupied = neighbor.occupied;
+
+                if (ignore_runes) {
+                    const occupied_by_rune = !!rune_at(battle, neighbor.position);
+
+                    neighbor_occupied = neighbor.occupied && !occupied_by_rune;
+                }
+
+                if (neighbor_occupied) {
                     indices_already_checked[neighbor_index] = true;
                     continue;
                 }
@@ -498,6 +515,10 @@ function change_health(battle: Battle, source: Unit, target: Unit, change: Healt
     return battle.change_health(battle, source, target, change);
 }
 
+function change_gold(player: Battle_Player, gold_change: number) {
+    player.gold += gold_change;
+}
+
 function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert: boolean) {
     for (const change of changes) {
         switch (change.type) {
@@ -521,16 +542,15 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
     }
 }
 
-function apply_modifier(battle: Battle, source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
-    battle.apply_modifier(source, target, ability_id, modifier);
+function apply_modifier(battle: Battle, source: Unit, target: Unit, modifier: Modifier_Application) {
+    battle.apply_modifier(source, target, modifier);
 }
 
-function apply_modifier_default(source: Unit, target: Unit, ability_id: Ability_Id, modifier: Modifier_Application) {
+function apply_modifier_default(source: Unit, target: Unit, modifier: Modifier_Application) {
     const modifier_base: Modifier_Base = {
         id: modifier.modifier_id,
         handle_id: modifier.modifier_handle_id,
         source: source,
-        source_ability: ability_id,
         changes: modifier.changes
     };
 
@@ -577,23 +597,23 @@ function change_health_multiple(battle: Battle, source: Unit, changes: Unit_Heal
     }
 }
 
-function apply_modifier_multiple(battle: Battle, source: Unit, ability_id: Ability_Id, applications: Unit_Modifier_Application[]) {
+function apply_modifier_multiple(battle: Battle, source: Unit, applications: Unit_Modifier_Application[]) {
     for (const application of applications) {
         const target = find_unit_by_id(battle, application.target_unit_id);
 
         if (target) {
-            apply_modifier(battle, source, target, ability_id, application.modifier);
+            apply_modifier(battle, source, target, application.modifier);
         }
     }
 }
 
-function change_health_and_apply_modifier_multiple(battle: Battle, source: Unit, ability_id: Ability_Id, changes: (Unit_Health_Change & Unit_Modifier_Application)[]) {
+function change_health_and_apply_modifier_multiple(battle: Battle, source: Unit, changes: (Unit_Health_Change & Unit_Modifier_Application)[]) {
     for (const change of changes) {
         const target = find_unit_by_id(battle, change.target_unit_id);
 
         if (target) {
             change_health(battle, source, target, change.change);
-            apply_modifier(battle, source, target, ability_id, change.modifier);
+            apply_modifier(battle, source, target, change.modifier);
         }
     }
 }
@@ -615,25 +635,25 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 
         case Ability_Id.tide_gush: {
             change_health(battle, source, target, cast.damage_dealt);
-            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.modifier);
 
             break;
         }
 
         case Ability_Id.skywrath_ancient_seal: {
-            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.modifier);
             break;
         }
 
         case Ability_Id.dragon_knight_dragon_tail: {
             change_health(battle, source, target, cast.damage_dealt);
-            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.modifier);
 
             break;
         }
 
         case Ability_Id.lion_hex: {
-            apply_modifier(battle, source, target, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, target, cast.modifier);
             break;
         }
 
@@ -649,7 +669,7 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
 function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delta_Use_No_Target_Ability) {
     switch (cast.ability_id) {
         case Ability_Id.tide_ravage: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
 
             break;
         }
@@ -661,7 +681,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
         }
 
         case Ability_Id.tide_anchor_smash: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
 
             break;
         }
@@ -678,7 +698,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
 
                 if (target) {
                     change_health(battle, source, target, cast.result.damage);
-                    apply_modifier(battle, source, target, cast.ability_id, cast.result.modifier);
+                    apply_modifier(battle, source, target, cast.result.modifier);
                 }
             }
 
@@ -686,7 +706,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form: {
-            apply_modifier(battle, source, source, cast.ability_id, cast.modifier);
+            apply_modifier(battle, source, source, cast.modifier);
 
             break;
         }
@@ -738,7 +758,7 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
         }
 
         case Ability_Id.lion_impale: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
             break;
         }
 
@@ -767,6 +787,51 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
                 unit.move_points -= delta.move_cost;
             }
+
+            break;
+        }
+
+        case Delta_Type.rune_pick_up: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+            const rune_index = battle.runes.findIndex(rune => rune.id == delta.rune_id);
+
+            if (!unit) break;
+            if (rune_index == -1) break;
+
+            const rune = battle.runes[rune_index];
+
+            move_unit(battle, unit, rune.position);
+
+            switch (delta.rune_type) {
+                case Rune_Type.double_damage: {
+                    apply_modifier(battle, unit, unit, delta.modifier);
+                    break;
+                }
+
+                case Rune_Type.haste: {
+                    apply_modifier(battle, unit, unit, delta.modifier);
+                    break;
+                }
+
+                case Rune_Type.regeneration: {
+                    change_health(battle, unit, unit, delta.heal);
+                    break;
+                }
+
+                case Rune_Type.bounty: {
+                    const player = find_player_by_id(battle, unit.owner_player_id);
+
+                    if (player) {
+                        change_gold(player, delta.gold_gained);
+                    }
+
+                    break;
+                }
+
+                default: unreachable(delta);
+            }
+
+            battle.runes.splice(rune_index);
 
             break;
         }

@@ -26,7 +26,6 @@ type Battle_Unit = Visualizer_Unit_Data & {
     owner_remote_id: number
     handle: CDOTA_BaseNPC_Hero
     position: XY;
-    is_playing_a_delta: boolean
     modifiers: Modifier_Data[]
 }
 
@@ -35,6 +34,9 @@ type Rune = {
     type: Rune_Type
     handle: CDOTA_BaseNPC
     position: XY
+
+    highlight_fx: FX
+    rune_fx: FX
 }
 
 declare const enum Shake {
@@ -60,6 +62,7 @@ type Modifier_Tied_Fx = {
 declare let battle: Battle;
 
 const battle_cell_size = 144;
+const rune_highlight = "particles/world_environmental_fx/rune_ambient_01.vpcf";
 
 function get_battle_cell_size(): number {
     return battle_cell_size;
@@ -75,38 +78,6 @@ function find_unit_by_id(id: number): Battle_Unit | undefined {
 
 function manhattan(from: XY, to: XY) {
     return Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
-}
-
-// TODO utilize this for responsiveness
-function pre_visualize_action(action: Turn_Action) {
-    switch (action.type) {
-        // case Action_Type.attack: {
-        //     const unit = find_unit_by_id(action.unit_id);
-        //
-        //     if (unit && !unit.is_playing_a_delta) {
-        //         unit.handle.FaceTowards(battle_position_to_world_position_center(action.to));
-        //     }
-        //
-        //     break;
-        // }
-
-        case Action_Type.move: {
-            const unit = find_unit_by_id(action.unit_id);
-
-            if (unit && !unit.is_playing_a_delta) {
-                // const path = find_grid_path(unit.position, action.to);
-                //
-                // if (!path) {
-                //     print("Couldn't find path");
-                //     return;
-                // }
-                //
-                // unit.handle.FaceTowards(battle_position_to_world_position_center(path[0]));
-            }
-
-            break;
-        }
-    }
 }
 
 function merge_battle_deltas(head_before_merge: number, deltas: Delta[]) {
@@ -186,9 +157,9 @@ function create_world_handle_for_rune(type: Rune_Type, at: XY) {
     function rune_model(): string {
         switch (type) {
             case Rune_Type.regeneration: return "models/props_gameplay/rune_regeneration01.vmdl";
-            case Rune_Type.bounty: return "models/props_gameplay/rune_regeneration01.vmdl";
+            case Rune_Type.bounty: return "models/props_gameplay/rune_goldxp.vmdl";
             case Rune_Type.double_damage: return "models/props_gameplay/rune_doubledamage01.vmdl";
-            case Rune_Type.haste: return "models/props_gameplay/rune_regeneration01.vmdl";
+            case Rune_Type.haste: return "models/props_gameplay/rune_haste01.vmdl";
         }
     }
 
@@ -201,6 +172,24 @@ function create_world_handle_for_rune(type: Rune_Type, at: XY) {
     return handle;
 }
 
+function create_fx_for_rune_handle(type: Rune_Type, handle: Handle_Provider): FX {
+    switch (type) {
+        case Rune_Type.regeneration: return fx("particles/generic_gameplay/rune_regeneration.vpcf").follow_unit_origin(0, handle);
+        case Rune_Type.bounty: return fx("particles/generic_gameplay/rune_bounty_first.vpcf")
+            .follow_unit_origin(0, handle)
+            .follow_unit_origin(1, handle)
+            .follow_unit_origin(2, handle);
+        case Rune_Type.double_damage: return fx("particles/generic_gameplay/rune_doubledamage.vpcf").follow_unit_origin(0, handle);
+        case Rune_Type.haste: return fx("particles/generic_gameplay/rune_haste.vpcf").follow_unit_origin(0, handle);
+    }
+}
+
+function destroy_rune(rune: Rune, destroy_effects_instantly: boolean) {
+    rune.handle.RemoveSelf();
+    rune.highlight_fx.destroy_and_release(destroy_effects_instantly);
+    rune.rune_fx.destroy_and_release(destroy_effects_instantly);
+}
+
 function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
     const definition = unit_definition_by_type(unit_type);
 
@@ -210,7 +199,6 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         type: unit_type,
         position: at,
         owner_remote_id: owner_id,
-        is_playing_a_delta: false,
         level: 1,
         health: definition.health,
         max_health: definition.health,
@@ -944,6 +932,12 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         );
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
         case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
+        case Modifier_Id.rune_double_damage: return simple(target =>
+            fx("particles/generic_gameplay/rune_doubledamage_owner.vpcf").follow_unit_origin(0, target)
+        );
+        case Modifier_Id.rune_haste: return simple(target =>
+            fx("particles/generic_gameplay/rune_haste_owner.vpcf").follow_unit_origin(0, target)
+        );
     }
 }
 
@@ -1346,6 +1340,63 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
     }
 }
 
+function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, delta: Delta_Rune_Pick_Up) {
+    switch (delta.rune_type) {
+        case Rune_Type.bounty: {
+            fx("particles/generic_gameplay/rune_bounty_owner.vpcf")
+                .follow_unit_origin(0, unit)
+                .follow_unit_origin(1, unit)
+                .release();
+
+            unit_emit_sound(unit, "Rune.Bounty");
+            wait(0.5);
+
+            break;
+        }
+
+        case Rune_Type.double_damage: {
+            unit_emit_sound(unit, "Rune.DD");
+            apply_modifier(main_player, unit, delta.modifier);
+            wait(0.5);
+
+            break;
+        }
+
+        case Rune_Type.haste: {
+            unit_emit_sound(unit, "Rune.Haste");
+            apply_modifier(main_player, unit, delta.modifier);
+            wait(0.5);
+
+            break;
+        }
+
+        case Rune_Type.regeneration: {
+            const target = delta.heal.new_value;
+            const direction = delta.heal.value_delta / Math.abs(delta.heal.value_delta);
+            const particle = fx("particles/generic_gameplay/rune_regen_owner.vpcf")
+                .follow_unit_origin(0, unit)
+                .follow_unit_origin(1, unit);
+
+            unit_emit_sound(unit, "Rune.Regen");
+
+            print(unit.health, target);
+
+            while (unit.health != target) {
+                print("Go change");
+                change_health(main_player, unit, unit, { value_delta: direction, new_value: unit.health + direction });
+
+                wait(0.25);
+            }
+
+            particle.destroy_and_release(false);
+
+            wait(0.25);
+
+            break;
+        }
+    }
+}
+
 function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
     const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
@@ -1443,6 +1494,22 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
     }
 }
 
+function move_unit(main_player: Main_Player, unit: Battle_Unit, path: XY[]) {
+    for (const cell of path) {
+        const world_position = battle_position_to_world_position_center(cell);
+
+        unit.handle.MoveToPosition(world_position);
+
+        wait_until(() => {
+            return (unit.handle.GetAbsOrigin() - world_position as Vector).Length2D() < battle_cell_size / 4;
+        });
+
+        unit.move_points = unit.move_points - 1;
+
+        update_player_state_net_table(main_player);
+    }
+}
+
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
@@ -1482,21 +1549,21 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
 
-            unit.is_playing_a_delta = true;
-
             wait(0.25);
-
-            unit.is_playing_a_delta = false;
 
             break;
         }
 
         case Delta_Type.rune_spawn: {
+            const handle = create_world_handle_for_rune(delta.rune_type, delta.at);
+
             battle.runes.push({
                 id: delta.rune_id,
                 type: delta.rune_type,
                 position: delta.at,
-                handle: create_world_handle_for_rune(delta.rune_type, delta.at)
+                handle: handle,
+                highlight_fx: fx(rune_highlight).follow_unit_origin(0, { handle: handle }),
+                rune_fx: create_fx_for_rune_handle(delta.rune_type, { handle: handle })
             });
 
             break;
@@ -1504,40 +1571,37 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(delta.unit_id);
+            const path = battle.delta_paths[head];
 
-            if (unit) {
-                unit.is_playing_a_delta = true;
+            if (!unit) break;
+            if (!path) break;
 
-                const path = battle.delta_paths[head];
+            unit.position = delta.to_position;
 
-                if (!path) {
-                    print("Couldn't find path");
-                    break;
-                }
+            move_unit(main_player, unit, path);
 
-                unit.position = delta.to_position;
+            break;
+        }
 
-                for (const cell of path) {
-                    const world_position = battle_position_to_world_position_center(cell);
+        case Delta_Type.rune_pick_up: {
+            const unit = find_unit_by_id(delta.unit_id);
+            const rune_index = array_find_index(battle.runes, rune => rune.id == delta.rune_id);
+            const path = battle.delta_paths[head];
 
-                    unit.handle.MoveToPosition(world_position);
+            if (rune_index == -1) break;
+            if (!unit) break;
+            if (!path) break;
 
-                    // TODO guarded_wait_until
-                    const guard_hit = guarded_wait_until(3, () => {
-                        return (unit.handle.GetAbsOrigin() - world_position as Vector).Length2D() < battle_cell_size / 4;
-                    });
+            const rune = battle.runes[rune_index];
 
-                    if (guard_hit) {
-                        log_chat_debug_message(`Failed waiting on MoveToPosition ${world_position.x}/${world_position.y}`);
-                    }
+            unit.position = rune.position;
 
-                    unit.move_points = unit.move_points - 1;
+            move_unit(main_player, unit, path);
+            destroy_rune(rune, false);
 
-                    update_player_state_net_table(main_player);
-                }
+            battle.runes.splice(rune_index);
 
-                unit.is_playing_a_delta = false;
-            }
+            play_rune_pickup_delta(main_player, unit, delta);
 
             break;
         }
@@ -1546,11 +1610,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const attacker = find_unit_by_id(delta.unit_id);
 
             if (attacker) {
-                attacker.is_playing_a_delta = true;
-
                 play_ground_target_ability_delta(main_player, attacker, delta);
-
-                attacker.is_playing_a_delta = false;
             }
 
             break;
@@ -1561,11 +1621,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const target = find_unit_by_id(delta.target_unit_id);
 
             if (attacker && target) {
-                attacker.is_playing_a_delta = true;
-
                 play_unit_target_ability_delta(main_player, attacker, delta, target);
-
-                attacker.is_playing_a_delta = false;
             }
 
             break;
@@ -1575,11 +1631,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const attacker = find_unit_by_id(delta.unit_id);
 
             if (attacker) {
-                attacker.is_playing_a_delta = true;
-
                 play_no_target_ability_delta(main_player, attacker, delta);
-
-                attacker.is_playing_a_delta = false;
             }
 
             break;
@@ -1741,9 +1793,8 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         unit.handle.RemoveSelf();
     }
 
-    // TODO remove particles
     for (const rune of battle.runes) {
-        rune.handle.RemoveSelf();
+        destroy_rune(rune, true);
     }
 
     battle.units = snapshot.units.map(unit => {
@@ -1768,7 +1819,6 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             })),
             position: unit.position,
             owner_remote_id: unit.owner_id,
-            is_playing_a_delta: false,
             handle: create_world_handle_for_battle_unit(unit.type, unit.position, unit.facing)
         };
 
@@ -1778,11 +1828,14 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     });
 
     battle.runes = snapshot.runes.map(rune => {
+        const handle = create_world_handle_for_rune(rune.type, rune.position);
         return {
             id: rune.id,
             type: rune.type,
-            handle: create_world_handle_for_rune(rune.type, rune.position),
-            position: rune.position
+            handle: handle,
+            position: rune.position,
+            highlight_fx: fx(rune_highlight).follow_unit_origin(0, { handle: handle }),
+            rune_fx: create_fx_for_rune_handle(rune.type, { handle: handle })
         };
     });
 
