@@ -9,6 +9,9 @@
     "alwaysStrict" : false,
     "noImplicitUseStrict": true,
     "strictNullChecks" : true,
+    "lib": [
+      "es6"
+    ],
     "types": [ "node" ],
     "plugins": [
       {

@@ -8,7 +8,7 @@ function compile_file(module) {
 
         const start_time = performance.now();
         const no_npm_update = Object.assign({ "NO_UPDATE_NOTIFIER": "1" }, process.env);
-        const emitter = exec(`npx ttsc -p ../${module}/tsconfig.json --pretty`, { cwd: "codegen", env: no_npm_update });
+        const emitter = exec(`npx ttsc -p ../${module}/tsconfig.json --pretty --skipLibCheck`, { cwd: "codegen", env: no_npm_update });
 
         emitter.stdout.on("data", data => process.stdout.write(data.toString()));
         emitter.stderr.on("data", data => process.stderr.write(data.toString()));
