@@ -1,11 +1,48 @@
-let current_selected_entity: EntityId | undefined = undefined;
 let current_state = Player_State.not_logged_in;
 let this_player_id: number;
 let battle: UI_Battle;
-let current_targeted_ability: AbilityId | undefined;
 let current_hovered_ability: Ability_Id | undefined;
 let hovered_cell: XY | undefined;
 
+declare const enum Selection_Type {
+    none = 0,
+    unit = 1,
+    ability = 2,
+    shop = 3
+}
+
+type No_Selection = {
+    type: Selection_Type.none
+}
+
+type Unit_Selection = {
+    type: Selection_Type.unit
+    unit: Unit
+    unit_entity: EntityId
+}
+
+type Ability_Selection = {
+    type: Selection_Type.ability
+    unit: Unit
+    ability: Ability
+
+    unit_entity: EntityId
+}
+
+type Shop_Selection = {
+    type: Selection_Type.shop
+    unit: Unit
+    shop: Shop
+
+    unit_entity: EntityId
+    shop_entity: EntityId
+}
+
+type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection;
+
+let selection: Selection_State = {
+    type: Selection_Type.none
+};
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
 
@@ -516,7 +553,11 @@ const color_red: XYZ = [ 255, 128, 128 ];
 const color_yellow: XYZ = [ 255, 255, 0 ];
 
 function get_current_highlight_ability_id(): Ability_Id | undefined {
-    return current_targeted_ability != undefined ? current_targeted_ability : current_hovered_ability;
+    if (selection.type == Selection_Type.ability) {
+        return selection.ability.id;
+    }
+
+    return current_hovered_ability;
 }
 
 function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
@@ -649,7 +690,7 @@ function update_grid_visuals() {
     $.Msg("Update grid visuals");
 
     const highlighted_ability_id = get_current_highlight_ability_id();
-    const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
+    const selected_unit = selection.type != Selection_Type.none ? selection.unit : undefined;
     const selected_entity_path = selected_unit ? populate_path_costs(selected_unit.position) : undefined;
     const highlighted_ability = selected_unit && highlighted_ability_id != undefined ?
         find_unit_ability(selected_unit, highlighted_ability_id) :
@@ -1004,14 +1045,14 @@ function process_state_update(state: Player_Net_Table) {
         for (const leftover_id_string of leftover_entity_ids) {
             const leftover_id = Number(leftover_id_string);
 
-            if (current_selected_entity == leftover_id) {
+            if (selection.type != Selection_Type.none && selection.unit_entity == leftover_id) {
                 const old_selected_unit_data = battle.entity_id_to_unit_data[leftover_id];
 
                 for (const new_entity_id in state.battle.entity_id_to_unit_data) {
                     const new_data = state.battle.entity_id_to_unit_data[new_entity_id];
 
                     if (new_data.id == old_selected_unit_data.id) {
-                        set_current_selected_entity(Number(new_entity_id));
+                        select_unit(Number(new_entity_id));
 
                         break;
                     }
@@ -1294,16 +1335,16 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
             if (entity_data) {
                 const [ id ] = entity_data;
 
-                set_current_selected_entity(id);
+                select_unit(id);
                 try_select_unit_ability(unit, ability);
             }
         });
 
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
-            const selected = find_unit_by_entity_id(battle, current_selected_entity);
-
-            if (selected && selected.id == unit.id) {
-                set_current_hovered_ability(ability.id);
+            if (selection.type != Selection_Type.none) {
+                if (selection.unit.id == unit.id) {
+                    set_current_hovered_ability(ability.id);
+                }
             }
 
             $.DispatchEvent("DOTAShowTextTooltip", ability_panel, get_ability_tooltip(ability));
@@ -1380,34 +1421,43 @@ function update_hero_control_panel_state(unit: Unit) {
     }
 }
 
-function set_current_targeted_ability(new_ability_id: Ability_Id | undefined) {
-    const should_update = current_targeted_ability != new_ability_id;
+function deselect_ability(selection: Ability_Selection) {
+    current_targeted_ability_ui.SetHasClass("visible", false);
 
-    current_targeted_ability = new_ability_id;
-
-    if (!should_update) {
-        return;
-    }
+    select_unit(selection.unit_entity);
 
     update_grid_visuals();
-
-    const is_ui_visible = current_targeted_ability != undefined;
-
-    current_targeted_ability_ui.SetHasClass("visible", is_ui_visible);
-
-    if (is_ui_visible) {
-        const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
-
-        if (selected_unit) {
-            safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(selected_unit.type));
-            safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(current_targeted_ability!));
-        }
-    }
 }
 
-function set_current_selected_entity(new_entity_id: EntityId | undefined, full_stats = false) {
-    if (current_selected_entity) {
-        const unit_data = battle.entity_id_to_unit_data[current_selected_entity];
+function select_unit_ability(unit: Unit, ability: Ability) {
+    if (selection.type == Selection_Type.ability) {
+        if (selection.unit == unit && selection.ability.id == ability.id) {
+            return;
+        }
+    }
+
+    const entity_data = find_unit_entity_data_by_unit_id(battle, unit.id);
+
+    if (!entity_data) return;
+
+    current_targeted_ability_ui.SetHasClass("visible", true);
+
+    safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(unit.type));
+    safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(ability.id));
+
+    selection = {
+        type: Selection_Type.ability,
+        unit: unit,
+        unit_entity: entity_data[0],
+        ability: ability
+    };
+
+    update_grid_visuals();
+}
+
+function select_unit(new_entity_id: EntityId | undefined, full_stats = false) {
+    if (selection.type != Selection_Type.none) {
+        const unit_data = battle.entity_id_to_unit_data[selection.unit_entity];
 
         if (unit_data) {
             unit_data.stat_bar_panel.RemoveClass("show_additional_stats");
@@ -1415,17 +1465,27 @@ function set_current_selected_entity(new_entity_id: EntityId | undefined, full_s
         }
     }
 
-    current_selected_entity = new_entity_id;
+    if (new_entity_id) {
+        const unit_data = battle.entity_id_to_unit_data[new_entity_id];
 
-    if (current_selected_entity) {
-        const unit_data = battle.entity_id_to_unit_data[current_selected_entity];
+        if (!unit_data) return;
 
-        if (unit_data) {
-            unit_data.stat_bar_panel.AddClass("show_additional_stats");
-            unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
-        }
+        const unit = find_unit_by_id(battle, unit_data.id);
+
+        if (!unit) return;
+
+        selection = {
+            type: Selection_Type.unit,
+            unit: unit,
+            unit_entity: new_entity_id
+        };
+
+        unit_data.stat_bar_panel.AddClass("show_additional_stats");
+        unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
     } else {
-        set_current_targeted_ability(undefined);
+        selection = {
+            type: Selection_Type.none
+        }
     }
 }
 
@@ -1437,24 +1497,15 @@ function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
 
 function update_current_ability_based_on_cursor_state() {
     const click_behaviors = GameUI.GetClickBehaviors();
-    const selected = find_unit_by_entity_id(battle, current_selected_entity);
 
-    switch (click_behaviors) {
-        case CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK: {
-            if (selected) {
-                set_current_targeted_ability(selected.attack.id);
-            }
+    if (selection.type != Selection_Type.none && click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK) {
+        select_unit_ability(selection.unit, selection.unit.attack);
+        return;
+    }
 
-            break;
-        }
-
-        default: {
-            if (selected && current_targeted_ability == selected.attack.id) {
-                set_current_targeted_ability(undefined);
-            }
-
-            break;
-        }
+    if (selection.type == Selection_Type.ability && selection.ability.id == selection.unit.attack.id) {
+        deselect_ability(selection);
+        return;
     }
 }
 
@@ -1520,7 +1571,7 @@ function periodically_update_ui() {
     update_hovered_cell();
     update_hand();
 
-    if (current_targeted_ability != undefined) {
+    if (selection.type == Selection_Type.ability) {
         const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
         const { x, y } = current_targeted_ability_ui.GetPositionWithinWindow();
         const width = current_targeted_ability_ui.actuallayoutwidth;
@@ -1602,6 +1653,51 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
     })
 }
 
+function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY, cursor_entity_unit?: Unit): boolean {
+    switch (ability.type) {
+        case Ability_Type.target_ground: {
+            if (ability_targeting_fits(ability.targeting, unit.position, at_position)) {
+                take_battle_action({
+                    type: Action_Type.ground_target_ability,
+                    unit_id: unit.id,
+                    ability_id: ability.id,
+                    to: at_position
+                });
+            } else {
+                show_ability_error(unit, ability.id, Ability_Error.invalid_target);
+
+                return false;
+            }
+
+            break;
+        }
+
+        case Ability_Type.target_unit: {
+            if (ability_targeting_fits(ability.targeting, unit.position, at_position) && cursor_entity_unit) {
+                take_battle_action({
+                    type: Action_Type.unit_target_ability,
+                    unit_id: unit.id,
+                    ability_id: ability.id,
+                    target_id: cursor_entity_unit.id
+                });
+            } else {
+                show_ability_error(unit, ability.id, Ability_Error.invalid_target);
+
+                return false;
+            }
+        }
+
+        case Ability_Type.no_target:
+        case Ability_Type.passive: {
+            break;
+        }
+
+        default: unreachable(ability);
+    }
+
+    return true;
+}
+
 function setup_mouse_filter() {
     GameUI.SetMouseCallback((event, button) => {
         if (current_state != Player_State.in_battle) {
@@ -1616,102 +1712,35 @@ function setup_mouse_filter() {
             const cursor_entity = get_entity_under_cursor(cursor);
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
             const cursor_entity_rune = find_rune_by_entity_id(battle, cursor_entity);
-            const selected_unit = find_unit_by_entity_id(battle, current_selected_entity);
 
-            if (button == MouseButton.LEFT && current_selected_entity == undefined && cursor_entity == null) {
+            if (button == MouseButton.LEFT && selection.type == Selection_Type.none && cursor_entity == null) {
                 const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
                 Particles.SetParticleControl(particle, 0, world_position);
                 Particles.ReleaseParticleIndex(particle);
             }
 
-            if (current_selected_entity != undefined && current_targeted_ability != undefined) {
-                const wants_to_use_ability =
-                    button == MouseButton.LEFT;
-
-                const wants_to_cancel =
-                    button == MouseButton.RIGHT;
-
-                if (!selected_unit) {
-                    return true;
-                }
+            if (selection.type == Selection_Type.ability) {
+                const wants_to_use_ability = button == MouseButton.LEFT;
+                const wants_to_cancel = button == MouseButton.RIGHT;
 
                 if (wants_to_cancel) {
-                    set_current_targeted_ability(undefined);
+                    deselect_ability(selection);
 
                     if (click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE) {
                         return false;
                     }
                 } else if (wants_to_use_ability) {
-                    if (!selected_unit) return true;
+                    const success = try_use_targeted_ability(selection.unit, selection.ability, battle_position, cursor_entity_unit);
 
-                    const ability = find_unit_ability(selected_unit, current_targeted_ability);
-
-                    if (!ability) return true;
-
-                    switch (ability.type) {
-                        case Ability_Type.target_ground: {
-                            if (ability_targeting_fits(ability.targeting, selected_unit.position, battle_position)) {
-                                take_battle_action({
-                                    type: Action_Type.ground_target_ability,
-                                    unit_id: selected_unit.id,
-                                    ability_id: current_targeted_ability,
-                                    to: battle_position
-                                });
-                            } else {
-                                show_ability_error(selected_unit, current_targeted_ability, Ability_Error.invalid_target);
-
-                                return true;
-                            }
-
-                            break;
-                        }
-
-                        case Ability_Type.target_unit: {
-                            if (ability_targeting_fits(ability.targeting, selected_unit.position, battle_position) && cursor_entity_unit) {
-                                take_battle_action({
-                                    type: Action_Type.unit_target_ability,
-                                    unit_id: selected_unit.id,
-                                    ability_id: current_targeted_ability,
-                                    target_id: cursor_entity_unit.id
-                                });
-                            } else {
-                                show_ability_error(selected_unit, current_targeted_ability, Ability_Error.invalid_target);
-
-                                return true;
-                            }
-                        }
-
-                        case Ability_Type.no_target:
-                        case Ability_Type.passive: {
-                            break;
-                        }
-
-                        default: unreachable(ability);
+                    if (success) {
+                        deselect_ability(selection);
+                    } else {
+                        return true;
                     }
-
-                    set_current_targeted_ability(undefined);
                 }
 
                 return true;
             }
-
-            const wants_to_select_unit =
-                button == MouseButton.LEFT &&
-                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
-
-            const wants_to_perform_automatic_action =
-                button == MouseButton.RIGHT &&
-                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
-
-            const wants_to_move_unconditionally =
-                current_selected_entity != undefined &&
-                button == MouseButton.LEFT &&
-                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
-
-            const wants_to_attack_unconditionally =
-                current_selected_entity != undefined &&
-                button == MouseButton.LEFT &&
-                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
 
             const wants_to_cancel_current_behavior =
                 button == MouseButton.RIGHT &&
@@ -1721,8 +1750,12 @@ function setup_mouse_filter() {
                 return false;
             }
 
+            const wants_to_select_unit =
+                button == MouseButton.LEFT &&
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+
             if (wants_to_select_unit) {
-                set_current_selected_entity(cursor_entity, event == "doublepressed");
+                select_unit(cursor_entity, event == "doublepressed");
 
                 if (cursor_entity) {
                     const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
@@ -1737,31 +1770,41 @@ function setup_mouse_filter() {
                 return true;
             }
 
-            if (!selected_unit) {
-                return true;
-            }
+            if (selection.type == Selection_Type.unit) {
+                const wants_to_perform_automatic_action =
+                    button == MouseButton.RIGHT &&
+                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
-            // TODO before taking an action we should first check if we can perform it and display an error if not
-            if (wants_to_perform_automatic_action) {
-                if (cursor_entity_unit) {
-                    if (cursor_entity != current_selected_entity) {
-                        try_attack_target(selected_unit, cursor_entity_unit.position, true);
+                const wants_to_move_unconditionally =
+                    button == MouseButton.LEFT &&
+                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
+
+                const wants_to_attack_unconditionally =
+                    button == MouseButton.LEFT &&
+                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
+
+                // TODO before taking an action we should first check if we can perform it and display an error if not
+                if (wants_to_perform_automatic_action) {
+                    if (cursor_entity_unit) {
+                        if (cursor_entity != selection.unit_entity) {
+                            try_attack_target(selection.unit, cursor_entity_unit.position, true);
+                        }
+                    } else if (cursor_entity_rune) {
+                        take_battle_action({
+                            type: Action_Type.pick_up_rune,
+                            unit_id: selection.unit.id,
+                            rune_id: cursor_entity_rune.id
+                        })
+                    } else {
+                        try_order_unit_to_move(selection.unit, battle_position);
+                        move_order_particle(world_position);
                     }
-                } else if (cursor_entity_rune) {
-                    take_battle_action({
-                        type: Action_Type.pick_up_rune,
-                        unit_id: selected_unit.id,
-                        rune_id: cursor_entity_rune.id
-                    })
-                } else {
-                    try_order_unit_to_move(selected_unit, battle_position);
+                } else if (wants_to_move_unconditionally) {
+                    try_order_unit_to_move(selection.unit, battle_position);
                     move_order_particle(world_position);
+                } else if (wants_to_attack_unconditionally) {
+                    try_attack_target(selection.unit, battle_position, false);
                 }
-            } else if (wants_to_move_unconditionally) {
-                try_order_unit_to_move(selected_unit, battle_position);
-                move_order_particle(world_position);
-            } else if (wants_to_attack_unconditionally) {
-                try_attack_target(selected_unit, battle_position, false);
             }
         }
 
@@ -2130,7 +2173,7 @@ function try_select_unit_ability(unit: Unit, ability: Ability) {
                 ability_id: ability.id
             })
         } else {
-            set_current_targeted_ability(ability.id);
+            select_unit_ability(unit, ability);
         }
     } else {
         show_ability_error(unit, ability.id, ability_use.error);
@@ -2142,17 +2185,13 @@ function setup_custom_ability_hotkeys() {
 
     function bind_ability_at_index_to_command(command: string, index: number) {
         GameUI.CustomUIConfig().register_key_bind(command, () => {
-            const unit = find_unit_by_entity_id(battle, current_selected_entity);
+            if (selection.type == Selection_Type.unit) {
+                const ability = selection.unit.abilities[index];
 
-            if (!unit) {
-                return;
+                if (!ability) return;
+
+                try_select_unit_ability(selection.unit, ability);
             }
-
-            const ability = unit.abilities[index];
-
-            if (!ability) return;
-
-            try_select_unit_ability(unit, ability);
         });
     }
 

@@ -57,7 +57,7 @@ function hack_into_game_chat() {
                 if (text == "-ping") {
                     Game.ServerCmd("dota_ping");
                 } else {
-                    const unit = find_unit_by_entity_id(battle, current_selected_entity);
+                    const unit = selection.type == Selection_Type.unit ? selection.unit : undefined;
 
                     remote_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
                         access_token: get_access_token(),
