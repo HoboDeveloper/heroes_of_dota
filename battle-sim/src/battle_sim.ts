@@ -27,6 +27,7 @@ type Battle = {
     delta_head: number
     units: Unit[]
     runes: Rune[]
+    shops: Shop[]
     players: Battle_Player[]
     deltas: Delta[]
     turning_player_index: number
@@ -61,6 +62,12 @@ type Rune = {
     type: Rune_Type
     id: number
     position: XY
+}
+
+type Shop = {
+    id: number
+    position: XY
+    items: Item_Id[]
 }
 
 type Modifier_Base = {
@@ -218,6 +225,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         turning_player_index: 0,
         units: [],
         runes: [],
+        shops: [],
         cells: [],
         players: participants.map(participant => ({
             id: participant.id,
@@ -883,6 +891,18 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             battle.runes.push({
                 id: delta.rune_id,
                 type: delta.rune_type,
+                position: delta.at
+            });
+
+            grid_cell_at_unchecked(battle, delta.at).occupied = true;
+
+            break;
+        }
+
+        case Delta_Type.shop_spawn: {
+            battle.shops.push({
+                id: delta.shop_id,
+                items: delta.item_pool,
                 position: delta.at
             });
 

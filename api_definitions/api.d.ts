@@ -21,7 +21,8 @@ declare const enum Delta_Type {
     use_card = 17,
     rune_spawn = 18,
     rune_pick_up = 19,
-    game_over = 20
+    shop_spawn = 20,
+    game_over = 22
 }
 
 declare const enum Action_Type {
@@ -31,7 +32,7 @@ declare const enum Action_Type {
     unit_target_ability = 5,
     use_no_target_ability = 6,
     use_hero_card = 7,
-    pick_up_rune = 8
+    pick_up_rune = 8,
 }
 
 declare const enum Unit_Type {
@@ -91,6 +92,14 @@ declare const enum Card_Type {
 declare const enum Modifier_Change_Type {
     field_change = 0,
     ability_swap = 1
+}
+
+declare const enum Item_Id {
+    boots_of_travel = 0,
+    heart_of_tarrasque = 1,
+    assault_cuirass = 2,
+    satanic = 3,
+    divine_rapier = 4
 }
 
 type Unit_Stats = {
@@ -359,6 +368,20 @@ type Delta_Use_Card = {
     card_id: number
 }
 
+type Delta_Shop_Spawn = {
+    type: Delta_Type.shop_spawn
+    shop_id: number
+    item_pool: Item_Id[]
+    at: {
+        x: number
+        y: number
+    }
+    facing: {
+        x: number
+        y: number
+    }
+}
+
 type Delta_Rune_Spawn = {
     type: Delta_Type.rune_spawn
     rune_type: Rune_Type
@@ -421,6 +444,7 @@ type Delta =
     Delta_Draw_Card |
     Delta_Use_Card |
     Delta_Rune_Spawn |
+    Delta_Shop_Spawn |
     Delta_Start_Turn |
     Delta_End_Turn |
     Delta_Game_Over

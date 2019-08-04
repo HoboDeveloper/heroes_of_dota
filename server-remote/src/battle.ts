@@ -10,6 +10,7 @@ export type Battle_Record = Battle & {
     id: number
     unit_id_auto_increment: number
     rune_id_auto_increment: number
+    shop_id_auto_increment: number
     modifier_handle_id_auto_increment: number
     card_id_auto_increment: number
     finished: boolean
@@ -48,19 +49,33 @@ const battlegrounds: Battleground_Definition[] = [
             {
                 type: Spawn_Type.rune,
                 at: xy(5, 6)
+            },
+            {
+                type: Spawn_Type.shop,
+                at: xy(5, 1),
+                facing: xy(0, 1)
             }
         ]
     }
 ];
 
 declare const enum Spawn_Type {
-    rune = 0
+    rune = 0,
+    shop = 1
 }
 
-type Battleground_Spawn = {
-    type: Spawn_Type
+type Rune_Spawn = {
+    type: Spawn_Type.rune
     at: XY
 }
+
+type Shop_Spawn = {
+    type: Spawn_Type.shop
+    at: XY
+    facing: XY
+}
+
+type Battleground_Spawn = Rune_Spawn | Shop_Spawn;
 
 type Battleground_Definition = {
     grid_size: XY
@@ -879,6 +894,10 @@ function get_next_rune_id(battle: Battle_Record) {
     return battle.rune_id_auto_increment++;
 }
 
+function get_next_shop_id(battle: Battle_Record) {
+    return battle.shop_id_auto_increment;
+}
+
 function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
     if (battle.turn_index < 5) {
         return undefined;
@@ -997,6 +1016,7 @@ export function start_battle(players: Player[]): number {
         turn_index: 0,
         unit_id_auto_increment: 0,
         rune_id_auto_increment: 0,
+        shop_id_auto_increment: 0,
         modifier_handle_id_auto_increment: 0,
         card_id_auto_increment: 0,
         finished: false,
@@ -1039,7 +1059,21 @@ export function start_battle(players: Player[]): number {
                 break;
             }
 
-            default: unreachable(spawn.type);
+            case Spawn_Type.shop: {
+                const items = enum_values<Item_Id>();
+
+                spawn_deltas.push({
+                    type: Delta_Type.shop_spawn,
+                    shop_id: get_next_shop_id(battle),
+                    item_pool: items,
+                    at: spawn.at,
+                    facing: spawn.facing
+                });
+
+                break;
+            }
+
+            default: unreachable(spawn);
         }
     }
 

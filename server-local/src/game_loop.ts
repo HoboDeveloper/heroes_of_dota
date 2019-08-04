@@ -101,6 +101,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
         case Player_State.in_battle: {
             const entity_id_to_unit_data: Record<EntityID, Visualizer_Unit_Data> = {};
             const entity_id_to_rune_id: Record<number, number> = {};
+            const entity_id_to_shop_id: Record<number, number> = {};
 
             for (const unit of battle.units) {
                 // TODO some of those properties are not actually needed
@@ -124,6 +125,10 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                 entity_id_to_rune_id[rune.handle.entindex()] = rune.id;
             }
 
+            for (const shop of battle.shops) {
+                entity_id_to_shop_id[shop.handle.entindex()] = shop.id;
+            }
+
             return {
                 state: main_player.state,
                 id: main_player.remote_id,
@@ -138,7 +143,8 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     grid_size: battle.grid_size,
                     current_visual_head: battle.delta_head,
                     entity_id_to_unit_data: entity_id_to_unit_data,
-                    entity_id_to_rune_id: entity_id_to_rune_id
+                    entity_id_to_rune_id: entity_id_to_rune_id,
+                    entity_id_to_shop_id: entity_id_to_shop_id
                 }
             };
         }
@@ -371,6 +377,7 @@ function game_loop() {
         fast_forward_from_snapshot(main_player, {
             units: from_client_array(event.units),
             runes: from_client_array(event.runes),
+            shops: from_client_array(event.shops),
             delta_head: event.delta_head
         });
     });
@@ -391,6 +398,13 @@ function game_loop() {
     fork(() => {
         while(true) {
             update_main_player_movement_history(main_player);
+            wait_one_frame();
+        }
+    });
+
+    fork(() => {
+        while(true) {
+            periodically_update_battle();
             wait_one_frame();
         }
     });

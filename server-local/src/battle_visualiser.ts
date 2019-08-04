@@ -12,6 +12,7 @@ type Battle = {
     world_origin: Vector
     units: Battle_Unit[]
     runes: Rune[]
+    shops: Shop[]
     grid_size: {
         width: number
         height: number
@@ -37,6 +38,11 @@ type Rune = {
 
     highlight_fx: FX
     rune_fx: FX
+}
+
+type Shop = {
+    id: number
+    handle: CDOTA_BaseNPC
 }
 
 declare const enum Shake {
@@ -149,7 +155,7 @@ function create_world_handle_for_battle_unit(type: Unit_Type, at: XY, facing: XY
     return handle;
 }
 
-function create_world_handle_for_rune(type: Rune_Type, at: XY) {
+function create_world_handle_for_rune(type: Rune_Type, at: XY): CDOTA_BaseNPC {
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName("npc_dummy_unit", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
@@ -168,6 +174,19 @@ function create_world_handle_for_rune(type: Rune_Type, at: XY) {
     handle.SetModel(model);
     handle.SetOriginalModel(model);
     handle.StartGesture(GameActivity_t.ACT_DOTA_IDLE);
+
+    return handle;
+}
+
+function create_world_handle_for_shop(at: XY, facing: XY): CDOTA_BaseNPC {
+    const world_location = battle_position_to_world_position_center(at);
+    const handle = CreateUnitByName("npc_dummy_unit", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
+    const model = "models/heroes/shopkeeper/shopkeeper.vmdl";
+    handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
+    handle.SetModel(model);
+    handle.SetOriginalModel(model);
+    handle.StartGesture(GameActivity_t.ACT_DOTA_IDLE);
+    handle.SetForwardVector(Vector(facing.x, facing.y));
 
     return handle;
 }
@@ -1566,6 +1585,15 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
+        case Delta_Type.shop_spawn: {
+            battle.shops.push({
+                id: delta.shop_id,
+                handle: create_world_handle_for_shop(delta.at, delta.facing)
+            });
+
+            break;
+        }
+
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(delta.unit_id);
             const path = battle.delta_paths[head];
@@ -1750,6 +1778,16 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     }
 }
 
+function periodically_update_battle() {
+    for (const rune of battle.runes) {
+        // Double damage rune doesn't spin by itself because Valve
+        if (rune.type == Rune_Type.double_damage) {
+            const current_angle = (GameRules.GetGameTime() % (Math.PI * 2)) * 2.0;
+            rune.handle.SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)))
+        }
+    }
+}
+
 function load_battle_data() {
     const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
 
@@ -1772,6 +1810,7 @@ function load_battle_data() {
         world_origin: origin,
         units: [],
         runes: [],
+        shops: [],
         grid_size: {
             width: 0,
             height: 0
@@ -1835,6 +1874,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             rune_fx: create_fx_for_rune_handle(rune.type, { handle: handle })
         };
     });
+
+    battle.shops = snapshot.shops.map(shop => ({
+        id: shop.id,
+        handle: create_world_handle_for_shop(shop.position, shop.facing)
+    }));
 
     battle.delta_head = snapshot.delta_head;
 

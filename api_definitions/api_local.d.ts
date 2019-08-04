@@ -39,6 +39,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
         }
         entity_id_to_unit_data: Record<number, Visualizer_Unit_Data>
         entity_id_to_rune_id: Record<number, number>
+        entity_id_to_shop_id: Record<number, number>
         current_visual_head: number
     }
 }
@@ -108,8 +109,21 @@ type Rune_Snapshot = {
     }
 }
 
+type Shop_Snapshot = {
+    id: number
+    position: {
+        x: number
+        y: number
+    }
+    facing: {
+        x: number
+        y: number
+    }
+}
+
 type Battle_Snapshot = {
     units: Unit_Snapshot[]
     runes: Rune_Snapshot[]
+    shops: Shop_Snapshot[]
     delta_head: number
 }

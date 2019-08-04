@@ -970,6 +970,22 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
         }
     }
 
+    for (const shop of game.battle.shops) {
+        const image = image_from_url(`data:image/png;base64,${embed_base64("images/shop.png")}`);
+
+        if (image.loaded) {
+            ctx.drawImage(
+                image.img,
+                0, 0,
+                image.img.width, image.img.height,
+                shop.position.x * cell_size + icon_offset,
+                shop.position.y * cell_size + icon_offset,
+                icon_size,
+                icon_size
+            );
+        }
+    }
+
     ctx.translate(-grid_top_left_x, -grid_top_left_y);
 }
 

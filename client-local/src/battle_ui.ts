@@ -45,7 +45,9 @@ type UI_Battle = Battle & {
     world_origin: XY
     entity_id_to_unit_data: Record<EntityId, UI_Unit_Data>
     entity_id_to_rune_id: Record<number, number>
+    entity_id_to_shop_id: Record<number, number>
     unit_id_to_facing: Record<number, XY>
+    shop_id_to_facing: Record<number, XY>
     cells: UI_Cell[]
     cell_index_to_unit: Unit[]
     cell_index_to_rune: Rune[]
@@ -148,6 +150,11 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
                 y: owner.deployment_zone.face_y
             };
 
+            break;
+        }
+
+        case Delta_Type.shop_spawn: {
+            battle.shop_id_to_facing[delta.shop_id] = delta.facing;
             break;
         }
 
@@ -363,7 +370,9 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             cell_index_to_rune: [],
             entity_id_to_unit_data: {},
             entity_id_to_rune_id: {},
+            entity_id_to_shop_id: {},
             unit_id_to_facing: {},
+            shop_id_to_facing: {},
             outline_particles: [],
             change_health: change_health_default
         };
@@ -954,6 +963,12 @@ function process_state_update(state: Player_Net_Table) {
             battle.entity_id_to_rune_id[entity_id] = state.battle.entity_id_to_rune_id[entity_id];
         }
 
+        battle.entity_id_to_shop_id = {};
+
+        for (const entity_id in state.battle.entity_id_to_shop_id) {
+            battle.entity_id_to_shop_id[entity_id] = state.battle.entity_id_to_shop_id[entity_id];
+        }
+
         const leftover_entity_ids = Object.keys(battle.entity_id_to_unit_data);
 
         for (const entity_id in state.battle.entity_id_to_unit_data) {
@@ -1098,12 +1113,16 @@ function make_battle_snapshot(): Battle_Snapshot {
                     changes: modifier.changes
                 }))
             })),
-        runes: battle.runes
-            .map(rune => ({
-                id: rune.id,
-                position: rune.position,
-                type: rune.type
-            })),
+        runes: battle.runes.map(rune => ({
+            id: rune.id,
+            position: rune.position,
+            type: rune.type
+        })),
+        shops: battle.shops.map(shop => ({
+            id: shop.id,
+            position: shop.position,
+            facing: battle.shop_id_to_facing[shop.id]
+        })),
         delta_head: battle.delta_head
     }
 }
