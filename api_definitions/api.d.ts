@@ -623,6 +623,23 @@ type Battle_Cheat_Command_Request = {
     selected_unit_id: number
 }
 
+type Battle_Info = {
+    id: number
+    grid_size: {
+        width: number
+        height: number
+    }
+    participants: Battle_Participant_Info[]
+}
+
+type Query_Battles_Request = {
+    access_token: string
+}
+
+type Query_Battles_Response = {
+    battles: Battle_Info[]
+}
+
 declare function copy<T>(arg: T): T;
 declare function enum_to_string(enum_member: any): string;
 declare function enum_values<T>(): T[];

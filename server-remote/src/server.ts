@@ -2,7 +2,7 @@ import {createServer} from "http";
 import {randomBytes} from "crypto"
 import {
     Battle_Record, cheat,
-    find_battle_by_id,
+    find_battle_by_id, get_all_battles,
     get_battle_deltas_after, random_in_array, random_int_range,
     start_battle,
     try_take_turn_action
@@ -27,7 +27,8 @@ const enum Right {
     attack_a_character,
     participate_in_a_battle,
     submit_movement,
-    submit_chat_messages
+    submit_chat_messages,
+    query_battles
 }
 
 export interface Player {
@@ -276,6 +277,10 @@ function can_player(player: Player, right: Right) {
 
         case Right.submit_chat_messages: {
             return player.state != Player_State.not_logged_in;
+        }
+
+        case Right.query_battles: {
+            return player.state == Player_State.on_global_map;
         }
     }
 
@@ -572,6 +577,33 @@ handlers.set("/take_battle_action", body => {
                 previous_head: previous_head
             }
         }
+    });
+
+    return action_on_player_to_result(result);
+});
+
+handlers.set("/query_battles", body => {
+    const request = JSON.parse(body) as Query_Battles_Request;
+
+    const result = try_do_with_player<Query_Battles_Response>(request.access_token, player => {
+        if (!can_player(player, Right.query_battles)) {
+            return;
+        }
+
+        return {
+            battles: get_all_battles().map(battle => ({
+                id: battle.id,
+                grid_size: {
+                    width: battle.grid_size.x,
+                    height: battle.grid_size.y
+                },
+                participants: battle.players.map(player => ({
+                    id: player.id,
+                    name: player.name,
+                    deployment_zone: player.deployment_zone
+                }))
+            }))
+        };
     });
 
     return action_on_player_to_result(result);

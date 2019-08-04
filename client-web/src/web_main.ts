@@ -23,7 +23,9 @@ type Game_Not_Logged_In = Game_Base & {
 type Game_On_Global_Map = Game_Base & {
     state: Player_State.on_global_map
     nearby_players: Player[]
+    battles: Battle_Info[]
     refreshed_nearby_players_at: number
+    refreshed_battles_at: number
 }
 
 type Game_In_Battle = Game_Base & {
@@ -33,6 +35,7 @@ type Game_In_Battle = Game_Base & {
     requested_battle_deltas_at: number
     selection: Selection_State
     battle_log: Colored_Line[]
+    spectating: boolean
 }
 
 type Game = Game_In_Battle | Game_On_Global_Map | Game_Not_Logged_In;
@@ -243,6 +246,20 @@ function draw_header(game: Game) {
     ctx.fillText(enum_to_string(game.state), 30, 30);
 }
 
+async function check_and_try_refresh_battles(game: Game_On_Global_Map, time: number) {
+    if (time - game.refreshed_battles_at < 1000) {
+        return;
+    }
+
+    game.refreshed_battles_at = time;
+
+    const response = await api_request<Query_Battles_Request, Query_Battles_Response>("/query_battles", {
+        access_token: game.access_token
+    });
+
+    game.battles = response.battles;
+}
+
 async function check_and_try_refresh_nearby_players(game: Game_On_Global_Map, time: number) {
     if (time - game.refreshed_nearby_players_at < 1000) {
         return;
@@ -275,6 +292,11 @@ async function check_and_try_request_player_state(state: Game, time: number) {
     });
 
     if (player_data.state != game.state) {
+        // Don't force server state while spectating
+        if (game.state == Player_State.in_battle && game.spectating) {
+            return;
+        }
+
         game = game_from_state(player_data, game);
     }
 }
@@ -758,7 +780,7 @@ function draw_battle_log(game: Game_In_Battle) {
     }
 }
 
-function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupied: boolean) {
+function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, highlight_occupied: boolean) {
     const ctx = game.ctx;
 
     const grid_size = game.battle.grid_size;
@@ -780,7 +802,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
 
     ctx.stroke();
 
-    if (game.selection.type == Selection_Type.card) {
+    if (player && game.selection.type == Selection_Type.card) {
         const zone = player.deployment_zone;
 
         ctx.strokeStyle = "yellow";
@@ -807,11 +829,11 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player, highlight_occupi
             );
 
             if (hovered) {
-                if (was_button_clicked(0)) {
+                if (was_button_clicked(0) && player) {
                     on_cell_selected(game, player, x, y);
 
                     game.any_button_clicked_this_frame = true;
-                } else if (was_button_clicked(2)) {
+                } else if (was_button_clicked(2) && player) {
                     on_cell_right_clicked(game, player, x, y);
 
                     game.any_button_clicked_this_frame = true;
@@ -1018,6 +1040,34 @@ function draw_card_list(game: Game_In_Battle, player: Battle_Player) {
     }
 }
 
+function draw_battle_list(global_map: Game_On_Global_Map) {
+    const font_size_px = 18;
+    const padding = 8;
+    const margin = 4;
+
+    let height_offset = 0;
+
+    for (const battle of global_map.battles) {
+        const top_left_x = 250, top_left_y = 70 + height_offset;
+        const text = `Spectate ${battle.participants[0].name} vs ${battle.participants[1].name}`;
+
+        if (button(text, top_left_x, top_left_y, font_size_px, padding)) {
+            game = game_from_state({
+                state: Player_State.in_battle,
+                battle_id: battle.id,
+                grid_size: battle.grid_size,
+                participants: battle.participants
+            }, game);
+
+            if (game.state == Player_State.in_battle) {
+                game.spectating = true;
+            }
+        }
+
+        height_offset += margin + padding + font_size_px + padding + margin;
+    }
+}
+
 function draw_ability_list(game: Game_In_Battle, unit: Unit): boolean {
     const top_left_x = 120 + game.battle.grid_size.x * cell_size + 30;
 
@@ -1083,18 +1133,16 @@ function do_one_frame(time: number) {
     switch (game.state) {
         case Player_State.on_global_map: {
             draw_player_list(game);
+            draw_battle_list(game);
 
             check_and_try_refresh_nearby_players(game, time);
+            check_and_try_refresh_battles(game, time);
 
             break;
         }
 
         case Player_State.in_battle: {
             const this_player = find_player_by_id(game.battle, game.player_id);
-
-            if (!this_player) {
-                break;
-            }
 
             let ability_was_highlighted = false;
 
@@ -1118,7 +1166,10 @@ function do_one_frame(time: number) {
                 drop_selection(game);
             }
 
-            draw_card_list(game, this_player);
+            if (this_player) {
+                draw_card_list(game, this_player);
+            }
+
             draw_battle_log(game);
 
             if (was_button_clicked(0) && !game.any_button_clicked_this_frame) {
@@ -1239,7 +1290,8 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                 battle: battle,
                 battle_id: player_state.battle_id,
                 selection: { type: Selection_Type.none },
-                battle_log: battle_log
+                battle_log: battle_log,
+                spectating: false
             };
         }
 
@@ -1248,7 +1300,9 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                 ...game_base,
                 state: player_state.state,
                 nearby_players: [],
-                refreshed_nearby_players_at: 0
+                battles: [],
+                refreshed_nearby_players_at: 0,
+                refreshed_battles_at: 0
             };
         }
 
