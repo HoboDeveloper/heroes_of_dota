@@ -101,6 +101,7 @@ type XY = {
 }
 
 const max_unit_level = 3;
+const shop_range = 2;
 
 function xy(x: number, y: number): XY {
     return { x: x, y: y };
@@ -177,8 +178,12 @@ function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
-function rune_at(battle: Battle, at: XY) : Rune| undefined {
+function rune_at(battle: Battle, at: XY) : Rune | undefined {
     return battle.runes.find(rune => xy_equal(rune.position, at));
+}
+
+function shop_at(battle: Battle, at: XY) : Shop | undefined {
+    return battle.shops.find(shop => xy_equal(shop.position, at));
 }
 
 function is_unit_stunned(unit: Unit) {

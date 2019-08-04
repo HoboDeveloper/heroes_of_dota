@@ -89,6 +89,7 @@ type UI_Battle = Battle & {
     cell_index_to_unit: Unit[]
     cell_index_to_rune: Rune[]
     outline_particles: ParticleId[]
+    shop_range_outline_particles: ParticleId[]
 }
 
 type UI_Cell = Cell & {
@@ -411,7 +412,12 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             unit_id_to_facing: {},
             shop_id_to_facing: {},
             outline_particles: [],
+            shop_range_outline_particles: [],
             change_health: change_health_default
+        };
+
+        selection = {
+            type: Selection_Type.none
         };
 
         const particle_bottom_left_origin: XYZ = [
@@ -552,14 +558,6 @@ const color_green: XYZ = [ 128, 255, 128 ];
 const color_red: XYZ = [ 255, 128, 128 ];
 const color_yellow: XYZ = [ 255, 255, 0 ];
 
-function get_current_highlight_ability_id(): Ability_Id | undefined {
-    if (selection.type == Selection_Type.ability) {
-        return selection.ability.id;
-    }
-
-    return current_hovered_ability;
-}
-
 function highlight_outline(cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
     const cell_index_to_edges: Array<{ edge: Edge, from: XY, to: XY, deleted: boolean }[]> = [];
     const unique_edges: { edge: Edge, from: XY, to: XY, deleted: boolean }[] = [];
@@ -686,25 +684,87 @@ function highlight_outline_temporarily(cell_index_to_highlight: boolean[], color
     });
 }
 
+
+type Grid_Selection_None = {
+    type: Selection_Type.none
+}
+
+type Grid_Selection_Unit = {
+    type: Selection_Type.unit
+    unit: Unit
+    path: Cost_Population_Result
+}
+
+type Grid_Selection_Ability = {
+    type: Selection_Type.ability
+    unit: Unit
+    ability: Ability
+}
+
+type Grid_Selection = Grid_Selection_None | Grid_Selection_Unit | Grid_Selection_Ability;
+
+function selection_to_grid_selection(): Grid_Selection {
+    function none(): Grid_Selection_None {
+        return {
+            type: Selection_Type.none
+        }
+    }
+
+    switch (selection.type) {
+        case Selection_Type.none: return none();
+
+        case Selection_Type.unit: {
+            if (current_hovered_ability != undefined) {
+                const ability = find_unit_ability(selection.unit, current_hovered_ability);
+
+                if (!ability) return none();
+
+                return {
+                    type: Selection_Type.ability,
+                    unit: selection.unit,
+                    ability: ability
+                }
+            }
+
+            const selected_entity_path = populate_path_costs(selection.unit.position)!;
+
+            return {
+                type: Selection_Type.unit,
+                path: selected_entity_path,
+                unit: selection.unit
+            }
+        }
+
+        case Selection_Type.ability: {
+            return {
+                type: Selection_Type.ability,
+                unit: selection.unit,
+                ability: selection.ability
+            }
+        }
+
+        case Selection_Type.shop: {
+            return none();
+        }
+    }
+}
+
 function update_grid_visuals() {
     $.Msg("Update grid visuals");
 
-    const highlighted_ability_id = get_current_highlight_ability_id();
-    const selected_unit = selection.type != Selection_Type.none ? selection.unit : undefined;
-    const selected_entity_path = selected_unit ? populate_path_costs(selected_unit.position) : undefined;
-    const highlighted_ability = selected_unit && highlighted_ability_id != undefined ?
-        find_unit_ability(selected_unit, highlighted_ability_id) :
-        undefined;
+    const selection = selection_to_grid_selection();
 
     let can_highlighted_ability_target_hovered_cell = false;
     let highlighted_ability_selector: Ability_Target_Selector | undefined;
 
-    if (hovered_cell && highlighted_ability && selected_unit) {
-        switch (highlighted_ability.type) {
+    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+
+    if (hovered_cell && selection.type == Selection_Type.ability) {
+        switch (selection.ability.type) {
             case Ability_Type.target_ground:
             case Ability_Type.target_unit: {
-                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(highlighted_ability.targeting, selected_unit.position, hovered_cell);
-                highlighted_ability_selector = highlighted_ability.targeting.selector;
+                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(selection.ability.targeting, selection.unit.position, hovered_cell);
+                highlighted_ability_selector = selection.ability.targeting.selector;
 
                 break;
             }
@@ -714,7 +774,7 @@ function update_grid_visuals() {
                 break;
             }
 
-            default: unreachable(highlighted_ability);
+            default: unreachable(selection.ability);
         }
     }
 
@@ -726,6 +786,7 @@ function update_grid_visuals() {
     const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
 
     const cell_index_to_highlight: boolean[] = [];
+    const cell_index_to_shop_highlight: boolean[] = [];
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
@@ -733,12 +794,18 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selected_unit && selected_entity_path && !highlighted_ability) {
-            const cost = selected_entity_path.cell_index_to_cost[index];
+        if (selection.type == Selection_Type.unit) {
+            const cost = selection.path.cell_index_to_cost[index];
 
-            if (cost <= selected_unit.move_points && !selected_unit.has_taken_an_action_this_turn) {
+            if (cost <= selection.unit.move_points && !selection.unit.has_taken_an_action_this_turn) {
                 cell_color = color_green;
                 alpha = 35;
+            }
+        }
+
+        if (selection.type != Selection_Type.ability && hovered_shop) {
+            if (rectangular(cell.position, hovered_shop.position) <= shop_range) {
+                cell_index_to_shop_highlight[index] = true;
             }
         }
 
@@ -763,15 +830,15 @@ function update_grid_visuals() {
 
             alpha = 50;
 
-            if (selected_unit == unit_in_cell) {
+            if (selection.type != Selection_Type.none && selection.unit == unit_in_cell) {
                 alpha = 255;
             }
         }
 
         const rune_in_cell = battle.cell_index_to_rune[index];
 
-        if (rune_in_cell && selected_unit) {
-            const [can_go] = can_find_path(battle, selected_unit.position, rune_in_cell.position, selected_unit.move_points, true);
+        if (rune_in_cell && selection.type == Selection_Type.unit) {
+            const [can_go] = can_find_path(battle, selection.unit.position, rune_in_cell.position, selection.unit.move_points, true);
 
             if (can_go) {
                 cell_color = color_green;
@@ -787,12 +854,12 @@ function update_grid_visuals() {
             }
         }
 
-        if (selected_unit && highlighted_ability) {
-            const ability = highlighted_ability;
+        if (selection.type == Selection_Type.ability) {
+            const ability = selection.ability;
 
             switch (ability.type) {
                 case Ability_Type.target_ground: {
-                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
                         alpha = 20;
                         cell_color = color_red;
 
@@ -803,7 +870,7 @@ function update_grid_visuals() {
                 }
 
                 case Ability_Type.target_unit: {
-                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
                         if (unit_in_cell) {
                             alpha = 140;
                             cell_color = color_green;
@@ -819,7 +886,7 @@ function update_grid_visuals() {
                 }
 
                 case Ability_Type.no_target: {
-                    if (ability_targeting_fits(ability.targeting, selected_unit.position, cell.position)) {
+                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
                         alpha = 140;
                         cell_color = color_red;
                     }
@@ -835,7 +902,7 @@ function update_grid_visuals() {
             }
 
             if (hovered_cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
-                if (ability_selector_fits(highlighted_ability_selector, selected_unit.position, hovered_cell, cell.position)) {
+                if (ability_selector_fits(highlighted_ability_selector, selection.unit.position, hovered_cell, cell.position)) {
                     alpha = 140;
                     cell_color = color_red;
                 }
@@ -845,20 +912,27 @@ function update_grid_visuals() {
         color_cell(cell, cell_color, alpha);
     }
 
-    for (const old_particle of battle.outline_particles) {
-        Particles.DestroyParticleEffect(old_particle, false);
-        Particles.ReleaseParticleIndex(old_particle);
-    }
-
-    if (cell_index_to_highlight.length > 0) {
-        battle.outline_particles = highlight_outline(cell_index_to_highlight, color_red);
-
-        for (const particle of battle.outline_particles) {
-            register_particle_for_reload(particle);
+    function update_outline(storage: ParticleId[], cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
+        for (const old_particle of storage) {
+            Particles.DestroyParticleEffect(old_particle, false);
+            Particles.ReleaseParticleIndex(old_particle);
         }
-    } else {
-        battle.outline_particles = [];
+
+        if (cell_index_to_highlight.length > 0) {
+            const result = highlight_outline(cell_index_to_highlight, color);
+
+            for (const particle of result) {
+                register_particle_for_reload(particle);
+            }
+
+            return result;
+        } else {
+            return [];
+        }
     }
+
+    battle.outline_particles = update_outline(battle.outline_particles, cell_index_to_highlight, color_red);
+    battle.shop_range_outline_particles = update_outline(battle.shop_range_outline_particles, cell_index_to_shop_highlight, color_yellow);
 }
 
 function periodically_drop_selection_in_battle() {
@@ -1455,7 +1529,7 @@ function select_unit_ability(unit: Unit, ability: Ability) {
     update_grid_visuals();
 }
 
-function select_unit(new_entity_id: EntityId | undefined, full_stats = false) {
+function before_unit_selection_change() {
     if (selection.type != Selection_Type.none) {
         const unit_data = battle.entity_id_to_unit_data[selection.unit_entity];
 
@@ -1464,29 +1538,36 @@ function select_unit(new_entity_id: EntityId | undefined, full_stats = false) {
             unit_data.stat_bar_panel.RemoveClass("show_full_stats");
         }
     }
+}
 
-    if (new_entity_id) {
-        const unit_data = battle.entity_id_to_unit_data[new_entity_id];
 
-        if (!unit_data) return;
+function drop_selection() {
+    before_unit_selection_change();
 
-        const unit = find_unit_by_id(battle, unit_data.id);
-
-        if (!unit) return;
-
-        selection = {
-            type: Selection_Type.unit,
-            unit: unit,
-            unit_entity: new_entity_id
-        };
-
-        unit_data.stat_bar_panel.AddClass("show_additional_stats");
-        unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
-    } else {
-        selection = {
-            type: Selection_Type.none
-        }
+    selection = {
+        type: Selection_Type.none
     }
+}
+
+function select_unit(new_entity_id: EntityId, full_stats = false) {
+    before_unit_selection_change();
+
+    const unit_data = battle.entity_id_to_unit_data[new_entity_id];
+
+    if (!unit_data) return;
+
+    const unit = find_unit_by_id(battle, unit_data.id);
+
+    if (!unit) return;
+
+    selection = {
+        type: Selection_Type.unit,
+        unit: unit,
+        unit_entity: new_entity_id
+    };
+
+    unit_data.stat_bar_panel.AddClass("show_additional_stats");
+    unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
 }
 
 function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
@@ -1755,14 +1836,16 @@ function setup_mouse_filter() {
                 click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
             if (wants_to_select_unit) {
-                select_unit(cursor_entity, event == "doublepressed");
+                if (cursor_entity && cursor_entity_unit) {
+                    select_unit(cursor_entity, event == "doublepressed");
 
-                if (cursor_entity) {
                     const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
 
-                    Particles.SetParticleControl(particle, 1, [ 255, 255, 255 ]);
-                    Particles.SetParticleControl(particle, 2, [ 64, 255, 0 ]);
+                    Particles.SetParticleControl(particle, 1, [255, 255, 255]);
+                    Particles.SetParticleControl(particle, 2, [64, 255, 0]);
                     Particles.ReleaseParticleIndex(particle);
+                } else {
+                    drop_selection();
                 }
 
                 update_grid_visuals();
