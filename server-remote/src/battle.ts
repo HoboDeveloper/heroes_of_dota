@@ -779,7 +779,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!unit) break;
             if (!rune) break;
 
-            const [could_find_path] = can_find_path(battle, unit.position, rune.position, unit.move_points, true);
+            const [could_find_path, cost] = can_find_path(battle, unit.position, rune.position, unit.move_points, true);
 
             if (!could_find_path) {
                 return;
@@ -788,7 +788,8 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             const base = {
                 unit_id: unit.id,
                 rune_id: rune.id,
-                at: rune.position
+                at: rune.position,
+                move_cost: cost
             };
 
             switch (rune.type) {
@@ -999,6 +1000,10 @@ export function get_battle_deltas_after(battle: Battle, head: number): Delta[] {
 
 export function find_battle_by_id(id: number): Battle_Record | undefined {
     return battles.find(battle => battle.id == id);
+}
+
+export function get_all_battles(): Battle_Record[] {
+    return battles;
 }
 
 export function start_battle(players: Player[]): number {

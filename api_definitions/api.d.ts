@@ -396,6 +396,7 @@ type Delta_Rune_Pick_Up_Base = {
     type: Delta_Type.rune_pick_up
     unit_id: number
     rune_id: number
+    move_cost: number
 }
 
 type Delta_Regeneration_Rune_Pick_Up = Delta_Rune_Pick_Up_Base & {

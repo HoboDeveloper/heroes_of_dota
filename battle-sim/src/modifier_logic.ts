@@ -5,6 +5,11 @@ function apply_modifier_field_change(target: Unit_Stats, change: Modifier_Change
         case Modifier_Field.move_points_bonus: {
             target.max_move_points += delta;
             target.move_points = Math.min(target.move_points, target.max_move_points);
+
+            if (delta > 0 && !invert) {
+                target.move_points += delta;
+            }
+
             break;
         }
 

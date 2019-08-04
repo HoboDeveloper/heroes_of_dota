@@ -810,6 +810,8 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             move_unit(battle, unit, rune.position);
 
+            unit.move_points -= delta.move_cost;
+
             switch (delta.rune_type) {
                 case Rune_Type.double_damage: {
                     apply_modifier(battle, unit, unit, delta.modifier);
