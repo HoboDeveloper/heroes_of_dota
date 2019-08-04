@@ -20,7 +20,7 @@ export type Battle_Record = Battle & {
 const battles: Battle_Record[] = [];
 
 const default_bg = {
-    grid_size: xy(12, 8),
+    grid_size: xy(13, 8),
     deployment_zone_width: 3
 };
 
@@ -48,11 +48,11 @@ const battlegrounds: Battleground_Definition[] = [
         spawns: [
             {
                 type: Spawn_Type.rune,
-                at: xy(5, 6)
+                at: xy(6, 6)
             },
             {
                 type: Spawn_Type.shop,
-                at: xy(5, 1),
+                at: xy(6, 1),
                 facing: xy(0, 1)
             }
         ]
