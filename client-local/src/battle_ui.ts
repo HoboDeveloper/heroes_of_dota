@@ -749,22 +749,71 @@ function selection_to_grid_selection(): Grid_Selection {
     }
 }
 
-function update_grid_visuals() {
-    $.Msg("Update grid visuals");
+function color_cell(cell: UI_Cell, color: XYZ, alpha: number) {
+    Particles.SetParticleControl(cell.associated_particle, 2, color);
+    Particles.SetParticleControl(cell.associated_particle, 3, [ alpha, 0, 0 ]);
+}
 
-    const selection = selection_to_grid_selection();
+function compute_unit_cell_color(unit_in_cell: Unit): [ XYZ, number ] {
+    const is_ally = unit_in_cell.owner_player_id == this_player_id;
+    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
 
+    let cell_color: XYZ;
+
+    if (is_ally) {
+        if (your_turn) {
+            if (unit_in_cell.has_taken_an_action_this_turn || is_unit_stunned(unit_in_cell)) {
+                cell_color = color_yellow;
+            } else {
+                cell_color = color_green;
+            }
+        } else {
+            cell_color = color_yellow;
+        }
+    } else {
+        cell_color = color_red;
+    }
+
+    let alpha = 50;
+
+    if (selection.type != Selection_Type.none && selection.unit == unit_in_cell) {
+        alpha = 255;
+    }
+
+    return [ cell_color, alpha ];
+}
+
+function update_outline(storage: ParticleId[], cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
+    for (const old_particle of storage) {
+        Particles.DestroyParticleEffect(old_particle, false);
+        Particles.ReleaseParticleIndex(old_particle);
+    }
+
+    if (cell_index_to_highlight.length > 0) {
+        const result = highlight_outline(cell_index_to_highlight, color);
+
+        for (const particle of result) {
+            register_particle_for_reload(particle);
+        }
+
+        return result;
+    } else {
+        return [];
+    }
+}
+
+function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell_index_to_highlight: boolean[]) {
     let can_highlighted_ability_target_hovered_cell = false;
     let highlighted_ability_selector: Ability_Target_Selector | undefined;
 
-    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+    if (hovered_cell) {
+        const ability = selection.ability;
 
-    if (hovered_cell && selection.type == Selection_Type.ability) {
-        switch (selection.ability.type) {
+        switch (ability.type) {
             case Ability_Type.target_ground:
             case Ability_Type.target_unit: {
-                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(selection.ability.targeting, selection.unit.position, hovered_cell);
-                highlighted_ability_selector = selection.ability.targeting.selector;
+                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(ability.targeting, selection.unit.position, hovered_cell);
+                highlighted_ability_selector = ability.targeting.selector;
 
                 break;
             }
@@ -774,19 +823,9 @@ function update_grid_visuals() {
                 break;
             }
 
-            default: unreachable(selection.ability);
+            default: unreachable(ability);
         }
     }
-
-    function color_cell(cell: UI_Cell, color: XYZ, alpha: number) {
-        Particles.SetParticleControl(cell.associated_particle, 2, color);
-        Particles.SetParticleControl(cell.associated_particle, 3, [ alpha, 0, 0 ]);
-    }
-
-    const your_turn = this_player_id == battle.players[battle.turning_player_index].id;
-
-    const cell_index_to_highlight: boolean[] = [];
-    const cell_index_to_shop_highlight: boolean[] = [];
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
@@ -794,50 +833,91 @@ function update_grid_visuals() {
         let cell_color: XYZ = color_nothing;
         let alpha = 20;
 
-        if (selection.type == Selection_Type.unit) {
-            const cost = selection.path.cell_index_to_cost[index];
-
-            if (cost <= selection.unit.move_points && !selection.unit.has_taken_an_action_this_turn) {
-                cell_color = color_green;
-                alpha = 35;
-            }
-        }
-
-        if (selection.type != Selection_Type.ability && hovered_shop) {
-            if (rectangular(cell.position, hovered_shop.position) <= shop_range) {
-                cell_index_to_shop_highlight[index] = true;
-            }
-        }
-
         const unit_in_cell = battle.cell_index_to_unit[index];
+        const ability = selection.ability;
 
         if (unit_in_cell) {
-            const is_ally = unit_in_cell.owner_player_id == this_player_id;
+            [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
+        }
 
-            if (is_ally) {
-                if (your_turn) {
-                    if (unit_in_cell.has_taken_an_action_this_turn || is_unit_stunned(unit_in_cell)) {
-                        cell_color = color_yellow;
-                    } else {
-                        cell_color = color_green;
-                    }
-                } else {
-                    cell_color = color_yellow;
+        switch (ability.type) {
+            case Ability_Type.target_ground: {
+                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                    alpha = 20;
+                    cell_color = color_red;
+
+                    cell_index_to_highlight[index] = true;
                 }
-            } else {
-                cell_color = color_red;
+
+                break;
             }
 
-            alpha = 50;
+            case Ability_Type.target_unit: {
+                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                    if (unit_in_cell) {
+                        alpha = 140;
+                        cell_color = color_green;
+                    } else {
+                        alpha = 20;
+                        cell_color = color_red;
+                    }
 
-            if (selection.type != Selection_Type.none && selection.unit == unit_in_cell) {
-                alpha = 255;
+                    cell_index_to_highlight[index] = true;
+                }
+
+                break;
+            }
+
+            case Ability_Type.no_target: {
+                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                    alpha = 140;
+                    cell_color = color_red;
+                }
+
+                break;
+            }
+
+            case Ability_Type.passive: {
+                break;
+            }
+
+            default: unreachable(ability);
+        }
+
+        if (hovered_cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
+            if (ability_selector_fits(highlighted_ability_selector, selection.unit.position, hovered_cell, cell.position)) {
+                alpha = 140;
+                cell_color = color_red;
             }
         }
 
+        color_cell(cell, cell_color, alpha);
+    }
+}
+
+function update_grid_visuals_for_unit_selection(selection: Grid_Selection_Unit, cell_index_to_shop_highlight: boolean[]) {
+    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+        const unit_in_cell = battle.cell_index_to_unit[index];
         const rune_in_cell = battle.cell_index_to_rune[index];
 
-        if (rune_in_cell && selection.type == Selection_Type.unit) {
+        let cell_color: XYZ = color_nothing;
+        let alpha = 20;
+
+        const cost = selection.path.cell_index_to_cost[index];
+
+        if (cost <= selection.unit.move_points && !selection.unit.has_taken_an_action_this_turn) {
+            cell_color = color_green;
+            alpha = 35;
+        }
+
+        if (unit_in_cell) {
+            [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
+        }
+
+        if (rune_in_cell) {
             const [can_go] = can_find_path(battle, selection.unit.position, rune_in_cell.position, selection.unit.move_points, true);
 
             if (can_go) {
@@ -845,93 +925,73 @@ function update_grid_visuals() {
             }
         }
 
-        if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
-            if (held_card) {
-                cell_index_to_highlight[index] = true;
-            } else {
-                alpha = 140;
-                cell_color = color_green;
-            }
-        }
-
-        if (selection.type == Selection_Type.ability) {
-            const ability = selection.ability;
-
-            switch (ability.type) {
-                case Ability_Type.target_ground: {
-                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
-                        alpha = 20;
-                        cell_color = color_red;
-
-                        cell_index_to_highlight[index] = true;
-                    }
-
-                    break;
-                }
-
-                case Ability_Type.target_unit: {
-                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
-                        if (unit_in_cell) {
-                            alpha = 140;
-                            cell_color = color_green;
-                        } else {
-                            alpha = 20;
-                            cell_color = color_red;
-                        }
-
-                        cell_index_to_highlight[index] = true;
-                    }
-
-                    break;
-                }
-
-                case Ability_Type.no_target: {
-                    if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
-                        alpha = 140;
-                        cell_color = color_red;
-                    }
-
-                    break;
-                }
-
-                case Ability_Type.passive: {
-                    break;
-                }
-
-                default: unreachable(ability);
-            }
-
-            if (hovered_cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
-                if (ability_selector_fits(highlighted_ability_selector, selection.unit.position, hovered_cell, cell.position)) {
-                    alpha = 140;
-                    cell_color = color_red;
-                }
-            }
+        if (hovered_shop && rectangular(cell.position, hovered_shop.position) <= shop_range) {
+            cell_index_to_shop_highlight[index] = true;
         }
 
         color_cell(cell, cell_color, alpha);
     }
+}
 
-    function update_outline(storage: ParticleId[], cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
-        for (const old_particle of storage) {
-            Particles.DestroyParticleEffect(old_particle, false);
-            Particles.ReleaseParticleIndex(old_particle);
+function update_grid_visuals_for_no_selection(cell_index_to_shop_highlight: boolean[]) {
+    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+        const unit_in_cell = battle.cell_index_to_unit[index];
+
+        let cell_color: XYZ = color_nothing;
+        let alpha = 20;
+
+        if (unit_in_cell) {
+            [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
         }
 
-        if (cell_index_to_highlight.length > 0) {
-            const result = highlight_outline(cell_index_to_highlight, color);
+        if (hovered_shop && rectangular(cell.position, hovered_shop.position) <= shop_range) {
+            cell_index_to_shop_highlight[index] = true;
+        }
 
-            for (const particle of result) {
-                register_particle_for_reload(particle);
-            }
+        color_cell(cell, cell_color, alpha);
+    }
+}
 
-            return result;
-        } else {
-            return [];
+function update_grid_visuals() {
+    $.Msg("Update grid visuals");
+
+    const selection = selection_to_grid_selection();
+    const cell_index_to_highlight: boolean[] = [];
+    const cell_index_to_shop_highlight: boolean[] = [];
+
+    switch (selection.type) {
+        case Selection_Type.none: {
+            update_grid_visuals_for_no_selection(cell_index_to_shop_highlight);
+            break;
+        }
+
+        case Selection_Type.unit: {
+            update_grid_visuals_for_unit_selection(selection, cell_index_to_shop_highlight);
+            break;
+        }
+
+        case Selection_Type.ability: {
+            update_grid_visuals_for_ability(selection, cell_index_to_highlight);
+            break;
         }
     }
 
-    battle.outline_particles = update_outline(battle.outline_particles, cell_index_to_highlight, color_red);
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+
+        if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
+            if (held_card) {
+                cell_index_to_highlight[index] = true;
+            } else {
+                color_cell(cell, color_green, 140);
+            }
+        }
+    }
+
+    battle.outline_particles = update_outline(battle.outline_particles, [], color_red);
     battle.shop_range_outline_particles = update_outline(battle.shop_range_outline_particles, cell_index_to_shop_highlight, color_yellow);
 }
 
