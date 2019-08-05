@@ -282,6 +282,97 @@
   }
 }
 
+#shop_panels_container {
+  width: 100%;
+  height: 100%;
+
+  .shop_panel {
+    background-color: #000000cc;
+    border-radius: 4px;
+    flow-children: down;
+    transition-property: width, height;
+    transition-duration: 0.05s;
+    max-width: 200px;
+    padding: 3px 8px;
+
+    &.open {
+      padding: 8px;
+    }
+
+    &:not(.open) #header {
+      width: fit-children;
+      margin-bottom: 0;
+
+      #title {
+        visibility: collapse;
+      }
+    }
+
+    #header {
+      width: 100%;
+      margin-bottom: 8px;
+
+      #title {
+        color: #f1f1f1;
+        align: right center;
+        font-size: 18px;
+        font-family: @font-title;
+      }
+
+      #gold {
+        flow-children: right;
+
+        #icon {
+          background-image: url("s2r://panorama/images/hud/icon_gold_psd.vtex");
+          background-size: 100% 100%;
+          width: 24px;
+          height: 24px;
+        }
+
+        #amount {
+          font-family: @font-mono;
+          color: gold;
+          font-size: 16px;
+          vertical-align: center;
+          margin-top: 4px;
+          margin-left: 4px;
+        }
+      }
+    }
+
+    &.open #items {
+      visibility: visible;
+    }
+
+    #items {
+      flow-children: right-wrap;
+      horizontal-align: center;
+      visibility: collapse;
+
+      .item_button {
+        width: 52px;
+        height: 38px;
+        margin: 4px;
+        box-shadow: 0px 0px 8px black;
+
+        #image {
+          width: 100%;
+          height: 100%;
+        }
+
+        #cost {
+          font-family: @font-mono;
+          color: gold;
+          font-size: 14px;
+          align: right bottom;
+          margin-bottom: -4px;
+          text-shadow: 0px 0px 2px 4.0 black;
+        }
+      }
+    }
+  }
+}
+
 #stat_bar_container {
   width: 100%;
   height: 100%;

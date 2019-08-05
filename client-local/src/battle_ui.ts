@@ -63,6 +63,16 @@ type Held_Card = {
 
 let held_card: Held_Card | undefined = undefined;
 
+const ui_shop_data: UI_Shop_Data[] = [];
+
+type UI_Shop_Data = {
+    id: number
+
+    root_container: Panel
+    items_container: Panel
+    gold_text: LabelPanel
+}
+
 type UI_Unit_Data = {
     id: number
     level: number
@@ -315,6 +325,15 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
                 add_spawned_hero_to_control_panel(spawned_unit);
             }
         }
+
+        // TODO temporary, we will receive shops from visualizer later
+        if (delta.type == Delta_Type.shop_spawn) {
+            const spawned_shop = find_shop_by_id(battle, delta.shop_id);
+
+            if (spawned_shop) {
+                ui_shop_data.push(create_ui_shop_data(spawned_shop));
+            }
+        }
     }
 
     for (const unit of battle.units) {
@@ -544,6 +563,10 @@ function find_grid_path(from: XY, to: XY, ignore_runes = false): XY[] | undefine
     path.push(to);
 
     while (to_index != current_cell_index) {
+        if (current_cell_index == undefined) {
+            return;
+        }
+
         path.push(battle.cells[current_cell_index].position);
         current_cell_index = populated.cell_index_to_parent_index[current_cell_index];
     }
@@ -925,7 +948,7 @@ function update_grid_visuals_for_unit_selection(selection: Grid_Selection_Unit, 
             }
         }
 
-        if (hovered_shop && rectangular(cell.position, hovered_shop.position) <= shop_range) {
+        if (hovered_shop && is_point_in_shop_range(cell.position, hovered_shop)) {
             cell_index_to_shop_highlight[index] = true;
         }
 
@@ -947,7 +970,7 @@ function update_grid_visuals_for_no_selection(cell_index_to_shop_highlight: bool
             [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
         }
 
-        if (hovered_shop && rectangular(cell.position, hovered_shop.position) <= shop_range) {
+        if (hovered_shop && is_point_in_shop_range(cell.position, hovered_shop)) {
             cell_index_to_shop_highlight[index] = true;
         }
 
@@ -991,7 +1014,7 @@ function update_grid_visuals() {
         }
     }
 
-    battle.outline_particles = update_outline(battle.outline_particles, [], color_red);
+    battle.outline_particles = update_outline(battle.outline_particles, cell_index_to_highlight, color_red);
     battle.shop_range_outline_particles = update_outline(battle.shop_range_outline_particles, cell_index_to_shop_highlight, color_yellow);
 }
 
@@ -1016,6 +1039,67 @@ function end_turn() {
     take_battle_action({
         type: Action_Type.end_turn
     });
+}
+
+function get_item_icon_name(id: Item_Id): string {
+    switch (id) {
+        case Item_Id.satanic: return "satanic";
+        case Item_Id.heart_of_tarrasque: return "heart";
+        case Item_Id.tome_of_knowledge: return "tome_of_knowledge";
+        case Item_Id.assault_cuirass: return "assault";
+        case Item_Id.divine_rapier: return "rapier";
+        case Item_Id.boots_of_travel: return "travel_boots";
+        case Item_Id.refresher_shard: return "refresher_shard";
+    }
+}
+
+function create_ui_shop_data(shop: Shop): UI_Shop_Data {
+    const root = $("#shop_panels_container");
+    const shop_panel = $.CreatePanel("Panel", root, "");
+    shop_panel.AddClass("shop_panel");
+
+    const header = $.CreatePanel("Panel", shop_panel, "header");
+
+    const title = $.CreatePanel("Label", header, "title");
+    title.text = "ITEM SHOP";
+
+    const gold_root = $.CreatePanel("Panel", header, "gold");
+
+    $.CreatePanel("Panel", gold_root, "icon");
+
+    const gold_text = $.CreatePanel("Label", gold_root, "amount");
+    gold_text.text = "50";
+
+    const items_container = $.CreatePanel("Panel", shop_panel, "items");
+
+    for (const item of shop.items) {
+        const item_button = $.CreatePanel("Button", items_container, "");
+        const item_image = $.CreatePanel("Image", item_button, "image");
+        const item_cost = $.CreatePanel("Label", item_button, "cost");
+
+        item_image.SetImage(`file://{images}/items/${get_item_icon_name(item)}.png`);
+
+        item_button.AddClass("item_button");
+        item_button.SetPanelEvent(PanelEvent.ON_RIGHT_CLICK, () => {
+            if (selection.type == Selection_Type.unit) {
+                take_battle_action({
+                    type: Action_Type.purchase_item,
+                    unit_id: selection.unit.id,
+                    shop_id: shop.id,
+                    item_id: item
+                });
+            }
+        });
+
+        item_cost.text = get_item_gold_cost(item).toString();
+    }
+
+    return {
+        id: shop.id,
+        gold_text: gold_text,
+        items_container: items_container,
+        root_container: shop_panel
+    }
 }
 
 function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
@@ -1677,28 +1761,30 @@ function try_update_stat_bar_display(ui_data: UI_Unit_Data, force = false) {
     try_update_stat_indicator(ui_data.stat_max_move_points);
 }
 
-function update_stat_bar_positions() {
+function position_panel_over_entity_in_the_world(panel: Panel, entity_id: EntityId, offset_x: number, offset_z: number) {
     const screen_ratio = Game.GetScreenHeight() / 1080;
+    const entity_origin = Entities.GetAbsOrigin(entity_id);
 
+    if (!entity_origin) return;
+
+    const screen_x = Game.WorldToScreenX(entity_origin[0] + offset_x, entity_origin[1], entity_origin[2] + offset_z);
+    const screen_y = Game.WorldToScreenY(entity_origin[0] + offset_x, entity_origin[1], entity_origin[2] + offset_z);
+
+    if (screen_x == -1 || screen_y == -1) {
+        return;
+    }
+
+    panel.style.x = Math.floor(screen_x / screen_ratio - panel.actuallayoutwidth / 2.0) + "px";
+    panel.style.y = Math.floor(screen_y / screen_ratio) + "px";
+}
+
+function update_stat_bar_positions() {
     // TODO with the fixed camera we can have the luxury of updating only when units actually move
     for (const entity_id_string in battle.entity_id_to_unit_data) {
         const entity_id = Number(entity_id_string); // TODO holy shit why javascript, why
         const unit_data = battle.entity_id_to_unit_data[entity_id_string];
-        const entity_origin = Entities.GetAbsOrigin(entity_id);
 
-        if (!entity_origin) continue;
-
-        const offset = -40;
-
-        const screen_x = Game.WorldToScreenX(entity_origin[0] + 30, entity_origin[1], entity_origin[2] + offset);
-        const screen_y = Game.WorldToScreenY(entity_origin[0] + 30, entity_origin[1], entity_origin[2] + offset);
-
-        if (screen_x == -1 || screen_y == -1) {
-            continue
-        }
-
-        unit_data.stat_bar_panel.style.x = Math.floor(screen_x / screen_ratio) - unit_data.stat_bar_panel.actuallayoutwidth / 2.0 + "px";
-        unit_data.stat_bar_panel.style.y = Math.floor(screen_y / screen_ratio) + "px";
+        position_panel_over_entity_in_the_world(unit_data.stat_bar_panel, entity_id, 30, -40);
     }
 }
 
@@ -1711,6 +1797,19 @@ function periodically_update_ui() {
     update_stat_bar_positions();
     update_hovered_cell();
     update_hand();
+
+    for (const shop_data of ui_shop_data) {
+        for (const entity_id_string in battle.entity_id_to_shop_id) {
+            const entity_id = Number(entity_id_string);
+            const shop_id = battle.entity_id_to_shop_id[entity_id_string];
+
+            if (shop_id == shop_data.id) {
+                position_panel_over_entity_in_the_world(shop_data.root_container, entity_id, 0, 250);
+
+                break;
+            }
+        }
+    }
 
     if (selection.type == Selection_Type.ability) {
         const [ cursor_x, cursor_y ] = GameUI.GetCursorPosition();
@@ -2095,6 +2194,12 @@ function add_card_panel(card: Card) {
 }
 
 function get_hovered_battle_position(): XY | undefined {
+    for (const shop of ui_shop_data) {
+        if (shop.root_container.BHasHoverStyle()) {
+            return;
+        }
+    }
+
     const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
     const battle_position = world_position_to_battle_position(world_position);
     const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;

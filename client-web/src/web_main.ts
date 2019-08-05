@@ -1228,7 +1228,7 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
             const battle_log: Colored_Line[] = [];
             const battle = {
                 ...make_battle(player_state.participants, player_state.grid_size.width, player_state.grid_size.height),
-                change_health: (battle: Battle, source: Unit, target: Unit, change: Health_Change) => {
+                change_health: (battle: Battle, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) => {
                     if (change.value_delta > 0) {
                         battle_log.push([
                             clr.unit_name(source),
@@ -1247,7 +1247,7 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                         ]);
                     }
 
-                    const died = change_health_default(battle, source, target, change);
+                    const died = change_health_default(battle, source, source_ability, target, change);
 
                     if (died) {
                         battle_log.push([

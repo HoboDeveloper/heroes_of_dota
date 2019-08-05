@@ -41,6 +41,8 @@
 
             <Panel id="stat_bar_container" hittest="false"/>
 
+            <Panel id="shop_panels_container" hittest="false"/>
+
             <Panel id="hand_ui" hittest="false"/>
         </Panel>
 

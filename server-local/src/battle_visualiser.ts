@@ -1624,10 +1624,18 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             move_unit(main_player, unit, path);
             destroy_rune(rune, false);
 
-            battle.runes.splice(rune_index);
+            battle.runes.splice(rune_index, 1);
 
             play_rune_pickup_delta(main_player, unit, delta);
 
+            break;
+        }
+
+        case Delta_Type.purchase_item: {
+            break;
+        }
+
+        case Delta_Type.equip_item: {
             break;
         }
 
@@ -1723,7 +1731,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                                         if (fx.modifier_id == modifier.modifier_id && fx.unit_id == unit.id) {
                                             fx.fx.destroy_and_release(false);
 
-                                            battle.modifier_tied_fxs.splice(fx_index);
+                                            battle.modifier_tied_fxs.splice(fx_index, 1);
 
                                             break;
                                         }
@@ -1731,7 +1739,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                                 }
                             }
 
-                            unit.modifiers.splice(index);
+                            unit.modifiers.splice(index, 1);
 
                             apply_modifier_changes(main_player, unit, modifier.changes, true);
 

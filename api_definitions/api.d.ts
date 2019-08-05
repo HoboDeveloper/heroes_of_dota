@@ -22,7 +22,9 @@ declare const enum Delta_Type {
     rune_spawn = 18,
     rune_pick_up = 19,
     shop_spawn = 20,
-    game_over = 22
+    purchase_item = 21,
+    equip_item = 22,
+    game_over = 23
 }
 
 declare const enum Action_Type {
@@ -33,6 +35,7 @@ declare const enum Action_Type {
     use_no_target_ability = 6,
     use_hero_card = 7,
     pick_up_rune = 8,
+    purchase_item = 9
 }
 
 declare const enum Unit_Type {
@@ -99,7 +102,9 @@ declare const enum Item_Id {
     heart_of_tarrasque = 1,
     assault_cuirass = 2,
     satanic = 3,
-    divine_rapier = 4
+    divine_rapier = 4,
+    tome_of_knowledge = 5,
+    refresher_shard = 6
 }
 
 type Unit_Stats = {
@@ -225,6 +230,13 @@ type Action_Pick_Up_Rune = {
     rune_id: number
 }
 
+type Action_Purchase_Item = {
+    type: Action_Type.purchase_item
+    unit_id: number
+    shop_id: number
+    item_id: Item_Id
+}
+
 type Turn_Action =
     Action_Move |
     Action_Ground_Target_Ability |
@@ -232,6 +244,7 @@ type Turn_Action =
     Action_No_Target_Ability |
     Action_Use_Hero_Card |
     Action_Pick_Up_Rune |
+    Action_Purchase_Item |
     Action_End_Turn
 
 type Card_Unknown = {
@@ -368,6 +381,48 @@ type Delta_Use_Card = {
     card_id: number
 }
 
+type Delta_Purchase_Item = {
+    type: Delta_Type.purchase_item
+    unit_id: number
+    shop_id: number
+    gold_cost: number
+    item_id: Item_Id
+}
+
+type Delta_Equip_Item_Base = {
+    type: Delta_Type.equip_item
+    unit_id: number
+}
+
+type Delta_Equip_Item_With_Modifier = Delta_Equip_Item_Base & {
+    item_id:
+        Item_Id.satanic |
+        Item_Id.heart_of_tarrasque |
+        Item_Id.divine_rapier |
+        Item_Id.boots_of_travel |
+        Item_Id.assault_cuirass
+
+    modifier: Modifier_Application
+}
+
+type Delta_Equip_Tome_Of_Knowledge = Delta_Equip_Item_Base & {
+    item_id: Item_Id.tome_of_knowledge
+    new_level: number
+}
+
+type Delta_Equip_Refresher_Shard = Delta_Equip_Item_Base & {
+    item_id: Item_Id.refresher_shard
+    charge_changes: {
+        ability_id: Ability_Id
+        charges_remaining: number
+    }[]
+}
+
+type Delta_Equip_Item =
+    Delta_Equip_Item_With_Modifier |
+    Delta_Equip_Tome_Of_Knowledge |
+    Delta_Equip_Refresher_Shard
+
 type Delta_Shop_Spawn = {
     type: Delta_Type.shop_spawn
     shop_id: number
@@ -385,7 +440,7 @@ type Delta_Shop_Spawn = {
 type Delta_Rune_Spawn = {
     type: Delta_Type.rune_spawn
     rune_type: Rune_Type
-    rune_id: number,
+    rune_id: number
     at: {
         x: number
         y: number
@@ -446,6 +501,8 @@ type Delta =
     Delta_Use_Card |
     Delta_Rune_Spawn |
     Delta_Shop_Spawn |
+    Delta_Purchase_Item |
+    Delta_Equip_Item |
     Delta_Start_Turn |
     Delta_End_Turn |
     Delta_Game_Over

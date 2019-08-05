@@ -589,6 +589,87 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
     }
 }
 
+function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_Equip_Item {
+    switch (item_id) {
+        case Item_Id.refresher_shard: {
+            const changes: {
+                ability_id: Ability_Id,
+                charges_remaining: number
+            }[] = [];
+
+            for (const ability of unit.abilities) {
+                if (ability.type != Ability_Type.passive) {
+                    changes.push({
+                        ability_id: ability.id,
+                        charges_remaining: ability.charges
+                    })
+                }
+            }
+
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                charge_changes: changes
+            }
+        }
+
+        case Item_Id.boots_of_travel: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                modifier: new_modifier(battle, Modifier_Id.item_boots_of_travel, [Modifier_Field.move_points_bonus, 3])
+            }
+        }
+
+        case Item_Id.divine_rapier: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                modifier: new_modifier(battle, Modifier_Id.item_divine_rapier, [Modifier_Field.attack_bonus, 8])
+            }
+        }
+
+        case Item_Id.assault_cuirass: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                modifier: new_modifier(battle, Modifier_Id.item_assault_cuirass, [Modifier_Field.armor_bonus, 4])
+            }
+        }
+
+        case Item_Id.tome_of_knowledge: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                new_level: Math.min(unit.level + 1, max_unit_level)
+            }
+        }
+
+        case Item_Id.heart_of_tarrasque: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                modifier: new_modifier(battle, Modifier_Id.item_heart_of_tarrasque, [Modifier_Field.health_bonus, 10])
+            }
+        }
+
+        case Item_Id.satanic: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: unit.id,
+                item_id: item_id,
+                modifier: new_modifier(battle, Modifier_Id.item_satanic)
+            }
+        }
+    }
+}
+
 // TODO move into a battle_sim callback?
 function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, target: Unit, damage: number): Delta | undefined {
     for (const ability of source.abilities) {
@@ -772,6 +853,29 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             ]
         }
 
+        case Action_Type.purchase_item: {
+            const unit = find_valid_unit_for_action(action.unit_id);
+            const shop = find_shop_by_id(battle, action.shop_id);
+
+            if (!unit) break;
+            if (!shop) break;
+            if (!is_point_in_shop_range(unit.position, shop)) break;
+
+            if (shop.items.indexOf(action.item_id) == -1) break;
+
+            const purchase: Delta = {
+                type: Delta_Type.purchase_item,
+                unit_id: unit.id,
+                shop_id: shop.id,
+                item_id: action.item_id,
+                gold_cost: get_item_gold_cost(action.item_id)
+            };
+
+            const equip = equip_item(battle, unit, action.item_id);
+
+            return [purchase, equip];
+        }
+
         case Action_Type.pick_up_rune: {
             const unit = find_valid_unit_for_action(action.unit_id);
             const rune = battle.runes.find(rune => rune.id == action.rune_id);
@@ -919,8 +1023,19 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     return last_alive_unit_player_id;
 }
 
-function server_change_health(battle: Battle_Record, source: Unit, target: Unit, change: Health_Change) {
-    const killed = change_health_default(battle, source, target, change);
+function server_change_health(battle: Battle_Record, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) {
+    const killed = change_health_default(battle, source, source_ability, target, change);
+
+    if (source_ability == source.attack.id) {
+        if (source.modifiers.some(modifier => modifier.id == Modifier_Id.item_satanic)) {
+            battle.deltas.push({
+                type: Delta_Type.health_change,
+                source_unit_id: source.id,
+                target_unit_id: source.id,
+                ...health_change(source, Math.max(0, -change.value_delta)) // In case we have a healing attack, I guess
+            });
+        }
+    }
 
     if (killed) {
         if (source.owner_player_id != target.owner_player_id && source.level < max_unit_level) {
@@ -945,6 +1060,17 @@ function end_turn_server(battle: Battle) {
                     type: Delta_Type.modifier_removed,
                     modifier_handle_id: modifier.handle_id
                 })
+            }
+
+            if (!unit.dead) {
+                if (modifier.id == Modifier_Id.item_heart_of_tarrasque) {
+                    battle.deltas.push({
+                        type: Delta_Type.health_change,
+                        source_unit_id: unit.id,
+                        target_unit_id: unit.id,
+                        ...health_change(unit, 3)
+                    })
+                }
             }
         }
     }
