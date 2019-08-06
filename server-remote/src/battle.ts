@@ -1157,6 +1157,14 @@ export function start_battle(players: Player[]): number {
 
     fill_grid(battle);
 
+    function get_starting_gold(player: Battle_Player): Delta_Gold_Change {
+        return {
+            type: Delta_Type.gold_change,
+            player_id: player.id,
+            change: 30
+        }
+    }
+
     const card_collection = [
         Unit_Type.dragon_knight,
         Unit_Type.pudge,
@@ -1167,6 +1175,10 @@ export function start_battle(players: Player[]): number {
     ];
 
     const spawn_deltas: Delta[] = [];
+
+    for (const player of battle.players) {
+        spawn_deltas.push(get_starting_gold(player));
+    }
 
     for (const unit_type of card_collection) {
         spawn_deltas.push(

@@ -1,9 +1,3 @@
-let current_state = Player_State.not_logged_in;
-let this_player_id: number;
-let battle: UI_Battle;
-let current_hovered_ability: Ability_Id | undefined;
-let hovered_cell: XY | undefined;
-
 declare const enum Selection_Type {
     none = 0,
     unit = 1,
@@ -40,20 +34,6 @@ type Shop_Selection = {
 
 type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection;
 
-let selection: Selection_State = {
-    type: Selection_Type.none
-};
-
-const current_targeted_ability_ui = $("#current_targeted_ability");
-
-const control_panel: Control_Panel = {
-    panel: $("#hero_rows"),
-    hero_rows: []
-};
-
-const battle_cell_size = 144;
-const hand: Card_Panel[] = [];
-
 type Held_Card = {
     card_panel: Card_Panel;
     offset: XY;
@@ -61,13 +41,15 @@ type Held_Card = {
     zone_highlight_particles: ParticleId[];
 }
 
-let held_card: Held_Card | undefined = undefined;
-
-const ui_shop_data: UI_Shop_Data[] = [];
+type UI_Player_Data = {
+    id: number
+    gold: number
+}
 
 type UI_Shop_Data = {
     id: number
 
+    displayed_gold: number
     root_container: Panel
     items_container: Panel
     gold_text: LabelPanel
@@ -147,6 +129,30 @@ type Card_Panel = {
     card: Card
     hovered: boolean
 }
+
+let current_state = Player_State.not_logged_in;
+let this_player_id: number;
+let battle: UI_Battle;
+let current_hovered_ability: Ability_Id | undefined;
+let hovered_cell: XY | undefined;
+let held_card: Held_Card | undefined = undefined;
+let ui_player_data: UI_Player_Data[] = [];
+
+let selection: Selection_State = {
+    type: Selection_Type.none
+};
+
+const ui_shop_data: UI_Shop_Data[] = [];
+
+const current_targeted_ability_ui = $("#current_targeted_ability");
+
+const control_panel: Control_Panel = {
+    panel: $("#hero_rows"),
+    hero_rows: []
+};
+
+const battle_cell_size = 144;
+const hand: Card_Panel[] = [];
 
 function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Unit | undefined {
     if (entity_id == undefined) return;
@@ -326,7 +332,6 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
             }
         }
 
-        // TODO temporary, we will receive shops from visualizer later
         if (delta.type == Delta_Type.shop_spawn) {
             const spawned_shop = find_shop_by_id(battle, delta.shop_id);
 
@@ -1068,7 +1073,6 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
     $.CreatePanel("Panel", gold_root, "icon");
 
     const gold_text = $.CreatePanel("Label", gold_root, "amount");
-    gold_text.text = "50";
 
     const items_container = $.CreatePanel("Panel", shop_panel, "items");
 
@@ -1096,6 +1100,7 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
 
     return {
         id: shop.id,
+        displayed_gold: 0,
         gold_text: gold_text,
         items_container: items_container,
         root_container: shop_panel
@@ -1216,6 +1221,11 @@ function process_state_update(state: Player_Net_Table) {
     this_player_id = state.id;
 
     if (battle && state.state == Player_State.in_battle) {
+        ui_player_data = state.battle.players.map(player => ({
+            id: player.id,
+            gold: player.gold
+        }));
+
         battle.entity_id_to_rune_id = {};
 
         for (const entity_id in state.battle.entity_id_to_rune_id) {
@@ -1347,6 +1357,10 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
 
 function make_battle_snapshot(): Battle_Snapshot {
     return {
+        players: battle.players.map(player => ({
+            id: player.id,
+            gold: player.gold
+        })),
         units: battle.units
             .filter(unit => !unit.dead)
             .map(unit => ({
@@ -1830,6 +1844,21 @@ function periodically_update_stat_bar_display() {
 
     for (const id in battle.entity_id_to_unit_data) {
         try_update_stat_bar_display(battle.entity_id_to_unit_data[id]);
+    }
+
+    const this_player_ui_data = ui_player_data.find(player => player.id == this_player_id);
+
+    if (this_player_ui_data) {
+        for (const shop_data of ui_shop_data) {
+            const actual_gold = this_player_ui_data.gold;
+
+            if (actual_gold != shop_data.displayed_gold) {
+                const direction = Math.sign(actual_gold - shop_data.displayed_gold);
+
+                shop_data.displayed_gold += direction;
+                shop_data.gold_text.text = shop_data.displayed_gold.toString();
+            }
+        }
     }
 }
 

@@ -5,6 +5,11 @@ type Visualizer_Unit_Data = Unit_Stats & {
     level: number
 }
 
+type Visualizer_Player_Data = {
+    id: number
+    gold: number
+}
+
 type Modifier_Data = {
     modifier_id: Modifier_Id
     modifier_handle_id: number
@@ -29,6 +34,7 @@ type Player_Net_Table_In_Battle = Player_Net_Table_Base & {
     battle: {
         id: number
         participants: Battle_Participant_Info[]
+        players: Visualizer_Player_Data[]
         world_origin: {
             x: number
             y: number
@@ -84,6 +90,11 @@ type Game_Over_Event = {
     winner_player_id: number
 }
 
+type Player_Snapshot = {
+    id: number
+    gold: number
+}
+
 type Unit_Snapshot = Unit_Stats & {
     id: number
     level: number
@@ -122,6 +133,7 @@ type Shop_Snapshot = {
 }
 
 type Battle_Snapshot = {
+    players: Player_Snapshot[]
     units: Unit_Snapshot[]
     runes: Rune_Snapshot[]
     shops: Shop_Snapshot[]

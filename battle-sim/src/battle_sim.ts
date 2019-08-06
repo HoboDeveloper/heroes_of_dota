@@ -38,6 +38,15 @@ type Battle = {
     end_turn: (battle: Battle) => void
 }
 
+type Battle_Player = {
+    id: number
+    name: string
+    hand: Card[]
+    gold: number
+    has_used_a_card_this_turn: boolean
+    deployment_zone: Deployment_Zone
+}
+
 type Cell = {
     occupied: boolean;
     cost: number;
@@ -244,7 +253,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
             id: participant.id,
             name: participant.name,
             deployment_zone: participant.deployment_zone,
-            gold: 30,
+            gold: 0,
             has_used_a_card_this_turn: false,
             hand: []
         })),
@@ -1146,6 +1155,16 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             if (unit) {
                 collapse_item_equip(battle, unit, delta);
+            }
+
+            break;
+        }
+
+        case Delta_Type.gold_change: {
+            const player = find_player_by_id(battle, delta.player_id);
+
+            if (player) {
+                change_gold(player, delta.change);
             }
 
             break;

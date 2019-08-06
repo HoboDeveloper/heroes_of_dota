@@ -5,7 +5,8 @@ type XY = {
 
 type Battle = {
     id: number
-    players: Battle_Participant_Info[]
+    participants: Battle_Participant_Info[]
+    players: Battle_Player[]
     deltas: Delta[]
     delta_paths: Move_Delta_Paths
     delta_head: number
@@ -20,6 +21,11 @@ type Battle = {
     is_over: boolean
     camera_dummy: CDOTA_BaseNPC
     modifier_tied_fxs: Modifier_Tied_Fx[]
+}
+
+type Battle_Player = {
+    id: number
+    gold: number
 }
 
 type Battle_Unit = Visualizer_Unit_Data & {
@@ -1413,6 +1419,42 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, del
     }
 }
 
+function play_item_equip_delta(main_player: Main_Player, unit: Battle_Unit, delta: Delta_Equip_Item) {
+    switch (delta.item_id) {
+        case Item_Id.assault_cuirass: {
+            apply_modifier(main_player, unit, delta.modifier);
+            break;
+        }
+
+        case Item_Id.boots_of_travel: {
+            apply_modifier(main_player, unit, delta.modifier);
+            break;
+        }
+
+        case Item_Id.divine_rapier: {
+            apply_modifier(main_player, unit, delta.modifier);
+            break;
+        }
+
+        case Item_Id.heart_of_tarrasque: {
+            apply_modifier(main_player, unit, delta.modifier);
+            break;
+        }
+
+        case Item_Id.satanic: {
+            apply_modifier(main_player, unit, delta.modifier);
+            break;
+        }
+
+        case Item_Id.tome_of_knowledge: {
+            change_unit_level(main_player, unit, delta.new_level);
+            break;
+        }
+
+        case Item_Id.refresher_shard: break;
+    }
+}
+
 function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
     const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
@@ -1526,6 +1568,13 @@ function move_unit(main_player: Main_Player, unit: Battle_Unit, path: XY[]) {
     }
 }
 
+function change_unit_level(main_player: Main_Player, unit: Battle_Unit, new_level: number) {
+    unit.level = new_level;
+
+    unit_emit_sound(unit, "hero_level_up");
+    fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+}
+
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
@@ -1552,7 +1601,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
 
             shake_screen(delta.at_position, Shake.medium);
 
-            const owner = array_find(battle.players, player => player.id == delta.owner_id)!;
+            const owner = array_find(battle.participants, player => player.id == delta.owner_id)!;
             const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_unit_for_battle(delta.unit_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
 
@@ -1631,11 +1680,37 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
+        case Delta_Type.gold_change: {
+            const player = array_find(battle.players, player => player.id == delta.player_id);
+
+            if (player) {
+                player.gold += delta.change;
+            }
+
+            break;
+        }
+
         case Delta_Type.purchase_item: {
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (!unit) break;
+
+            const player = array_find(battle.players, player => player.id == unit.owner_remote_id);
+
+            if (!player) break;
+
+            player.gold -= delta.gold_cost;
+
             break;
         }
 
         case Delta_Type.equip_item: {
+            const unit = find_unit_by_id(delta.unit_id);
+
+            if (unit) {
+                play_item_equip_delta(main_player, unit, delta);
+            }
+
             break;
         }
 
@@ -1687,10 +1762,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const unit = find_unit_by_id(delta.unit_id);
 
             if (unit) {
-                unit.level = delta.new_level;
-
-                unit_emit_sound(unit, "hero_level_up");
-                fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+                change_unit_level(main_player, unit, delta.new_level);
                 update_player_state_net_table(main_player);
                 wait(1);
             }
@@ -1758,14 +1830,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.draw_card: {
-            break;
-        }
-
-        case Delta_Type.use_card: {
-            break;
-        }
-
+        case Delta_Type.draw_card: break;
+        case Delta_Type.use_card: break;
         case Delta_Type.set_ability_charges_remaining: break;
 
         case Delta_Type.game_over: {
@@ -1813,6 +1879,7 @@ function load_battle_data() {
         id: -1,
         deltas: [],
         players: [],
+        participants: [],
         delta_paths: {},
         delta_head: 0,
         world_origin: origin,
@@ -1840,6 +1907,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     for (const rune of battle.runes) {
         destroy_rune(rune, true);
     }
+
+    battle.players = snapshot.players.map(player => ({
+        id: player.id,
+        gold: player.gold
+    }));
 
     battle.units = snapshot.units.map(unit => {
         const restored_unit: Battle_Unit = {

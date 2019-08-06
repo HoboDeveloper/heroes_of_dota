@@ -24,7 +24,8 @@ declare const enum Delta_Type {
     shop_spawn = 20,
     purchase_item = 21,
     equip_item = 22,
-    game_over = 23
+    gold_change = 23,
+    game_over = 30
 }
 
 declare const enum Action_Type {
@@ -280,15 +281,6 @@ type Battle_Participant_Info = {
     deployment_zone: Deployment_Zone
 }
 
-type Battle_Player = {
-    id: number
-    name: string
-    hand: Card[]
-    gold: number
-    has_used_a_card_this_turn: boolean
-    deployment_zone: Deployment_Zone
-}
-
 type Delta_Health_Change = {
     type: Delta_Type.health_change
     source_unit_id: number
@@ -480,6 +472,12 @@ type Delta_Rune_Pick_Up =
     Delta_Haste_Rune_Pick_Up |
     Delta_Bounty_Rune_Pick_Up
 
+type Delta_Gold_Change = {
+    type: Delta_Type.gold_change
+    player_id: number
+    change: number
+}
+
 type Delta_Game_Over = {
     type: Delta_Type.game_over
     winner_player_id: number
@@ -503,6 +501,7 @@ type Delta =
     Delta_Shop_Spawn |
     Delta_Purchase_Item |
     Delta_Equip_Item |
+    Delta_Gold_Change |
     Delta_Start_Turn |
     Delta_End_Turn |
     Delta_Game_Over

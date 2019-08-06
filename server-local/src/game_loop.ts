@@ -135,7 +135,11 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                 token: main_player.token,
                 battle: {
                     id: battle.id,
-                    participants: battle.players,
+                    participants: battle.participants,
+                    players: battle.players.map(player => ({
+                        id: player.id,
+                        gold: player.gold
+                    })),
                     world_origin: {
                         x: battle.world_origin.x,
                         y: battle.world_origin.y
@@ -254,7 +258,11 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.delta_head = 0;
         battle.units = [];
         battle.deltas = [];
-        battle.players = next_state.participants;
+        battle.players = next_state.participants.map(participant => ({
+            id: participant.id,
+            gold: 0
+        }));
+        battle.participants = next_state.participants;
         battle.grid_size = next_state.grid_size;
 
         const camera_look_at = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height - 4) * get_battle_cell_size() / 2 as Vector;
@@ -375,6 +383,7 @@ function game_loop() {
 
     on_custom_event_async<Fast_Forward_Event>("fast_forward", event => {
         fast_forward_from_snapshot(main_player, {
+            players: from_client_array(event.players),
             units: from_client_array(event.units),
             runes: from_client_array(event.runes),
             shops: from_client_array(event.shops),
