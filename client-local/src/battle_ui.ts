@@ -30,6 +30,8 @@ type Shop_Selection = {
 
     unit_entity: EntityId
     shop_entity: EntityId
+
+    arrow_particle: ParticleId
 }
 
 type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection;
@@ -53,6 +55,8 @@ type UI_Shop_Data = {
     root_container: Panel
     items_container: Panel
     gold_text: LabelPanel
+
+    item_buttons: Record<Item_Id, Panel>
 }
 
 type UI_Unit_Data = {
@@ -174,6 +178,16 @@ function find_rune_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefin
     return find_rune_by_id(battle, rune_id);
 }
 
+function find_shop_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Shop | undefined {
+    if (entity_id == undefined) return;
+
+    const shop_id = battle.entity_id_to_shop_id[entity_id];
+
+    if (shop_id == undefined) return;
+
+    return find_shop_by_id(battle, shop_id);
+}
+
 function find_unit_entity_data_by_unit_id(battle: UI_Battle, unit_id: number): [ EntityId, UI_Unit_Data ] | undefined {
     for (const entity_id in battle.entity_id_to_unit_data) {
         const data = battle.entity_id_to_unit_data[entity_id];
@@ -287,6 +301,20 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
 
             break;
         }
+
+        case Delta_Type.purchase_item: {
+            const shop_ui = ui_shop_data.find(shop_ui => shop_ui.id == delta.shop_id);
+
+            if (!shop_ui) break;
+
+            const item_button = shop_ui.item_buttons[delta.item_id];
+
+            if (item_button) {
+                item_button.AddClass("unavailable");
+            }
+
+            break;
+        }
     }
 }
 
@@ -366,6 +394,8 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
 }
 
 function take_battle_action(action: Turn_Action, success_callback?: () => void) {
+    $.Msg("Take action ", action);
+
     const request = {
         access_token: get_access_token(),
         action: action
@@ -473,6 +503,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
         clear_control_panel();
         clear_hand_state();
 
+        $("#shop_panels_container").RemoveAndDeleteChildren();
         $("#stat_bar_container").RemoveAndDeleteChildren();
     }
 }
@@ -729,7 +760,14 @@ type Grid_Selection_Ability = {
     ability: Ability
 }
 
-type Grid_Selection = Grid_Selection_None | Grid_Selection_Unit | Grid_Selection_Ability;
+type Grid_Selection_Shop = {
+    type: Selection_Type.shop
+    unit: Unit
+    path: Cost_Population_Result
+    shop: Shop
+}
+
+type Grid_Selection = Grid_Selection_None | Grid_Selection_Unit | Grid_Selection_Ability | Grid_Selection_Shop;
 
 function selection_to_grid_selection(): Grid_Selection {
     function none(): Grid_Selection_None {
@@ -772,7 +810,12 @@ function selection_to_grid_selection(): Grid_Selection {
         }
 
         case Selection_Type.shop: {
-            return none();
+            return {
+                type: Selection_Type.shop,
+                path: populate_path_costs(selection.unit.position)!,
+                unit: selection.unit,
+                shop: selection.shop
+            }
         }
     }
 }
@@ -809,6 +852,25 @@ function compute_unit_cell_color(unit_in_cell: Unit): [ XYZ, number ] {
     }
 
     return [ cell_color, alpha ];
+}
+
+function compute_unit_path_cell_color(unit: Unit, path: Cost_Population_Result, cell_index: number): [XYZ, number] {
+    const rune_in_cell = battle.cell_index_to_rune[cell_index];
+    const cost = path.cell_index_to_cost[cell_index];
+
+    if (cost <= unit.move_points && !unit.has_taken_an_action_this_turn) {
+        return [color_green, 35];
+    }
+
+    if (rune_in_cell) {
+        const [can_go] = can_find_path(battle, unit.position, rune_in_cell.position, unit.move_points, true);
+
+        if (can_go) {
+            return [color_green, 35];
+        }
+    }
+
+    return [color_nothing, 20];
 }
 
 function update_outline(storage: ParticleId[], cell_index_to_highlight: boolean[], color: XYZ): ParticleId[] {
@@ -929,31 +991,33 @@ function update_grid_visuals_for_unit_selection(selection: Grid_Selection_Unit, 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
         const unit_in_cell = battle.cell_index_to_unit[index];
-        const rune_in_cell = battle.cell_index_to_rune[index];
 
-        let cell_color: XYZ = color_nothing;
-        let alpha = 20;
-
-        const cost = selection.path.cell_index_to_cost[index];
-
-        if (cost <= selection.unit.move_points && !selection.unit.has_taken_an_action_this_turn) {
-            cell_color = color_green;
-            alpha = 35;
-        }
+        let [cell_color, alpha] = compute_unit_path_cell_color(selection.unit, selection.path, index);
 
         if (unit_in_cell) {
             [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
         }
 
-        if (rune_in_cell) {
-            const [can_go] = can_find_path(battle, selection.unit.position, rune_in_cell.position, selection.unit.move_points, true);
-
-            if (can_go) {
-                cell_color = color_green;
-            }
+        if (hovered_shop && is_point_in_shop_range(cell.position, hovered_shop)) {
+            cell_index_to_shop_highlight[index] = true;
         }
 
-        if (hovered_shop && is_point_in_shop_range(cell.position, hovered_shop)) {
+        color_cell(cell, cell_color, alpha);
+    }
+}
+
+function update_grid_visuals_for_shop_selection(selection: Grid_Selection_Shop, cell_index_to_shop_highlight: boolean[]) {
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+        const unit_in_cell = battle.cell_index_to_unit[index];
+
+        let [cell_color, alpha] = compute_unit_path_cell_color(selection.unit, selection.path, index);
+
+        if (unit_in_cell) {
+            [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
+        }
+
+        if (is_point_in_shop_range(cell.position, selection.shop)) {
             cell_index_to_shop_highlight[index] = true;
         }
 
@@ -1005,6 +1069,13 @@ function update_grid_visuals() {
             update_grid_visuals_for_ability(selection, cell_index_to_highlight);
             break;
         }
+
+        case Selection_Type.shop: {
+            update_grid_visuals_for_shop_selection(selection, cell_index_to_shop_highlight);
+            break;
+        }
+
+        default: unreachable(selection);
     }
 
     for (const cell of battle.cells) {
@@ -1076,6 +1147,8 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
 
     const items_container = $.CreatePanel("Panel", shop_panel, "items");
 
+    const item_button_map: Record<number, Panel> = {};
+
     for (const item of shop.items) {
         const item_button = $.CreatePanel("Button", items_container, "");
         const item_image = $.CreatePanel("Image", item_button, "image");
@@ -1085,17 +1158,27 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
 
         item_button.AddClass("item_button");
         item_button.SetPanelEvent(PanelEvent.ON_RIGHT_CLICK, () => {
-            if (selection.type == Selection_Type.unit) {
-                take_battle_action({
-                    type: Action_Type.purchase_item,
-                    unit_id: selection.unit.id,
-                    shop_id: shop.id,
-                    item_id: item
-                });
+            if (selection.type == Selection_Type.shop) {
+                const this_player = find_player_by_id(battle, this_player_id);
+
+                if (this_player && this_player.gold >= get_item_gold_cost(item)) {
+                    Game.EmitSound("General.Buy");
+
+                    take_battle_action({
+                        type: Action_Type.purchase_item,
+                        unit_id: selection.unit.id,
+                        shop_id: selection.shop.id,
+                        item_id: item
+                    }, () => {
+                        item_button.AddClass("unavailable");
+                    });
+                }
             }
         });
 
         item_cost.text = get_item_gold_cost(item).toString();
+
+        item_button_map[item] = item_button;
     }
 
     return {
@@ -1103,7 +1186,8 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
         displayed_gold: 0,
         gold_text: gold_text,
         items_container: items_container,
-        root_container: shop_panel
+        root_container: shop_panel,
+        item_buttons: item_button_map
     }
 }
 
@@ -1221,7 +1305,7 @@ function process_state_update(state: Player_Net_Table) {
     this_player_id = state.id;
 
     if (battle && state.state == Player_State.in_battle) {
-        ui_player_data = state.battle.players.map(player => ({
+        ui_player_data = from_server_array(state.battle.players).map(player => ({
             id: player.id,
             gold: player.gold
         }));
@@ -1695,6 +1779,18 @@ function before_unit_selection_change() {
             unit_data.stat_bar_panel.RemoveClass("show_additional_stats");
             unit_data.stat_bar_panel.RemoveClass("show_full_stats");
         }
+
+        if (selection.type == Selection_Type.shop) {
+            const shop_id = battle.entity_id_to_shop_id[selection.shop_entity];
+            const shop_ui = ui_shop_data.find(shop => shop.id == shop_id);
+
+            if (shop_ui) {
+                shop_ui.root_container.RemoveClass("open");
+            }
+
+            Particles.DestroyParticleEffect(selection.arrow_particle, false);
+            Particles.ReleaseParticleIndex(selection.arrow_particle);
+        }
     }
 }
 
@@ -1702,9 +1798,25 @@ function before_unit_selection_change() {
 function drop_selection() {
     before_unit_selection_change();
 
-    selection = {
-        type: Selection_Type.none
+    if (selection.type == Selection_Type.shop) {
+        selection = {
+            type: Selection_Type.unit,
+            unit: selection.unit,
+            unit_entity: selection.unit_entity
+        }
+    } else {
+        selection = {
+            type: Selection_Type.none
+        }
     }
+}
+
+function shop_particle(new_entity_id: EntityId) {
+    const fx = Particles.CreateParticle("particles/shop_arrow.vpcf", ParticleAttachment_t.PATTACH_OVERHEAD_FOLLOW, new_entity_id);
+
+    register_particle_for_reload(fx);
+
+    return fx;
 }
 
 function select_unit(new_entity_id: EntityId, full_stats = false) {
@@ -1726,6 +1838,72 @@ function select_unit(new_entity_id: EntityId, full_stats = false) {
 
     unit_data.stat_bar_panel.AddClass("show_additional_stats");
     unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
+}
+
+function select_shop(new_entity_id: EntityId) {
+    before_unit_selection_change();
+
+    if (selection.type == Selection_Type.shop) {
+        drop_selection();
+        return;
+    }
+
+    const shop_id = battle.entity_id_to_shop_id[new_entity_id];
+    const shop_ui = ui_shop_data.find(shop => shop.id == shop_id);
+
+    if (!shop_ui) return;
+
+    const shop = find_shop_by_id(battle, shop_ui.id);
+
+    if (!shop) return;
+
+    if (selection.type != Selection_Type.none) {
+        if (!is_point_in_shop_range(selection.unit.position, shop)) {
+            show_generic_error("Not in shop range");
+
+            return;
+        }
+
+        shop_ui.root_container.AddClass("open");
+        Game.EmitSound("Shop.Available");
+
+        selection = {
+            type: Selection_Type.shop,
+            unit: selection.unit,
+            unit_entity: selection.unit_entity,
+            shop: shop,
+            shop_entity: new_entity_id,
+            arrow_particle: shop_particle(selection.unit_entity)
+        };
+    } else {
+        const ally_units_in_shop_range = battle.units
+            .filter(unit => unit.owner_player_id == this_player_id && is_point_in_shop_range(unit.position, shop));
+
+        if (ally_units_in_shop_range.length == 0) {
+            show_generic_error("No heroes in shop range");
+
+            return;
+        }
+
+
+        const new_customer = ally_units_in_shop_range[0];
+        const new_customer_data = find_unit_entity_data_by_unit_id(battle, new_customer.id);
+
+        if (new_customer_data) {
+            shop_ui.root_container.AddClass("open");
+
+            Game.EmitSound("Shop.Available");
+
+            selection = {
+                type: Selection_Type.shop,
+                unit: new_customer,
+                unit_entity: new_customer_data[0],
+                shop: shop,
+                shop_entity: new_entity_id,
+                arrow_particle: shop_particle(new_customer_data[0])
+            };
+        }
+    }
 }
 
 function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
@@ -1981,6 +2159,7 @@ function setup_mouse_filter() {
             const cursor_entity = get_entity_under_cursor(cursor);
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
             const cursor_entity_rune = find_rune_by_entity_id(battle, cursor_entity);
+            const cursor_entity_shop = find_shop_by_entity_id(battle, cursor_entity);
 
             if (button == MouseButton.LEFT && selection.type == Selection_Type.none && cursor_entity == null) {
                 const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
@@ -2019,19 +2198,25 @@ function setup_mouse_filter() {
                 return false;
             }
 
-            const wants_to_select_unit =
+            const wants_to_select_entity =
                 button == MouseButton.LEFT &&
                 click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
-            if (wants_to_select_unit) {
-                if (cursor_entity && cursor_entity_unit) {
-                    select_unit(cursor_entity, event == "doublepressed");
+            if (wants_to_select_entity) {
+                if (cursor_entity) {
+                    if (cursor_entity_unit) {
+                        select_unit(cursor_entity, event == "doublepressed");
 
-                    const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
+                        const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
 
-                    Particles.SetParticleControl(particle, 1, [255, 255, 255]);
-                    Particles.SetParticleControl(particle, 2, [64, 255, 0]);
-                    Particles.ReleaseParticleIndex(particle);
+                        Particles.SetParticleControl(particle, 1, [255, 255, 255]);
+                        Particles.SetParticleControl(particle, 2, [64, 255, 0]);
+                        Particles.ReleaseParticleIndex(particle);
+                    }
+
+                    if (cursor_entity_shop) {
+                        select_shop(cursor_entity);
+                    }
                 } else {
                     drop_selection();
                 }

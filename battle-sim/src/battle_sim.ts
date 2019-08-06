@@ -552,12 +552,12 @@ function change_gold(player: Battle_Player, gold_change: number) {
 function get_item_gold_cost(item_id: Item_Id): number {
     switch (item_id) {
         case Item_Id.assault_cuirass: return 10;
-        case Item_Id.boots_of_travel: return 10;
-        case Item_Id.divine_rapier: return 10;
-        case Item_Id.heart_of_tarrasque: return 10;
+        case Item_Id.boots_of_travel: return 8;
+        case Item_Id.divine_rapier: return 14;
+        case Item_Id.heart_of_tarrasque: return 12;
         case Item_Id.satanic: return 10;
-        case Item_Id.tome_of_knowledge: return 10;
-        case Item_Id.refresher_shard: return 10;
+        case Item_Id.tome_of_knowledge: return 6;
+        case Item_Id.refresher_shard: return 8;
     }
 }
 

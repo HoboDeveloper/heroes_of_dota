@@ -17,6 +17,30 @@
         vsnd_files = "sounds/weapons/hero/tiny/tiny_toss_impact.vsnd"
     }
 
+    equip_satanic = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/items/item_satanic.vsnd",
+        ]
+        volume = 1
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 84
+    }
+
+    equip_refresher = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/items/refresher.vsnd",
+        ]
+        volume = 1
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 84
+    }
+
     pudge_ability_rot = {
         type = "dota_update_default"
         vsnd_files =

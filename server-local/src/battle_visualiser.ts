@@ -963,6 +963,9 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.rune_haste: return simple(target =>
             fx("particles/generic_gameplay/rune_haste_owner.vpcf").follow_unit_origin(0, target)
         );
+        case Modifier_Id.item_satanic: return simple(target =>
+            fx("particles/items2_fx/satanic_buff.vpcf").follow_unit_origin(0, target)
+        );
     }
 }
 
@@ -1373,6 +1376,12 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, del
                 .follow_unit_origin(1, unit)
                 .release();
 
+            const player = array_find(battle.players, player => player.id == unit.owner_remote_id);
+
+            if (player) {
+                player.gold += delta.gold_gained;
+            }
+
             unit_emit_sound(unit, "Rune.Bounty");
             wait(0.5);
 
@@ -1420,6 +1429,10 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, del
 }
 
 function play_item_equip_delta(main_player: Main_Player, unit: Battle_Unit, delta: Delta_Equip_Item) {
+    wait(0.3);
+
+    unit_emit_sound(unit, "Item.PickUpShop");
+
     switch (delta.item_id) {
         case Item_Id.assault_cuirass: {
             apply_modifier(main_player, unit, delta.modifier);
@@ -1443,6 +1456,7 @@ function play_item_equip_delta(main_player: Main_Player, unit: Battle_Unit, delt
 
         case Item_Id.satanic: {
             apply_modifier(main_player, unit, delta.modifier);
+            unit_emit_sound(unit, "equip_satanic");
             break;
         }
 
@@ -1451,8 +1465,15 @@ function play_item_equip_delta(main_player: Main_Player, unit: Battle_Unit, delt
             break;
         }
 
-        case Item_Id.refresher_shard: break;
+        case Item_Id.refresher_shard: {
+            fx("particles/items2_fx/refresher.vpcf").to_unit_attach_point(0, unit, "attach_hitloc").release();
+            unit_emit_sound(unit, "equip_refresher");
+
+            break;
+        }
     }
+
+    wait(1.2);
 }
 
 function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
@@ -1906,6 +1927,10 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
 
     for (const rune of battle.runes) {
         destroy_rune(rune, true);
+    }
+
+    for (const shop of battle.shops) {
+        shop.handle.RemoveSelf();
     }
 
     battle.players = snapshot.players.map(player => ({

@@ -863,6 +863,14 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             if (shop.items.indexOf(action.item_id) == -1) break;
 
+            const cost = get_item_gold_cost(action.item_id);
+
+            const player = find_player_by_id(battle, unit.owner_player_id);
+
+            if (!player) break;
+
+            if (player.gold < cost) break;
+
             const purchase: Delta = {
                 type: Delta_Type.purchase_item,
                 unit_id: unit.id,
@@ -1161,7 +1169,7 @@ export function start_battle(players: Player[]): number {
         return {
             type: Delta_Type.gold_change,
             player_id: player.id,
-            change: 30
+            change: 5
         }
     }
 
@@ -1203,7 +1211,12 @@ export function start_battle(players: Player[]): number {
             }
 
             case Spawn_Type.shop: {
-                const items = enum_values<Item_Id>();
+                const all_items = enum_values<Item_Id>();
+                const items: Item_Id[] = [];
+
+                for (let remaining = 3; remaining; remaining--) {
+                    items.push(random_in_array(all_items)!);
+                }
 
                 spawn_deltas.push({
                     type: Delta_Type.shop_spawn,
@@ -1268,6 +1281,12 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             for (const message of messages) {
                 submit_chat_message(player, message);
             }
+
+            break;
+        }
+
+        case "gold": {
+            submit_battle_deltas(battle, [ { type: Delta_Type.gold_change, player_id: player.id, change: 15 }]);
 
             break;
         }
