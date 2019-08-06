@@ -16,7 +16,11 @@ type FX = {
     destroy_and_release(instant: boolean): void;
 }
 
-function fx_by_unit(path: string, unit: Battle_Unit): FX {
+function fx_follow_unit(path: string, unit: Handle_Provider): FX {
+    return native_fx(path, ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, unit.handle);
+}
+
+function fx_by_unit(path: string, unit: Handle_Provider): FX {
     return native_fx(path, ParticleAttachment_t.PATTACH_ABSORIGIN, unit.handle);
 }
 

@@ -199,13 +199,13 @@ function create_world_handle_for_shop(at: XY, facing: XY): CDOTA_BaseNPC {
 
 function create_fx_for_rune_handle(type: Rune_Type, handle: Handle_Provider): FX {
     switch (type) {
-        case Rune_Type.regeneration: return fx("particles/generic_gameplay/rune_regeneration.vpcf").follow_unit_origin(0, handle);
+        case Rune_Type.regeneration: return fx_follow_unit("particles/generic_gameplay/rune_regeneration.vpcf", handle);
         case Rune_Type.bounty: return fx("particles/generic_gameplay/rune_bounty_first.vpcf")
             .follow_unit_origin(0, handle)
             .follow_unit_origin(1, handle)
             .follow_unit_origin(2, handle);
-        case Rune_Type.double_damage: return fx("particles/generic_gameplay/rune_doubledamage.vpcf").follow_unit_origin(0, handle);
-        case Rune_Type.haste: return fx("particles/generic_gameplay/rune_haste.vpcf").follow_unit_origin(0, handle);
+        case Rune_Type.double_damage: return fx_follow_unit("particles/generic_gameplay/rune_doubledamage.vpcf", handle);
+        case Rune_Type.haste: return fx_follow_unit("particles/generic_gameplay/rune_haste.vpcf", handle);
     }
 }
 
@@ -958,13 +958,13 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
         case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
         case Modifier_Id.rune_double_damage: return simple(target =>
-            fx("particles/generic_gameplay/rune_doubledamage_owner.vpcf").follow_unit_origin(0, target)
+            fx_follow_unit("particles/generic_gameplay/rune_doubledamage_owner.vpcf", target)
         );
         case Modifier_Id.rune_haste: return simple(target =>
-            fx("particles/generic_gameplay/rune_haste_owner.vpcf").follow_unit_origin(0, target)
+            fx_follow_unit("particles/generic_gameplay/rune_haste_owner.vpcf", target)
         );
         case Modifier_Id.item_satanic: return simple(target =>
-            fx("particles/items2_fx/satanic_buff.vpcf").follow_unit_origin(0, target)
+            fx_follow_unit("particles/items2_fx/satanic_buff.vpcf", target)
         );
     }
 }
@@ -1140,10 +1140,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
     switch (cast.ability_id) {
         case Ability_Id.pudge_rot: {
-            const particle = fx("particles/units/heroes/hero_pudge/pudge_rot.vpcf")
-                .follow_unit_origin(0, unit)
-                .with_point_value(1, 300, 1, 1);
-            
+            const particle = fx_follow_unit("particles/units/heroes/hero_pudge/pudge_rot.vpcf", unit).with_point_value(1, 300, 1, 1);
             const sound = "pudge_ability_rot";
 
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_ROT);
@@ -1321,9 +1318,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             } else {
                 const failure_fx = "particles/units/heroes/hero_skywrath_mage/skywrath_mage_concussive_shot_failure.vpcf";
 
-                fx(failure_fx)
-                    .follow_unit_origin(0, unit)
-                    .release();
+                fx_follow_unit(failure_fx, unit).release();
             }
 
             break;
@@ -1648,7 +1643,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                 type: delta.rune_type,
                 position: delta.at,
                 handle: handle,
-                highlight_fx: fx(rune_highlight).follow_unit_origin(0, { handle: handle }),
+                highlight_fx: fx_follow_unit(rune_highlight, { handle: handle }),
                 rune_fx: create_fx_for_rune_handle(delta.rune_type, { handle: handle })
             });
 
@@ -1975,7 +1970,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             type: rune.type,
             handle: handle,
             position: rune.position,
-            highlight_fx: fx(rune_highlight).follow_unit_origin(0, { handle: handle }),
+            highlight_fx: fx_follow_unit(rune_highlight, { handle: handle }),
             rune_fx: create_fx_for_rune_handle(rune.type, { handle: handle })
         };
     });
