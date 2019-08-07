@@ -149,7 +149,7 @@ function query_units_in_rectangular_area_around_point(battle: Battle, from_exclu
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (unit.dead) continue;
+        if (!is_unit_a_valid_target(unit)) continue;
 
         const unit_position = unit.position;
         const distance = rectangular(unit_position, from_exclusive);
@@ -166,7 +166,7 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (unit.dead) continue;
+        if (!is_unit_a_valid_target(unit)) continue;
 
         if (ability_targeting_fits(targeting, caster.position, unit.position)) {
             units.push(unit);
@@ -180,7 +180,7 @@ function query_units_with_selector(battle: Battle, from: XY, target: XY, selecto
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (unit.dead) continue;
+        if (!is_unit_a_valid_target(unit)) continue;
 
         if (ability_selector_fits(selector, from, target, unit.position)) {
             units.push(unit);
@@ -242,7 +242,42 @@ function new_timed_modifier(battle: Battle_Record, id: Modifier_Id, duration: nu
     }
 }
 
-function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_ground }, target: XY): Delta_Ground_Target_Ability | undefined {
+function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Player, spell: Card_Spell_No_Target): Delta_Use_No_Target_Spell {
+    const base: Delta_Use_No_Target_Spell_Base = {
+        type: Delta_Type.use_no_target_spell,
+        player_id: player.id
+    };
+
+    switch (spell.spell_id) {
+        case Spell_Id.mekansm: {
+            return {
+                ...base,
+                spell_id: spell.spell_id,
+                targets: []
+            }
+        }
+    }
+}
+
+function perform_spell_cast_unit_target(battle: Battle_Record, player: Battle_Player, target: Unit, spell: Card_Spell_Unit_Target): Delta_Use_Unit_Target_Spell {
+    const base: Delta_Use_Unit_Target_Spell_Base = {
+        type: Delta_Type.use_unit_target_spell,
+        player_id: player.id,
+        target_id: target.id
+    };
+
+    switch (spell.spell_id) {
+        case Spell_Id.euls_scepter: {
+            return {
+                ...base,
+                spell_id: spell.spell_id,
+                modifier: new_timed_modifier(battle, Modifier_Id.spell_euls_scepter, 1, [ Modifier_Field.state_out_of_the_game_counter, 1 ])
+            }
+        }
+    }
+}
+
+function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability: Ability_Ground_Target, target: XY): Delta_Ground_Target_Ability{
     const base: Delta_Ground_Target_Ability_Base = {
         type: Delta_Type.use_ground_target_ability,
         unit_id: unit.id,
@@ -374,12 +409,10 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
                 targets: targets
             };
         }
-
-        default: unreachable(ability.type);
     }
 }
 
-function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.no_target }): Delta_Use_No_Target_Ability | undefined {
+function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, ability: Ability_No_Target): Delta_Use_No_Target_Ability {
     const base: Delta_Use_No_Target_Ability_Base = {
         type: Delta_Type.use_no_target_ability,
         unit_id: unit.id,
@@ -509,12 +542,10 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 },
             }
         }
-
-        default: unreachable(ability.type);
     }
 }
 
-function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability & { type: Ability_Type.target_unit }, target: Unit): Delta_Unit_Target_Ability | undefined {
+function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, ability: Ability_Unit_Target, target: Unit): Delta_Unit_Target_Ability {
     const base: Delta_Unit_Target_Ability_Base = {
         type: Delta_Type.use_unit_target_ability,
         unit_id: unit.id,
@@ -584,8 +615,6 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
                 damage_dealt: health_change(target, -ability.damage)
             }
         }
-
-        default: unreachable(ability.type);
     }
 }
 
@@ -670,8 +699,16 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
     }
 }
 
-// TODO move into a battle_sim callback?
-function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, target: Unit, damage: number): Delta | undefined {
+function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, target: Unit, damage: number): void {
+    if (source.modifiers.some(modifier => modifier.id == Modifier_Id.item_satanic)) {
+        battle.deltas.push({
+            type: Delta_Type.health_change,
+            source_unit_id: source.id,
+            target_unit_id: source.id,
+            ...health_change(source, Math.max(0, -damage)) // In case we have a healing attack, I guess
+        });
+    }
+
     for (const ability of source.abilities) {
         if (source.level < ability.available_since_level) continue;
 
@@ -684,13 +721,13 @@ function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, tar
                 const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 
                 if (glaive_target) {
-                    return apply_ability_effect_delta({
+                    battle.deltas.push(apply_ability_effect_delta({
                         ability_id: ability.id,
                         source_unit_id: source.id,
                         target_unit_id: glaive_target.id,
                         original_target_id: target.id,
                         damage_dealt: health_change(glaive_target, -damage)
-                    });
+                    }));
                 }
             }
         }
@@ -699,13 +736,21 @@ function on_target_attacked_pre_resolve(battle: Battle_Record, source: Unit, tar
 
 function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
     function find_valid_unit_for_action(id: number): Unit | undefined {
-        const unit = find_unit_by_id(battle, id);
+        const unit = find_valid_target_unit(id);
 
         if (!unit) return;
-        if (unit.dead) return;
         if (unit.owner_player_id != player.id) return;
         if (unit.has_taken_an_action_this_turn) return;
         if (is_unit_stunned(unit)) return;
+
+        return unit;
+    }
+
+    function find_valid_target_unit(id: number): Unit | undefined {
+        const unit = find_unit_by_id(battle, id);
+
+        if (!unit) return;
+        if (!is_unit_a_valid_target(unit)) return;
 
         return unit;
     }
@@ -778,7 +823,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (!actors) return;
             if (actors.ability.type != Ability_Type.target_unit) return;
 
-            const target = find_unit_by_id(battle, action.target_id);
+            const target = find_valid_target_unit(action.target_id);
 
             if (!target) return;
             if (!ability_targeting_fits(actors.ability.targeting, actors.unit.position, target.position)) return;
@@ -808,23 +853,10 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             if (!cast) return;
 
-            const deltas: Delta[] = [
+            return [
                 decrement_charges(actors),
                 cast
             ];
-
-            if (cast.ability_id == Ability_Id.basic_attack) {
-                if (cast.result.hit) {
-                    const target = find_unit_by_id(battle, cast.result.target_unit_id)!;
-                    const new_delta = on_target_attacked_pre_resolve(battle, actors.unit, target, -cast.result.damage_dealt.value_delta);
-
-                    if (new_delta) {
-                        deltas.push(new_delta);
-                    }
-                }
-            }
-
-            return deltas;
         }
 
         case Action_Type.use_hero_card: {
@@ -853,7 +885,40 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             ]
         }
 
+        case Action_Type.use_unit_target_spell_card: {
+            const card = find_player_card_by_id(player, action.card_id);
+
+            if (!card) return;
+            if (card.type != Card_Type.spell) return;
+            if (card.spell_type != Spell_Type.unit_target) return;
+            if (player.has_used_a_card_this_turn) return;
+
+            const target = find_valid_target_unit(action.unit_id);
+
+            if (!target) return;
+
+            return [
+                use_card(player, card),
+                perform_spell_cast_unit_target(battle, player, target, card)
+            ]
+        }
+
+        case Action_Type.use_no_target_spell_card: {
+            const card = find_player_card_by_id(player, action.card_id);
+
+            if (!card) return;
+            if (card.type != Card_Type.spell) return;
+            if (card.spell_type != Spell_Type.no_target) return;
+            if (player.has_used_a_card_this_turn) return;
+
+            return [
+                use_card(player, card),
+                perform_spell_cast_no_target(battle, player, card)
+            ]
+        }
+
         case Action_Type.purchase_item: {
+            // TODO stunned units can't buy items, decide if this is ok
             const unit = find_valid_unit_for_action(action.unit_id);
             const shop = find_shop_by_id(battle, action.shop_id);
 
@@ -983,6 +1048,37 @@ function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type:
     }
 }
 
+// TODO rework that to Spell_Definition etc
+function spell_id_to_card_spell(battle: Battle_Record, spell_id: Spell_Id): Card_Spell {
+    switch (spell_id) {
+        case Spell_Id.euls_scepter: {
+            return {
+                id: get_next_card_id(battle),
+                type: Card_Type.spell,
+                spell_type: Spell_Type.unit_target,
+                spell_id: spell_id
+            }
+        }
+
+        case Spell_Id.mekansm: {
+            return {
+                id: get_next_card_id(battle),
+                type: Card_Type.spell,
+                spell_type: Spell_Type.no_target,
+                spell_id: spell_id
+            }
+        }
+    }
+}
+
+function draw_spell_card(battle: Battle_Record, player: Battle_Player, spell_id: Spell_Id): Delta_Draw_Card {
+    return {
+        type: Delta_Type.draw_card,
+        player_id: player.id,
+        card: spell_id_to_card_spell(battle, spell_id)
+    }
+}
+
 function use_card(player: Battle_Player, card: Card): Delta_Use_Card {
     return {
         type: Delta_Type.use_card,
@@ -1031,27 +1127,22 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     return last_alive_unit_player_id;
 }
 
-function server_change_health(battle: Battle_Record, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) {
-    const killed = change_health_default(battle, source, source_ability, target, change);
+function server_change_health(battle: Battle_Record, source: Source, target: Unit, change: Health_Change) {
+    const killed = change_health_default(battle, source, target, change);
 
-    if (source_ability == source.attack.id) {
-        if (source.modifiers.some(modifier => modifier.id == Modifier_Id.item_satanic)) {
-            battle.deltas.push({
-                type: Delta_Type.health_change,
-                source_unit_id: source.id,
-                target_unit_id: source.id,
-                ...health_change(source, Math.max(0, -change.value_delta)) // In case we have a healing attack, I guess
-            });
+    if (source.type == Source_Type.unit) {
+        if (source.ability_id == source.unit.attack.id) {
+            on_target_dealt_damage_by_attack(battle, source.unit, target, -change.value_delta);
         }
-    }
 
-    if (killed) {
-        if (source.owner_player_id != target.owner_player_id && source.level < max_unit_level) {
-            battle.deltas.push({
-                type: Delta_Type.level_change,
-                unit_id: source.id,
-                new_level: source.level + 1
-            });
+        if (killed) {
+            if (source.unit.owner_player_id != target.owner_player_id && source.unit.level < max_unit_level) {
+                battle.deltas.push({
+                    type: Delta_Type.level_change,
+                    unit_id: source.unit.id,
+                    new_level: source.unit.level + 1
+                });
+            }
         }
     }
 
@@ -1173,7 +1264,12 @@ export function start_battle(players: Player[]): number {
         }
     }
 
-    const card_collection = [
+    const spell_collection = [
+        Spell_Id.euls_scepter,
+        Spell_Id.mekansm
+    ];
+
+    const hero_collection = [
         Unit_Type.dragon_knight,
         Unit_Type.pudge,
         Unit_Type.tidehunter,
@@ -1188,7 +1284,14 @@ export function start_battle(players: Player[]): number {
         spawn_deltas.push(get_starting_gold(player));
     }
 
-    for (const unit_type of card_collection) {
+    for (const spell_id of spell_collection) {
+        spawn_deltas.push(
+            draw_spell_card(battle, battle.players[0], spell_id),
+            draw_spell_card(battle, battle.players[1], spell_id),
+        );
+    }
+
+    for (const unit_type of hero_collection) {
         spawn_deltas.push(
             draw_hero_card(battle, battle.players[0], unit_type),
             draw_hero_card(battle, battle.players[1], unit_type)

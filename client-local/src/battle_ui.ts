@@ -1448,22 +1448,13 @@ function make_battle_snapshot(): Battle_Snapshot {
         units: battle.units
             .filter(unit => !unit.dead)
             .map(unit => ({
+                ...copy(unit as Unit_Stats),
                 id: unit.id,
                 level: unit.level,
-                armor: unit.armor,
-                health: unit.health,
-                max_health: unit.max_health,
-                move_points: unit.move_points,
-                max_move_points: unit.max_move_points,
                 position: unit.position,
                 type: unit.type,
                 facing: battle.unit_id_to_facing[unit.id],
-                state_stunned_counter: unit.state_stunned_counter,
-                state_silenced_counter: unit.state_silenced_counter,
-                state_disarmed_counter: unit.state_disarmed_counter,
                 owner_id: unit.owner_player_id,
-                attack_damage: unit.attack_damage,
-                attack_bonus: unit.attack_bonus,
                 modifiers: unit.modifiers.map(modifier => ({
                     modifier_id: modifier.id,
                     modifier_handle_id: modifier.handle_id,
@@ -2306,6 +2297,7 @@ function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
         case Ability_Error.silenced: return native(24);
         case Ability_Error.unusable: return custom("Can't be used");
         case Ability_Error.disarmed: return custom("Disarmed");
+        case Ability_Error.out_of_the_game: return custom("Can't act right now");
 
         default: return unreachable(error);
     }
@@ -2373,6 +2365,10 @@ function create_card_ui(root: Panel, card: Card) {
         }
 
         case Card_Type.spell: {
+            const name_panel = $.CreatePanel("Panel", container, "name_panel");
+            const spell_name = $.CreatePanel("Label", name_panel, "");
+            spell_name.text = enum_to_string(card.spell_id);
+
             break;
         }
 
@@ -2456,6 +2452,53 @@ function update_hand() {
 
     let index = 0;
 
+    function card_to_action(card: Card, hovered_cell: XY): Turn_Action | undefined {
+        switch (card.type) {
+            case Card_Type.spell: {
+                switch (card.spell_type) {
+                    case Spell_Type.unit_target: {
+                        const target = unit_at(battle, hovered_cell);
+
+                        if (target) {
+                            return {
+                                type: Action_Type.use_unit_target_spell_card,
+                                card_id: card.id,
+                                unit_id: target.id,
+                            }
+                        }
+
+                        break;
+                    }
+
+                    case Spell_Type.no_target: {
+                        return {
+                            type: Action_Type.use_no_target_spell_card,
+                            card_id: card.id
+                        }
+                    }
+
+                    // TODO Spell_Type.ground_target + unreachable
+                }
+
+                break;
+            }
+
+            case Card_Type.hero: {
+                return {
+                    type: Action_Type.use_hero_card,
+                    card_id: card.id,
+                    at: hovered_cell
+                }
+            }
+
+            case Card_Type.unknown: {
+                return;
+            }
+
+            default: unreachable(card);
+        }
+    }
+
     if (held_card && !GameUI.IsMouseDown(0)) {
         const panel = held_card.card_panel.panel;
 
@@ -2465,30 +2508,29 @@ function update_hand() {
 
         if (hovered_cell) {
             const card = held_card.card_panel.card;
+            const action = card_to_action(card, hovered_cell);
 
-            take_battle_action({
-                type: Action_Type.use_hero_card,
-                at: hovered_cell,
-                card_id: held_card.card_panel.card.id
-            }, () => {
-                for (let index = 0; index < hand.length; index++) {
-                    if (hand[index].card.id == card.id) {
-                        const card_panel = hand[index];
+            if (action) {
+                take_battle_action(action, () => {
+                    for (let index = 0; index < hand.length; index++) {
+                        if (hand[index].card.id == card.id) {
+                            const card_panel = hand[index];
 
-                        if (held_card && held_card.card_panel == card_panel) {
-                            clear_held_card();
+                            if (held_card && held_card.card_panel == card_panel) {
+                                clear_held_card();
+                            }
+
+                            hand.splice(index, 1);
+
+                            card_panel.panel.AddClass("disappearing_transition");
+                            card_panel.panel.AddClass("disappearing");
+                            card_panel.panel.DeleteAsync(0.4);
+
+                            break;
                         }
-
-                        hand.splice(index, 1);
-
-                        card_panel.panel.AddClass("disappearing_transition");
-                        card_panel.panel.AddClass("disappearing");
-                        card_panel.panel.DeleteAsync(0.4);
-
-                        break;
                     }
-                }
-            });
+                });
+            }
 
             // TODO failure callback
         } else {

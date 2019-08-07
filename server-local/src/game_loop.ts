@@ -116,6 +116,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
                     state_stunned_counter: unit.state_stunned_counter,
                     state_silenced_counter: unit.state_silenced_counter,
                     state_disarmed_counter: unit.state_disarmed_counter,
+                    state_out_of_the_game_counter: unit.state_out_of_the_game_counter,
                     attack_bonus: unit.attack_bonus,
                     attack_damage: unit.attack_damage
                 }
@@ -305,6 +306,7 @@ function main() {
     link_modifier("Modifier_Damage_Effect", "modifiers/modifier_damage_effect");
     link_modifier("Modifier_Dragon_Knight_Elder_Dragon", "modifiers/modifier_dragon_knight_elder_dragon");
     link_modifier("Modifier_Lion_Hex", "modifiers/modifier_lion_hex");
+    link_modifier("Modifier_Euls_Scepter", "modifiers/modifier_euls_scepter");
 
     const scheduler: Scheduler = {
         tasks: new Map<Coroutine<any>, Task>()

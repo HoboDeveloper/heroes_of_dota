@@ -25,6 +25,9 @@ declare const enum Delta_Type {
     purchase_item = 21,
     equip_item = 22,
     gold_change = 23,
+    use_ground_target_spell = 24,
+    use_unit_target_spell = 25,
+    use_no_target_spell = 26,
     game_over = 30
 }
 
@@ -36,7 +39,9 @@ declare const enum Action_Type {
     use_no_target_ability = 6,
     use_hero_card = 7,
     pick_up_rune = 8,
-    purchase_item = 9
+    purchase_item = 9,
+    use_no_target_spell_card = 10,
+    use_unit_target_spell_card = 11
 }
 
 declare const enum Unit_Type {
@@ -57,7 +62,8 @@ declare const enum Modifier_Field {
     move_points_bonus = 4,
     state_silenced_counter = 5,
     state_stunned_counter = 6,
-    state_disarmed_counter = 7
+    state_disarmed_counter = 7,
+    state_out_of_the_game_counter = 8
 }
 
 declare const enum Rune_Type {
@@ -120,6 +126,7 @@ type Unit_Stats = {
     state_stunned_counter: number
     state_silenced_counter: number
     state_disarmed_counter: number
+    state_out_of_the_game_counter: number
 }
 
 type Unit_Definition = {
@@ -225,6 +232,17 @@ type Action_Use_Hero_Card = {
     }
 }
 
+type Action_Use_Ground_Target_Spell_Card = {
+    type: Action_Type.use_no_target_spell_card
+    card_id: number
+}
+
+type Action_Use_Unit_Target_Spell = {
+    type: Action_Type.use_unit_target_spell_card
+    card_id: number
+    unit_id: number
+}
+
 type Action_Pick_Up_Rune = {
     type: Action_Type.pick_up_rune
     unit_id: number
@@ -240,6 +258,8 @@ type Action_Purchase_Item = {
 
 type Turn_Action =
     Action_Move |
+    Action_Use_Ground_Target_Spell_Card |
+    Action_Use_Unit_Target_Spell |
     Action_Ground_Target_Ability |
     Action_Unit_Target_Ability |
     Action_No_Target_Ability |
@@ -256,11 +276,6 @@ type Card_Unknown = {
 type Card_Hero = {
     type: Card_Type.hero
     unit_type: Unit_Type
-    id: number
-}
-
-type Card_Spell = {
-    type: Card_Type.spell
     id: number
 }
 
@@ -490,6 +505,8 @@ type Delta =
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |
+    Delta_Use_Unit_Target_Spell |
+    Delta_Use_No_Target_Spell |
     Delta_Level_Change |
     Delta_Modifier_Removed |
     Delta_Set_Ability_Charges_Remaining |

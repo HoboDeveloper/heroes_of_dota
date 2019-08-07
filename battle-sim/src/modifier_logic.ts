@@ -44,6 +44,11 @@ function apply_modifier_field_change(target: Unit_Stats, change: Modifier_Change
             break;
         }
 
+        case Modifier_Field.state_out_of_the_game_counter: {
+            target.state_out_of_the_game_counter += delta;
+            break;
+        }
+
         default: unreachable(change.field);
     }
 }

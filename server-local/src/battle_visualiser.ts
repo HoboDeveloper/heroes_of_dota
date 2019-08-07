@@ -233,6 +233,7 @@ function spawn_unit_for_battle(unit_type: Unit_Type, unit_id: number, owner_id: 
         state_stunned_counter: 0,
         state_silenced_counter: 0,
         state_disarmed_counter: 0,
+        state_out_of_the_game_counter: 0,
         move_points: definition.move_points,
         max_move_points: definition.move_points,
         modifiers: []
@@ -966,6 +967,7 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.item_satanic: return simple(target =>
             fx_follow_unit("particles/items2_fx/satanic_buff.vpcf", target)
         );
+        case Modifier_Id.spell_euls_scepter: return complex("Modifier_Euls_Scepter");
     }
 }
 
@@ -1335,6 +1337,37 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         }
 
         default: unreachable(cast);
+    }
+}
+
+function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No_Target_Spell) {
+    switch (cast.spell_id) {
+        case Spell_Id.mekansm: {
+            for (const effect of from_client_array(cast.targets)) {
+                const target = find_unit_by_id(effect.target_unit_id);
+
+                if (target) {
+                    apply_modifier(main_player, target, effect.modifier);
+                    change_health(main_player, target, target, effect.change);
+                }
+            }
+
+            break;
+        }
+
+        default: unreachable(cast.spell_id);
+    }
+}
+
+function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
+    switch (cast.spell_id) {
+        case Spell_Id.euls_scepter: {
+            apply_modifier(main_player, target, cast.modifier);
+
+            break;
+        }
+
+        default: unreachable(cast.spell_id);
     }
 }
 
@@ -1761,6 +1794,22 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
+        case Delta_Type.use_unit_target_spell: {
+            const target = find_unit_by_id(delta.target_id);
+
+            if (target) {
+                play_unit_target_spell_delta(main_player, target, delta);
+            }
+
+            break;
+        }
+
+        case Delta_Type.use_no_target_spell: {
+            play_no_target_spell_delta(main_player, delta);
+
+            break;
+        }
+
         case Delta_Type.start_turn: {
             for (const unit of battle.units) {
                 unit.move_points = unit.max_move_points;
@@ -1872,8 +1921,8 @@ function periodically_update_battle() {
     for (const rune of battle.runes) {
         // Double damage rune doesn't spin by itself because Valve
         if (rune.type == Rune_Type.double_damage) {
-            const current_angle = (GameRules.GetGameTime() % (Math.PI * 2)) * 2.0;
-            rune.handle.SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)))
+            const current_angle = ((GameRules.GetGameTime() * -2.0) % (Math.PI * 2));
+            rune.handle.SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)));
         }
     }
 }
@@ -1948,6 +1997,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             state_stunned_counter: unit.state_stunned_counter,
             state_silenced_counter: unit.state_silenced_counter,
             state_disarmed_counter: unit.state_disarmed_counter,
+            state_out_of_the_game_counter: unit.state_out_of_the_game_counter,
             modifiers: from_client_array(unit.modifiers).map(modifier => ({
                 modifier_id: modifier.modifier_id,
                 modifier_handle_id: modifier.modifier_handle_id,

@@ -38,7 +38,8 @@ declare const enum Modifier_Id {
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,
     item_satanic = 103,
-    item_divine_rapier = 104
+    item_divine_rapier = 104,
+    spell_euls_scepter = 200
 }
 
 type Ability_Definition_Active_Base = {
@@ -180,26 +181,32 @@ type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     type: Ability_Type.target_ground
 }
 
-type Ability_Definition_Active =
+type Ability_Ground_Target =
     Ability_Basic_Attack |
     Ability_Pudge_Hook |
-    Ability_Pudge_Rot |
-    Ability_Pudge_Dismember |
-    Ability_Tide_Gush |
-    Ability_Tide_Anchor_Smash |
-    Ability_Tide_Ravage |
-    Ability_Luna_Lucent_Beam |
-    Ability_Luna_Eclipse |
-    Ability_Skywrath_Concussive_Shot |
-    Ability_Skywrath_Ancient_Seal |
     Ability_Skywrath_Mystic_Flare |
     Ability_Dragon_Knight_Breathe_Fire |
-    Ability_Dragon_Knight_Dragon_Tail |
-    Ability_Dragon_Knight_Elder_Dragon_Form |
     Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
+    Ability_Lion_Impale
+
+type Ability_Unit_Target =
+    Ability_Pudge_Dismember |
+    Ability_Tide_Gush |
+    Ability_Luna_Lucent_Beam |
+    Ability_Skywrath_Ancient_Seal |
+    Ability_Dragon_Knight_Dragon_Tail |
     Ability_Lion_Hex |
-    Ability_Lion_Impale |
     Ability_Lion_Finger_Of_Death
+
+type Ability_No_Target =
+    Ability_Pudge_Rot |
+    Ability_Tide_Anchor_Smash |
+    Ability_Tide_Ravage |
+    Ability_Luna_Eclipse |
+    Ability_Skywrath_Concussive_Shot |
+    Ability_Dragon_Knight_Elder_Dragon_Form
+
+type Ability_Definition_Active = Ability_Ground_Target | Ability_Unit_Target | Ability_No_Target
 
 type Ability_Definition_Passive =
     Ability_Luna_Moon_Glaive

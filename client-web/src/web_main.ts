@@ -562,6 +562,15 @@ namespace clr {
         return unit_name_by_type(unit.type, unit.owner_player_id);
     }
 
+    export function source_name(source: Source): Colored_String {
+        switch (source.type) {
+            case Source_Type.none: return txt("none", "gray");
+            case Source_Type.unit: return unit_name(source.unit);
+            case Source_Type.item: return txt(enum_to_string(source.item_id), "gray")
+            case Source_Type.player: return player_name(source.player);
+        }
+    }
+
     export function ability_name(ability: Ability) {
         return txt(enum_to_string(ability.id), "gray");
     }
@@ -1226,12 +1235,12 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
     switch (player_state.state) {
         case Player_State.in_battle: {
             const battle_log: Colored_Line[] = [];
-            const battle = {
+            const battle: Battle = {
                 ...make_battle(player_state.participants, player_state.grid_size.width, player_state.grid_size.height),
-                change_health: (battle: Battle, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) => {
+                change_health: (battle: Battle, source: Source, target: Unit, change: Health_Change) => {
                     if (change.value_delta > 0) {
                         battle_log.push([
-                            clr.unit_name(source),
+                            clr.source_name(source),
                             clr.plain(" restores "),
                             clr.txt(change.value_delta.toString(), "gray"),
                             clr.plain(" health to "),
@@ -1243,11 +1252,11 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                             clr.plain(" takes "),
                             clr.txt((-change.value_delta).toString(), "gray"),
                             clr.plain(" damage from "),
-                            clr.unit_name(source)
+                            clr.source_name(source)
                         ]);
                     }
 
-                    const died = change_health_default(battle, source, source_ability, target, change);
+                    const died = change_health_default(battle, source, target, change);
 
                     if (died) {
                         battle_log.push([
@@ -1258,11 +1267,11 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
 
                     return died;
                 },
-                apply_modifier: (source: Unit, target: Unit, modifier: Modifier_Application) => {
+                apply_modifier: (source: Source, target: Unit, modifier: Modifier_Application) => {
                     apply_modifier_default(source, target, modifier);
 
                     const lines = [
-                        clr.unit_name(source),
+                        clr.source_name(source),
                         clr.plain(" applies "),
                         clr.txt(enum_to_string(modifier.modifier_id), "gray"),
                         clr.plain(" to "),

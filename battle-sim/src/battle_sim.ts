@@ -8,8 +8,38 @@ declare const enum Ability_Error {
     stunned = 7,
     silenced = 8,
     disarmed = 9,
-    unusable = 10
+    unusable = 10,
+    out_of_the_game = 11
 }
+
+declare const enum Source_Type {
+    none = 0,
+    unit = 1,
+    player = 2,
+    item = 3
+}
+
+type Source_None = {
+    type: Source_Type.none
+}
+
+type Source_Unit = {
+    type: Source_Type.unit
+    unit: Unit
+    ability_id: Ability_Id
+}
+
+type Source_Player = {
+    type: Source_Type.player
+    player: Battle_Player
+}
+
+type Source_Item = {
+    type: Source_Type.item
+    item_id: Item_Id
+}
+
+type Source = Source_None | Source_Unit | Source_Item | Source_Player
 
 type Ability_Authorization_Ok = {
     success: true;
@@ -33,8 +63,8 @@ type Battle = {
     turning_player_index: number
     cells: Cell[]
     grid_size: XY
-    change_health: (battle: Battle, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) => boolean,
-    apply_modifier: (source: Unit, target: Unit, modifier: Modifier_Application) => void,
+    change_health: (battle: Battle, source: Source, target: Unit, change: Health_Change) => boolean,
+    apply_modifier: (source: Source, target: Unit, modifier: Modifier_Application) => void,
     end_turn: (battle: Battle) => void
 }
 
@@ -82,7 +112,7 @@ type Shop = {
 type Modifier_Base = {
     id: Modifier_Id
     handle_id: number
-    source: Unit
+    source: Source
     changes: Modifier_Change[]
 }
 
@@ -184,7 +214,7 @@ function rectangular(from: XY, to: XY) {
 }
 
 function unit_at(battle: Battle, at: XY): Unit | undefined {
-    return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
+    return battle.units.find(unit => is_unit_a_valid_target(unit) && xy_equal(at, unit.position));
 }
 
 function rune_at(battle: Battle, at: XY) : Rune | undefined {
@@ -193,6 +223,10 @@ function rune_at(battle: Battle, at: XY) : Rune | undefined {
 
 function shop_at(battle: Battle, at: XY) : Shop | undefined {
     return battle.shops.find(shop => xy_equal(shop.position, at));
+}
+
+function is_unit_out_of_the_game(unit: Unit) {
+    return unit.state_out_of_the_game_counter > 0;
 }
 
 function is_unit_stunned(unit: Unit) {
@@ -209,6 +243,10 @@ function is_unit_disarmed(unit: Unit) {
 
 function is_point_in_shop_range(xy: XY, shop: Shop) {
     return rectangular(xy, shop.position) <= shop_range;
+}
+
+function is_unit_a_valid_target(unit: Unit) {
+    return !unit.dead && !is_unit_out_of_the_game(unit);
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
@@ -238,6 +276,34 @@ function find_modifier_by_handle_id(battle: Battle, id: number): [ Unit, Modifie
                 return [unit, modifier];
             }
         }
+    }
+}
+
+function no_source(): Source_None {
+    return {
+        type: Source_Type.none
+    }
+}
+
+function unit_source(unit: Unit, ability_id: Ability_Id): Source_Unit {
+    return {
+        type: Source_Type.unit,
+        unit: unit,
+        ability_id: ability_id
+    }
+}
+
+function player_source(player: Battle_Player): Source_Player {
+    return {
+        type: Source_Type.player,
+        player: player
+    }
+}
+
+function item_source(item_id: Item_Id): Source_Item {
+    return {
+        type: Source_Type.item,
+        item_id: item_id
     }
 }
 
@@ -484,6 +550,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     if (unit.dead) return error(Ability_Error.dead);
     if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
     if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
+    if (is_unit_out_of_the_game(unit)) return error(Ability_Error.out_of_the_game);
 
     if (ability == unit.attack) {
         if (is_unit_disarmed(unit)) return error(Ability_Error.disarmed);
@@ -501,7 +568,7 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
     };
 }
 
-function change_health_default(battle: Battle, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change): boolean {
+function change_health_default(battle: Battle, source: Source, target: Unit, change: Health_Change): boolean {
     target.health = change.new_value;
 
     if (!target.dead && change.new_value == 0) {
@@ -541,8 +608,8 @@ function end_turn_default(battle: Battle) {
     }
 }
 
-function change_health(battle: Battle, source: Unit, source_ability: Ability_Id | undefined, target: Unit, change: Health_Change) {
-    return battle.change_health(battle, source, source_ability, target, change);
+function change_health(battle: Battle, source: Source, target: Unit, change: Health_Change) {
+    return battle.change_health(battle, source, target, change);
 }
 
 function change_gold(player: Battle_Player, gold_change: number) {
@@ -584,11 +651,11 @@ function apply_modifier_changes(target: Unit, changes: Modifier_Change[], invert
     }
 }
 
-function apply_modifier(battle: Battle, source: Unit, target: Unit, modifier: Modifier_Application) {
+function apply_modifier(battle: Battle, source: Source, target: Unit, modifier: Modifier_Application) {
     battle.apply_modifier(source, target, modifier);
 }
 
-function apply_modifier_default(source: Unit, target: Unit, modifier: Modifier_Application) {
+function apply_modifier_default(source: Source, target: Unit, modifier: Modifier_Application) {
     const modifier_base: Modifier_Base = {
         id: modifier.modifier_id,
         handle_id: modifier.modifier_handle_id,
@@ -619,7 +686,7 @@ function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
             const target = find_unit_by_id(battle, effect.target_unit_id);
 
             if (source && target) {
-                change_health(battle, source, effect.ability_id, target, effect.damage_dealt);
+                change_health(battle, unit_source(source, effect.ability_id), target, effect.damage_dealt);
             }
 
             break;
@@ -629,17 +696,17 @@ function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
     }
 }
 
-function change_health_multiple(battle: Battle, source: Unit, source_ability: Ability_Id, changes: Unit_Health_Change[]) {
+function change_health_multiple(battle: Battle, source: Source, changes: Unit_Health_Change[]) {
     for (const change of changes) {
         const target = find_unit_by_id(battle, change.target_unit_id);
 
         if (target) {
-            change_health(battle, source, source_ability, target, change.change);
+            change_health(battle, source, target, change.change);
         }
     }
 }
 
-function apply_modifier_multiple(battle: Battle, source: Unit, applications: Unit_Modifier_Application[]) {
+function apply_modifier_multiple(battle: Battle, source: Source, applications: Unit_Modifier_Application[]) {
     for (const application of applications) {
         const target = find_unit_by_id(battle, application.target_unit_id);
 
@@ -649,34 +716,36 @@ function apply_modifier_multiple(battle: Battle, source: Unit, applications: Uni
     }
 }
 
-function change_health_and_apply_modifier_multiple(battle: Battle, source: Unit, source_ability: Ability_Id, changes: (Unit_Health_Change & Unit_Modifier_Application)[]) {
+function change_health_and_apply_modifier_multiple(battle: Battle, source: Source, changes: (Unit_Health_Change & Unit_Modifier_Application)[]) {
     for (const change of changes) {
         const target = find_unit_by_id(battle, change.target_unit_id);
 
         if (target) {
-            change_health(battle, source, source_ability, target, change.change);
+            change_health(battle, source, target, change.change);
             apply_modifier(battle, source, target, change.modifier);
         }
     }
 }
 
-function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: Unit, cast: Delta_Unit_Target_Ability) {
+function collapse_unit_target_ability_use(battle: Battle, caster: Unit, target: Unit, cast: Delta_Unit_Target_Ability) {
+    const source = unit_source(caster, cast.ability_id);
+
     switch (cast.ability_id) {
         case Ability_Id.pudge_dismember: {
-            change_health(battle, source, cast.ability_id, source, cast.health_restored);
-            change_health(battle, source, cast.ability_id, target, cast.damage_dealt);
+            change_health(battle, source, caster, cast.health_restored);
+            change_health(battle, source, target, cast.damage_dealt);
 
             break;
         }
 
         case Ability_Id.luna_lucent_beam: {
-            change_health(battle, source, cast.ability_id, target, cast.damage_dealt);
+            change_health(battle, source, target, cast.damage_dealt);
 
             break;
         }
 
         case Ability_Id.tide_gush: {
-            change_health(battle, source, cast.ability_id, target, cast.damage_dealt);
+            change_health(battle, source, target, cast.damage_dealt);
             apply_modifier(battle, source, target, cast.modifier);
 
             break;
@@ -688,7 +757,7 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
         }
 
         case Ability_Id.dragon_knight_dragon_tail: {
-            change_health(battle, source, cast.ability_id, target, cast.damage_dealt);
+            change_health(battle, source, target, cast.damage_dealt);
             apply_modifier(battle, source, target, cast.modifier);
 
             break;
@@ -700,7 +769,7 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
         }
 
         case Ability_Id.lion_finger_of_death: {
-            change_health(battle, source, cast.ability_id, target, cast.damage_dealt);
+            change_health(battle, source, target, cast.damage_dealt);
             break;
         }
 
@@ -708,28 +777,30 @@ function collapse_unit_target_ability_use(battle: Battle, source: Unit, target: 
     }
 }
 
-function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delta_Use_No_Target_Ability) {
+function collapse_no_target_ability_use(battle: Battle, unit: Unit, cast: Delta_Use_No_Target_Ability) {
+    const source = unit_source(unit, cast.ability_id);
+
     switch (cast.ability_id) {
         case Ability_Id.tide_ravage: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
 
             break;
         }
 
         case Ability_Id.luna_eclipse: {
-            change_health_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_multiple(battle, source, cast.targets);
 
             break;
         }
 
         case Ability_Id.tide_anchor_smash: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
 
             break;
         }
 
         case Ability_Id.pudge_rot: {
-            change_health_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_multiple(battle, source, cast.targets);
 
             break;
         }
@@ -739,7 +810,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
                 const target = find_unit_by_id(battle, cast.result.target_unit_id);
 
                 if (target) {
-                    change_health(battle, source, cast.ability_id, target, cast.result.damage);
+                    change_health(battle, source, target, cast.result.damage);
                     apply_modifier(battle, source, target, cast.result.modifier);
                 }
             }
@@ -748,7 +819,7 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form: {
-            apply_modifier(battle, source, source, cast.modifier);
+            apply_modifier(battle, source, unit, cast.modifier);
 
             break;
         }
@@ -757,14 +828,16 @@ function collapse_no_target_ability_use(battle: Battle, source: Unit, cast: Delt
     }
 }
 
-function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Cell, cast: Delta_Ground_Target_Ability) {
+function collapse_ground_target_ability_use(battle: Battle, caster: Unit, at: Cell, cast: Delta_Ground_Target_Ability) {
+    const source = unit_source(caster, cast.ability_id);
+
     switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
             if (cast.result.hit) {
                 const target = find_unit_by_id(battle, cast.result.target_unit_id);
 
                 if (target) {
-                    change_health(battle, source, cast.ability_id, target, cast.result.damage_dealt);
+                    change_health(battle, source, target, cast.result.damage_dealt);
                 }
             }
 
@@ -777,7 +850,7 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
 
                 if (target) {
                     move_unit(battle, target, cast.result.move_target_to);
-                    change_health(battle, source, cast.ability_id, target, cast.result.damage_dealt);
+                    change_health(battle, source, target, cast.result.damage_dealt);
                 }
             }
 
@@ -785,22 +858,22 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
         }
 
         case Ability_Id.skywrath_mystic_flare: {
-            change_health_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 
         case Ability_Id.dragon_knight_breathe_fire: {
-            change_health_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form_attack: {
-            change_health_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_multiple(battle, source, cast.targets);
             break;
         }
 
         case Ability_Id.lion_impale: {
-            change_health_and_apply_modifier_multiple(battle, source, cast.ability_id, cast.targets);
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
             break;
         }
 
@@ -808,7 +881,37 @@ function collapse_ground_target_ability_use(battle: Battle, source: Unit, at: Ce
     }
 }
 
+function collapse_no_target_spell_use(battle: Battle, caster: Battle_Player, cast: Delta_Use_No_Target_Spell) {
+    const source = player_source(caster);
+
+    switch (cast.spell_id) {
+        case Spell_Id.mekansm: {
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
+
+            break;
+        }
+
+        default: unreachable(cast.spell_id);
+    }
+}
+
+function collapse_unit_target_spell_use(battle: Battle, caster: Battle_Player, target: Unit, cast: Delta_Use_Unit_Target_Spell) {
+    const source = player_source(caster);
+
+    switch (cast.spell_id) {
+        case Spell_Id.euls_scepter: {
+            apply_modifier(battle, source, target, cast.modifier);
+
+            break;
+        }
+
+        default: unreachable(cast.spell_id);
+    }
+}
+
 function collapse_item_equip(battle: Battle, unit: Unit, delta: Delta_Equip_Item) {
+    const source = item_source(delta.item_id);
+
     switch (delta.item_id) {
         case Item_Id.refresher_shard: {
             for (const change of delta.charge_changes) {
@@ -828,27 +931,27 @@ function collapse_item_equip(battle: Battle, unit: Unit, delta: Delta_Equip_Item
         }
 
         case Item_Id.assault_cuirass: {
-            apply_modifier(battle, unit, unit, delta.modifier);
+            apply_modifier(battle, source, unit, delta.modifier);
             break;
         }
 
         case Item_Id.divine_rapier: {
-            apply_modifier(battle, unit, unit, delta.modifier);
+            apply_modifier(battle, source, unit, delta.modifier);
             break
         }
 
         case Item_Id.heart_of_tarrasque: {
-            apply_modifier(battle, unit, unit, delta.modifier);
+            apply_modifier(battle, source, unit, delta.modifier);
             break
         }
 
         case Item_Id.satanic: {
-            apply_modifier(battle, unit, unit, delta.modifier);
+            apply_modifier(battle, source, unit, delta.modifier);
             break
         }
 
         case Item_Id.boots_of_travel: {
-            apply_modifier(battle, unit, unit, delta.modifier);
+            apply_modifier(battle, source, unit, delta.modifier);
             break
         }
 
@@ -896,17 +999,17 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             switch (delta.rune_type) {
                 case Rune_Type.double_damage: {
-                    apply_modifier(battle, unit, unit, delta.modifier);
+                    apply_modifier(battle, no_source(), unit, delta.modifier);
                     break;
                 }
 
                 case Rune_Type.haste: {
-                    apply_modifier(battle, unit, unit, delta.modifier);
+                    apply_modifier(battle, no_source(), unit, delta.modifier);
                     break;
                 }
 
                 case Rune_Type.regeneration: {
-                    change_health(battle, unit, undefined, unit, delta.heal);
+                    change_health(battle, no_source(), unit, delta.heal);
                     break;
                 }
 
@@ -952,6 +1055,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 state_stunned_counter: 0,
                 state_silenced_counter: 0,
                 state_disarmed_counter: 0,
+                state_out_of_the_game_counter: 0,
                 armor: 0
             });
 
@@ -965,7 +1069,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             const target = find_unit_by_id(battle, delta.target_unit_id);
 
             if (source && target) {
-                change_health(battle, source, undefined, target, delta);
+                change_health(battle, no_source(), target, delta);
             }
 
             break;
@@ -995,44 +1099,64 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.use_no_target_ability:
-        case Delta_Type.use_unit_target_ability:
-        case Delta_Type.use_ground_target_ability: {
+        case Delta_Type.use_no_target_ability: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 
-            if (unit) {
-                unit.has_taken_an_action_this_turn = true;
+            if (!unit) break;
 
-                switch (delta.type) {
-                    case Delta_Type.use_no_target_ability: {
-                        collapse_no_target_ability_use(battle, unit, delta);
+            unit.has_taken_an_action_this_turn = true;
 
-                        break;
-                    }
+            collapse_no_target_ability_use(battle, unit, delta);
 
-                    case Delta_Type.use_unit_target_ability: {
-                        const target = find_unit_by_id(battle, delta.target_unit_id);
+            break;
+        }
 
-                        if (target) {
-                            collapse_unit_target_ability_use(battle, unit, target, delta);
-                        }
+        case Delta_Type.use_ground_target_ability: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+            const target = grid_cell_at(battle, delta.target_position);
 
-                        break;
-                    }
+            if (!unit) break;
+            if (!target) break;
 
-                    case Delta_Type.use_ground_target_ability: {
-                        const target = grid_cell_at(battle, delta.target_position);
+            unit.has_taken_an_action_this_turn = true;
 
-                        if (target) {
-                            collapse_ground_target_ability_use(battle, unit, target, delta);
-                        }
+            collapse_ground_target_ability_use(battle, unit, target, delta);
 
-                        break;
-                    }
+            break;
+        }
 
-                    default: unreachable(delta);
-                }
-            }
+        case Delta_Type.use_unit_target_ability: {
+            const unit = find_unit_by_id(battle, delta.unit_id);
+            const target = find_unit_by_id(battle, delta.target_unit_id);
+
+            if (!unit) break;
+            if (!target) break;
+
+            unit.has_taken_an_action_this_turn = true;
+
+            collapse_unit_target_ability_use(battle, unit, target, delta);
+
+            break;
+        }
+
+        case Delta_Type.use_no_target_spell: {
+            const player = find_player_by_id(battle, delta.player_id);
+
+            if (!player) break;
+
+            collapse_no_target_spell_use(battle, player, delta);
+
+            break;
+        }
+
+        case Delta_Type.use_unit_target_spell: {
+            const player = find_player_by_id(battle, delta.player_id);
+            const target = find_unit_by_id(battle, delta.target_id);
+
+            if (!player) break;
+            if (!target) break;
+
+            collapse_unit_target_spell_use(battle, player, target, delta);
 
             break;
         }
