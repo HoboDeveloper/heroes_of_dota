@@ -253,7 +253,7 @@ function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Play
             return {
                 ...base,
                 spell_id: spell.spell_id,
-                targets: []
+                targets: [] // TODO actually make it work
             }
         }
     }
@@ -1048,34 +1048,11 @@ function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type:
     }
 }
 
-// TODO rework that to Spell_Definition etc
-function spell_id_to_card_spell(battle: Battle_Record, spell_id: Spell_Id): Card_Spell {
-    switch (spell_id) {
-        case Spell_Id.euls_scepter: {
-            return {
-                id: get_next_card_id(battle),
-                type: Card_Type.spell,
-                spell_type: Spell_Type.unit_target,
-                spell_id: spell_id
-            }
-        }
-
-        case Spell_Id.mekansm: {
-            return {
-                id: get_next_card_id(battle),
-                type: Card_Type.spell,
-                spell_type: Spell_Type.no_target,
-                spell_id: spell_id
-            }
-        }
-    }
-}
-
 function draw_spell_card(battle: Battle_Record, player: Battle_Player, spell_id: Spell_Id): Delta_Draw_Card {
     return {
         type: Delta_Type.draw_card,
         player_id: player.id,
-        card: spell_id_to_card_spell(battle, spell_id)
+        card: spell_id_to_spell(spell_id, get_next_card_id(battle))
     }
 }
 

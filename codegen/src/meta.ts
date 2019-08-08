@@ -1,5 +1,5 @@
 import * as ts from "typescript";
-import {SimpleType, SimpleTypeEnumMember, SimpleTypeKind, toSimpleType} from "ts-simple-type";
+import {SimpleType, SimpleTypeEnumMember, SimpleTypeKind, SimpleTypeMemberNamed, toSimpleType} from "ts-simple-type";
 import {readFileSync} from "fs";
 import * as path from "path";
 
@@ -37,6 +37,24 @@ export default function run_transformer(program: ts.Program, options: Options): 
         return enum_members;
     }
 
+    function extract_members(types: SimpleType[]): SimpleTypeMemberNamed[]{
+        const result: SimpleTypeMemberNamed[] = [];
+
+        for (const child of types) {
+            const resolved = resolve_alias(child);
+
+            if (resolved.kind == SimpleTypeKind.OBJECT) {
+                resolved.members.forEach(member => result.push(member));
+            } else if (resolved.kind == SimpleTypeKind.INTERSECTION || resolved.kind == SimpleTypeKind.UNION) {
+                result.push(...extract_members(resolved.types));
+            } else {
+                console.log("Can't extract from", resolved);
+            }
+        }
+
+        return result;
+    }
+
     function process_node(node: ts.Node): ts.Node | undefined {
         if (node.kind == ts.SyntaxKind.CallExpression) {
             const call = node as ts.CallExpression;
@@ -50,7 +68,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
 
                 if (function_name == "enum_to_string") {
                     const argument = call.arguments[0];
-                    const type = resolve_alias(toSimpleType(checker.getTypeAtLocation(argument), checker));
+                    const type = resolve_alias(toSimpleType(argument, checker));
                     const enum_members: SimpleTypeEnumMember[] = resolve_enum_members(type);
 
                     const cases = enum_members.map(member => {
@@ -111,7 +129,43 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     } else {
                         error_out(argument, "Only string literals are supported, " + type.kind + " given");
                     }
+                } else if (function_name == "spell") {
+                    const type = resolve_alias(toSimpleType(call.typeArguments[0], checker));
+                    const argument = call.arguments[0];
 
+                    const base_type_members = extract_members([ type ]);
+
+                    const result_properties: ts.PropertyAssignment[] = [];
+
+                    for (const base_type_member of base_type_members) {
+                        if (base_type_member.type.kind == SimpleTypeKind.ENUM_MEMBER) {
+                            const enum_member = base_type_member.type;
+
+                            if (enum_member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
+                                const assignment = ts.createPropertyAssignment(base_type_member.name, ts.createLiteral(enum_member.type.value));
+
+                                ts.addSyntheticTrailingComment(assignment, ts.SyntaxKind.MultiLineCommentTrivia, enum_member.name);
+
+                                result_properties.push(assignment);
+                            } else {
+                                error_out(argument, "Unsupported base type member type: " + enum_member.type.kind)
+                            }
+                        }
+                    }
+
+                    const argument_object = argument as ts.ObjectLiteralExpression;
+                    const argument_properties = argument_object.properties
+                        .map(property => {
+                            if (property.kind == ts.SyntaxKind.PropertyAssignment) {
+                                return property as ts.PropertyAssignment;
+                            } else {
+                                error_out(property, `${property.getText()} is not a property assignment in type ${call.typeArguments[0].getText()}`);
+                            }
+                        });
+
+                    result_properties.push(...argument_properties);
+
+                    return ts.createObjectLiteral(result_properties, true);
                 }
             }
 

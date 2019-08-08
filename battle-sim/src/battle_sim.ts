@@ -962,11 +962,11 @@ function collapse_item_equip(battle: Battle, unit: Unit, delta: Delta_Equip_Item
 function collapse_delta(battle: Battle, delta: Delta): void {
     function ability_definition_to_ability(definition: Ability_Definition): Ability {
         if (definition.type == Ability_Type.passive) {
-            return copy(definition);
+            return definition;
         }
 
         return {
-            ...copy(definition),
+            ...definition,
             charges_remaining: definition.charges
         }
     }

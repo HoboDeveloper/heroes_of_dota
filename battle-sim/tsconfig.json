@@ -20,6 +20,9 @@
       },
       {
         "transform": "../codegen/src/copy_by_type.ts"
+      },
+      {
+        "transform": "../codegen/src/meta.ts"
       }
     ]
   },

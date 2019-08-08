@@ -1,7 +1,6 @@
 type Ability_Active_Discriminator = {
     id: Ability_Id,
     type: Ability_Type,
-    starts_inactive: boolean
 }
 
 type Ability_Passive_Discriminator = {

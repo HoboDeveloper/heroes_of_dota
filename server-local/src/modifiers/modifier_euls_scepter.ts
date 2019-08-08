@@ -5,6 +5,8 @@ class Modifier_Euls_Scepter extends CDOTA_Modifier_Lua {
         }
     }
 
+    // TODO remember initial forward vector and reset it on landing
+    // TODO reimplement visual Z with custom falling particles etc
     OnIntervalThink(): void {
         const current_angle = (GameRules.GetGameTime() * 16.0) % (Math.PI * 2);
         this.GetParent().SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)))
