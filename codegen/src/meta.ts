@@ -1,5 +1,12 @@
 import * as ts from "typescript";
-import {SimpleType, SimpleTypeEnumMember, SimpleTypeKind, SimpleTypeMemberNamed, toSimpleType} from "ts-simple-type";
+import {
+    SimpleType,
+    SimpleTypeEnumMember,
+    SimpleTypeKind,
+    SimpleTypeMemberNamed,
+    SimpleTypeObject,
+    toSimpleType
+} from "ts-simple-type";
 import {readFileSync} from "fs";
 import * as path from "path";
 
@@ -13,6 +20,10 @@ export default function run_transformer(program: ts.Program, options: Options): 
         const source = node.getSourceFile();
         const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
         throw new Error(`ERROR: ${source.fileName}:${line + 1},${character + 1} / ${error}`);
+    }
+
+    function copy_object(expression: ts.Expression, type: SimpleTypeObject) {
+        return ts.createObjectLiteral(type.members.map(member => ts.createPropertyAssignment(member.name, ts.createPropertyAccess(expression, member.name))), true)
     }
 
     function resolve_alias(type: SimpleType): SimpleType {
@@ -129,12 +140,11 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     } else {
                         error_out(argument, "Only string literals are supported, " + type.kind + " given");
                     }
-                } else if (function_name == "spell") {
+                } else if (function_name == "spell" || function_name == "active_ability" || function_name == "passive_ability") {
                     const type = resolve_alias(toSimpleType(call.typeArguments[0], checker));
                     const argument = call.arguments[0];
 
                     const base_type_members = extract_members([ type ]);
-
                     const result_properties: ts.PropertyAssignment[] = [];
 
                     for (const base_type_member of base_type_members) {
@@ -166,6 +176,25 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     result_properties.push(...argument_properties);
 
                     return ts.createObjectLiteral(result_properties, true);
+                } else if (function_name == "copy") {
+                    const argument = call.arguments[0];
+                    const type = resolve_alias(toSimpleType(checker.getTypeAtLocation(argument), checker));
+
+                    if (type.kind == SimpleTypeKind.UNION || type.kind == SimpleTypeKind.INTERSECTION) {
+                        const set: Record<string, undefined> = {};
+
+                        extract_members(type.types).map(member => member.name).forEach(name => set[name] = undefined);
+
+                        const member_names = Object.keys(set);
+
+                        return ts.createObjectLiteral(member_names.map(name => ts.createPropertyAssignment(name, ts.createPropertyAccess(argument, name))), true)
+                    }
+
+                    if (type.kind == SimpleTypeKind.OBJECT) {
+                        return copy_object(argument, type);
+                    }
+
+                    error_out(argument, "Unsupported argument type " + type.kind);
                 }
             }
 

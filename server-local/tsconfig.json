@@ -14,7 +14,7 @@
     "rootDir": "src",
     "outDir": "../dist/game/scripts/vscripts",
     "plugins": [
-      { "transform": "../codegen/src/ability_generator.ts" },
+      { "transform": "../codegen/src/meta.ts" },
       { "transform": "../codegen/src/lua_generator.ts", "after": true }
     ]
   },

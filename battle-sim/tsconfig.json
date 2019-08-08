@@ -16,12 +16,6 @@
     ],
     "plugins": [
       {
-        "transform": "../codegen/src/ability_generator.ts"
-      },
-      {
-        "transform": "../codegen/src/copy_by_type.ts"
-      },
-      {
         "transform": "../codegen/src/meta.ts"
       }
     ]

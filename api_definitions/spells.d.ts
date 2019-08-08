@@ -37,7 +37,6 @@ type Spell_Euls_Scepter = Card_Spell_Unit_Target_Base & {
 
 type Spell_Mekansm = Card_Spell_No_Target_Base & {
     spell_id: Spell_Id.mekansm
-    spell_type: Spell_Type.no_target
     heal: number
     armor: number
     duration: number
