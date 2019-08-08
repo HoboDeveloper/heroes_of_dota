@@ -41,6 +41,24 @@
         soundlevel = 84
     }
 
+    eul_scepter_drop = {
+        type = "dota_update_default"
+        vsnd_files =
+        [
+            "sounds/physics/footsteps/hero/shared/large01.vsnd",
+            "sounds/physics/footsteps/hero/shared/large02.vsnd",
+            "sounds/physics/footsteps/hero/shared/large03.vsnd",
+            "sounds/physics/footsteps/hero/shared/large04.vsnd",
+        ]
+        volume_rand_min = -0.15
+        volume_rand_max = 0.15
+        volume = 1
+        pitch_rand_min = -0.05
+        pitch_rand_max = 0.05
+        soundlevel = 84
+        distance_max = 2000
+    }
+
     pudge_ability_rot = {
         type = "dota_update_default"
         vsnd_files =

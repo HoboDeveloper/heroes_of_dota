@@ -1293,7 +1293,8 @@ export function start_battle(players: Player[]): number {
                 const items: Item_Id[] = [];
 
                 for (let remaining = 3; remaining; remaining--) {
-                    items.push(random_in_array(all_items)!);
+                    const index = random_int_up_to(all_items.length);
+                    items.push(...all_items.splice(index, 1));
                 }
 
                 spawn_deltas.push({
@@ -1322,6 +1323,9 @@ export function start_battle(players: Player[]): number {
 
 export function cheat(battle: Battle_Record, player: Player, cheat: string, selected_unit_id: number) {
     const parts = cheat.split(" ");
+    const battle_player = battle.players.find(battle_player => battle_player.id == player.id);
+
+    if (!battle_player) return;
 
     function refresh_unit(battle: Battle_Record, unit: Unit) {
         const deltas: Delta[] = [
@@ -1454,6 +1458,12 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             };
 
             submit_battle_deltas(battle, [ delta ]);
+
+            break;
+        }
+
+        case "spl": {
+            submit_battle_deltas(battle, enum_values<Spell_Id>().map(id => draw_spell_card(battle, battle_player, id)));
 
             break;
         }

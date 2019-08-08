@@ -1362,6 +1362,7 @@ function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No
 function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.euls_scepter: {
+            unit_emit_sound(target, "DOTA_Item.Cyclone.Activate");
             apply_modifier(main_player, target, cast.modifier);
 
             break;
@@ -1624,6 +1625,39 @@ function change_unit_level(main_player: Main_Player, unit: Battle_Unit, new_leve
     fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
 }
 
+function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
+    if (modifier_id == Modifier_Id.spell_euls_scepter) {
+        const handle = unit.handle;
+        const ground = battle_position_to_world_position_center(unit.position);
+        const delta_z = handle.GetAbsOrigin().z - ground.z;
+
+        const start_time = GameRules.GetGameTime();
+        const fall_time = 0.45;
+
+        function f(x: number) {
+            return ((1 - Math.sin(x * 6 - 6)/(x * 6 - 6)) + (1 - x * x)) / 2;
+        }
+
+        while (true) {
+            const current_time = GameRules.GetGameTime();
+            const delta_time = Math.min(current_time - start_time, fall_time);
+
+            if (delta_time >= fall_time) {
+                break;
+            }
+
+            handle.SetAbsOrigin(Vector(ground.x, ground.y, f(delta_time / fall_time) * delta_z + ground.z));
+
+            wait_one_frame();
+        }
+
+        handle.SetAbsOrigin(ground);
+
+        unit_emit_sound(unit, "eul_scepter_drop");
+        fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
+    }
+}
+
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
@@ -1874,6 +1908,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                                         }
                                     }
                                 }
+
+                                on_modifier_removed(unit, modifier.modifier_id);
                             }
 
                             unit.modifiers.splice(index, 1);
