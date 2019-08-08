@@ -1,6 +1,7 @@
 import * as ts from "typescript";
 import * as tstl from "typescript-to-lua";
 import {LuaLibImportKind, LuaTarget} from "typescript-to-lua";
+import * as path from "path";
 
 export interface Options {
     some?: string;
@@ -8,6 +9,10 @@ export interface Options {
 
 export default function run_transformer(program: ts.Program, options: Options): ts.TransformerFactory<ts.Node> {
     const transpiler_options: tstl.CompilerOptions = program.getCompilerOptions();
+    const cyan = "\x1b[36m";
+    const reset = "\x1b[0m";
+    const bright = "\x1b[1m";
+    const red = "\x1b[31m";
 
     transpiler_options.luaTarget = LuaTarget.LuaJIT;
     transpiler_options.luaLibImport = LuaLibImportKind.Require;
@@ -18,7 +23,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
         program.getSemanticDiagnostics().length > 0;
 
     if (has_errors) {
-        console.log("Errors detected, not transpiling");
+        console.log(`${bright}${red}Errors${reset} detected, not transpiling`);
     }
 
     const transpiler = new tstl.LuaTranspiler(program);
@@ -27,7 +32,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
         if (has_errors) return;
         if (file.isDeclarationFile) return;
 
-        console.log("Transpiling", file.fileName);
+        console.log("Transpiling", cyan, path.relative(process.cwd(), file.fileName), reset);
 
         transpiler.emitSourceFile(file);
     }

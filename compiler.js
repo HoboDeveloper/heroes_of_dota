@@ -4,7 +4,14 @@ const performance = require('perf_hooks').performance;
 
 function compile_file(module) {
     return new Promise(resolve => {
-        console.log("Compiling", module);
+        const bright = "\x1b[1m";
+        const red = "\x1b[31m";
+        const yellow = "\x1b[33m";
+        const reset = "\x1b[0m";
+
+        const colored_module_name = `${bright}${yellow}${module}${reset}`;
+
+        console.log("Compiling", colored_module_name);
 
         const start_time = performance.now();
         const no_npm_update = Object.assign({ "NO_UPDATE_NOTIFIER": "1" }, process.env);
@@ -14,15 +21,10 @@ function compile_file(module) {
         emitter.stderr.on("data", data => process.stderr.write(data.toString()));
 
         emitter.on("exit", function (code) {
-            resolve(`${module}: ${Number((performance.now() - start_time) / 1000).toFixed(2)}s`);
+            resolve(`${colored_module_name}: ${Number((performance.now() - start_time) / 1000).toFixed(2)}s`);
 
             if (code !== 0) {
-                const bright = "\x1b[1m";
-                const red = "\x1b[31m";
-                const yellow = "\x1b[33m";
-                const reset = "\x1b[0m";
-
-                console.error(`${bright}${red}Error${reset} when compiling module ${bright}${yellow}${module}${reset}`);
+                console.error(`${bright}${red}Error${reset} when compiling module ${colored_module_name}`);
             }
         });
     });

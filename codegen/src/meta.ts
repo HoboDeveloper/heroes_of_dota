@@ -15,11 +15,15 @@ export interface Options {
 
 export default function run_transformer(program: ts.Program, options: Options): ts.TransformerFactory<ts.Node> {
     const checker = program.getTypeChecker();
+    const cyan = "\x1b[36m";
+    const reset = "\x1b[0m";
+    const bright = "\x1b[1m";
+    const red = "\x1b[31m";
 
     function error_out(node: ts.Node, error: string) {
         const source = node.getSourceFile();
         const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
-        throw new Error(`ERROR: ${source.fileName}:${line + 1},${character + 1} / ${error}`);
+        throw new Error(`${bright}${red}ERROR${reset}: ${source.fileName}:${line + 1},${character + 1} / ${error}`);
     }
 
     function copy_object(expression: ts.Expression, type: SimpleTypeObject) {
@@ -134,7 +138,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                         const project_directory = path.dirname(config_file);
                         const resolved_path = path.resolve(project_directory, type.value);
 
-                        console.log("Reading", resolved_path);
+                        console.log("Reading", cyan, path.relative(process.cwd(), resolved_path), reset);
 
                         return ts.createStringLiteral(readFileSync(resolved_path, "base64"));
                     } else {
@@ -203,7 +207,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
     }
 
     function process_source_file(context: ts.TransformationContext, file: ts.SourceFile) {
-        console.log("Processing", file.fileName);
+        console.log("Processing", cyan, path.relative(process.cwd(), file.fileName), reset);
 
         function visitor(node: ts.Node): ts.Node {
             const new_node_or_nothing = process_node(node);
