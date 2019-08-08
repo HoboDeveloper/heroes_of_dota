@@ -1036,23 +1036,21 @@ function spawn_unit(battle: Battle_Record, owner: Battle_Player, at_position: XY
     };
 }
 
-function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type: Unit_Type): Delta_Draw_Card {
+function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type: Unit_Type): Delta_Draw_Hero_Card {
     return {
-        type: Delta_Type.draw_card,
+        type: Delta_Type.draw_hero_card,
         player_id: player.id,
-        card: {
-            type: Card_Type.hero,
-            id: get_next_card_id(battle),
-            unit_type: unit_type
-        }
+        unit_type: unit_type,
+        card_id: get_next_card_id(battle)
     }
 }
 
-function draw_spell_card(battle: Battle_Record, player: Battle_Player, spell_id: Spell_Id): Delta_Draw_Card {
+function draw_spell_card(battle: Battle_Record, player: Battle_Player, spell_id: Spell_Id): Delta_Draw_Spell_Card {
     return {
-        type: Delta_Type.draw_card,
+        type: Delta_Type.draw_spell_card,
         player_id: player.id,
-        card: spell_id_to_spell(spell_id, get_next_card_id(battle))
+        spell_id: spell_id,
+        card_id: get_next_card_id(battle)
     }
 }
 

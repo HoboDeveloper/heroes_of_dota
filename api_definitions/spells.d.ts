@@ -11,7 +11,10 @@ declare const enum Spell_Type {
     ground_target = 2
 }
 
-type Card_Spell = Card_Spell_Unit_Target | Card_Spell_No_Target
+type Card_Spell_Definition = Card_Spell_Unit_Target | Card_Spell_No_Target
+type Card_Spell = Card_Spell_Definition & {
+    id: number
+}
 
 type Card_Spell_Unit_Target =
     Spell_Euls_Scepter
@@ -22,13 +25,11 @@ type Card_Spell_No_Target =
 type Card_Spell_Unit_Target_Base = {
     type: Card_Type.spell
     spell_type: Spell_Type.unit_target
-    id: number
 }
 
 type Card_Spell_No_Target_Base = {
     type: Card_Type.spell
     spell_type: Spell_Type.no_target
-    id: number
 }
 
 type Spell_Euls_Scepter = Card_Spell_Unit_Target_Base & {

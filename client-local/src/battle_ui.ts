@@ -294,14 +294,6 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             break;
         }
 
-        case Delta_Type.draw_card: {
-            if (delta.player_id == this_player_id) {
-                add_card_panel(delta.card);
-            }
-
-            break;
-        }
-
         case Delta_Type.purchase_item: {
             const shop_ui = ui_shop_data.find(shop_ui => shop_ui.id == delta.shop_id);
 
@@ -365,6 +357,20 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
 
             if (spawned_shop) {
                 ui_shop_data.push(create_ui_shop_data(spawned_shop));
+            }
+        }
+
+        if (delta.type == Delta_Type.draw_spell_card || delta.type == Delta_Type.draw_hero_card) {
+            if (delta.player_id == this_player_id) {
+                const player = find_player_by_id(battle, delta.player_id);
+
+                if (player) {
+                    const drawn_card = find_player_card_by_id(player, delta.card_id);
+
+                    if (drawn_card) {
+                        add_card_panel(drawn_card);
+                    }
+                }
             }
         }
     }

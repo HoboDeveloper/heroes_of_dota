@@ -1895,7 +1895,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
-        case Delta_Type.draw_card: break;
+        case Delta_Type.draw_spell_card: break;
+        case Delta_Type.draw_hero_card: break;
         case Delta_Type.use_card: break;
         case Delta_Type.set_ability_charges_remaining: break;
 

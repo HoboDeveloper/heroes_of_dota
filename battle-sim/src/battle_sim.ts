@@ -1225,11 +1225,28 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.draw_card: {
+        case Delta_Type.draw_hero_card: {
             const player = find_player_by_id(battle, delta.player_id);
 
             if (player) {
-                player.hand.push(delta.card);
+                player.hand.push({
+                    type: Card_Type.hero,
+                    id: delta.card_id,
+                    unit_type: delta.unit_type
+                });
+            }
+
+            break;
+        }
+
+        case Delta_Type.draw_spell_card: {
+            const player = find_player_by_id(battle, delta.player_id);
+
+            if (player) {
+                player.hand.push({
+                    id: delta.card_id,
+                    ...spell_definition_by_id(delta.spell_id)
+                });
             }
 
             break;
