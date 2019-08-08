@@ -968,6 +968,9 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
             fx_follow_unit("particles/items2_fx/satanic_buff.vpcf", target)
         );
         case Modifier_Id.spell_euls_scepter: return complex("Modifier_Euls_Scepter");
+        case Modifier_Id.spell_mekansm: return simple(target =>
+            fx_follow_unit("particles/items_fx/buckler.vpcf", target)
+        )
     }
 }
 
@@ -1343,10 +1346,14 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.mekansm: {
+            EmitSoundOnLocationWithCaster(battle.camera_dummy.GetAbsOrigin(), "DOTA_Item.Mekansm.Activate", battle.camera_dummy);
+
             for (const effect of from_client_array(cast.targets)) {
                 const target = find_unit_by_id(effect.target_unit_id);
 
                 if (target) {
+                    fx_follow_unit("particles/items2_fx/mekanism.vpcf", target).release();
+                    unit_emit_sound(target, "DOTA_Item.Mekansm.Target");
                     apply_modifier(main_player, target, effect.modifier);
                     change_health(main_player, target, target, effect.change);
                 }

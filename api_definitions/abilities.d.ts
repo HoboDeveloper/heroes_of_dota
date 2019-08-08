@@ -39,7 +39,8 @@ declare const enum Modifier_Id {
     item_assault_cuirass = 102,
     item_satanic = 103,
     item_divine_rapier = 104,
-    spell_euls_scepter = 200
+    spell_euls_scepter = 200,
+    spell_mekansm = 201
 }
 
 type Ability_Definition_Active_Base = {

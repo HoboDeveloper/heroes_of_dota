@@ -248,12 +248,18 @@ function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Play
         player_id: player.id
     };
 
+    const owned_units = battle.units.filter(unit => is_unit_a_valid_target(unit) && unit.owner_player_id == player.id);
+
     switch (spell.spell_id) {
         case Spell_Id.mekansm: {
             return {
                 ...base,
                 spell_id: spell.spell_id,
-                targets: [] // TODO actually make it work
+                targets: owned_units.map(target => ({
+                    target_unit_id: target.id,
+                    change: health_change(target, spell.heal),
+                    modifier: new_timed_modifier(battle, Modifier_Id.spell_mekansm, spell.duration, [Modifier_Field.armor_bonus, spell.armor])
+                }))
             }
         }
     }
