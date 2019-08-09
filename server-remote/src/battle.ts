@@ -54,14 +54,20 @@ const battlegrounds: Battleground_Definition[] = [
                 type: Spawn_Type.shop,
                 at: xy(6, 1),
                 facing: xy(0, 1)
+            },
+            {
+                type: Spawn_Type.creep,
+                at: xy(6, 3),
+                facing: xy(-1, 0)
             }
         ]
     }
 ];
 
-declare const enum Spawn_Type {
-    rune = 0,
-    shop = 1
+const enum Spawn_Type {
+    rune ,
+    shop,
+    creep
 }
 
 type Rune_Spawn = {
@@ -75,7 +81,13 @@ type Shop_Spawn = {
     facing: XY
 }
 
-type Battleground_Spawn = Rune_Spawn | Shop_Spawn;
+type Creep_Spawn = {
+    type: Spawn_Type.creep
+    at: XY
+    facing: XY
+}
+
+type Battleground_Spawn = Rune_Spawn | Shop_Spawn | Creep_Spawn;
 
 type Battleground_Definition = {
     grid_size: XY
@@ -1042,6 +1054,17 @@ function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY
     };
 }
 
+function spawn_creep(battle: Battle_Record, at_position: XY, facing: XY): Delta_Creep_Spawn {
+    const id = get_next_unit_id(battle);
+
+    return {
+        type: Delta_Type.creep_spawn,
+        at_position: at_position,
+        facing: facing,
+        unit_id: id
+    };
+}
+
 function draw_hero_card(battle: Battle_Record, player: Battle_Player, hero_type: Hero_Type): Delta_Draw_Hero_Card {
     return {
         type: Delta_Type.draw_hero_card,
@@ -1312,6 +1335,12 @@ export function start_battle(players: Player[]): number {
                     at: spawn.at,
                     facing: spawn.facing
                 });
+
+                break;
+            }
+
+            case Spawn_Type.creep: {
+                spawn_deltas.push(spawn_creep(battle, spawn.at, spawn.facing));
 
                 break;
             }

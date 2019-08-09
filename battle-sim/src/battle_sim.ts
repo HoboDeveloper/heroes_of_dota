@@ -1023,6 +1023,30 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
     }
 
+    function unit_base(id: number, definition: Unit_Definition, at: XY): Unit_Base {
+        return {
+            id: id,
+            position: at,
+            attack: ability_definition_to_ability(definition.attack),
+            attack_damage: definition.attack_damage,
+            move_points: definition.move_points,
+            health: definition.health,
+            dead: false,
+            has_taken_an_action_this_turn: false,
+            abilities: definition.abilities.map(ability_definition_to_ability),
+            ability_bench: definition.ability_bench.map(ability_definition_to_ability),
+            modifiers: [],
+            attack_bonus: 0,
+            max_health: definition.health,
+            max_move_points: definition.move_points,
+            state_stunned_counter: 0,
+            state_silenced_counter: 0,
+            state_disarmed_counter: 0,
+            state_out_of_the_game_counter: 0,
+            armor: 0
+        }
+    }
+
     switch (delta.type) {
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
@@ -1084,32 +1108,23 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.hero_spawn: {
-            const definition = unit_definition_by_type(delta.hero_type);
-
             battle.units.push({
+                ...unit_base(delta.unit_id, unit_definition_by_type(delta.hero_type), delta.at_position),
                 supertype: Unit_Supertype.hero,
                 type: delta.hero_type,
-                id: delta.unit_id,
                 owner_player_id: delta.owner_id,
-                position: delta.at_position,
-                attack: ability_definition_to_ability(definition.attack),
-                attack_damage: definition.attack_damage,
-                move_points: definition.move_points,
-                health: definition.health,
-                dead: false,
-                has_taken_an_action_this_turn: false,
-                abilities: definition.abilities.map(ability_definition_to_ability),
-                ability_bench: definition.ability_bench.map(ability_definition_to_ability),
-                modifiers: [],
-                attack_bonus: 0,
                 level: 1,
-                max_health: definition.health,
-                max_move_points: definition.move_points,
-                state_stunned_counter: 0,
-                state_silenced_counter: 0,
-                state_disarmed_counter: 0,
-                state_out_of_the_game_counter: 0,
-                armor: 0
+            });
+
+            grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
+
+            break;
+        }
+
+        case Delta_Type.creep_spawn: {
+            battle.units.push({
+                ...unit_base(delta.unit_id, creep_definition(), delta.at_position),
+                supertype: Unit_Supertype.creep
             });
 
             grid_cell_at_unchecked(battle, delta.at_position).occupied = true;

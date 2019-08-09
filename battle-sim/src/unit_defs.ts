@@ -287,3 +287,14 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
         default: return unreachable(type);
     }
 }
+
+function creep_definition(): Unit_Definition {
+    return {
+        attack: basic_attack(1),
+        attack_damage: 3,
+        health: 5,
+        move_points: 3,
+        abilities: [],
+        ability_bench: []
+    }
+}

@@ -331,6 +331,19 @@ type Delta_Hero_Spawn = {
     }
 }
 
+type Delta_Creep_Spawn = {
+    type: Delta_Type.creep_spawn
+    unit_id: number
+    at_position: {
+        x: number
+        y: number
+    }
+    facing: {
+        x: number
+        y: number
+    }
+}
+
 type Delta_Ground_Target_Ability_Base = {
     type: Delta_Type.use_ground_target_ability
     unit_id: number
@@ -516,6 +529,7 @@ type Delta =
     Delta_Health_Change |
     Delta_Move |
     Delta_Hero_Spawn |
+    Delta_Creep_Spawn |
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |

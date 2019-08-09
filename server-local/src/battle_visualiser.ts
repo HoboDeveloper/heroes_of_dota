@@ -171,6 +171,10 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
     }
 }
 
+function creep_to_dota_unit_name(): string {
+    return "npc_dota_neutral_centaur_outrunner";
+}
+
 function create_world_handle_for_battle_unit(dota_unit_name: string, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName(dota_unit_name, world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
@@ -235,17 +239,11 @@ function destroy_rune(rune: Rune, destroy_effects_instantly: boolean) {
     rune.rune_fx.destroy_and_release(destroy_effects_instantly);
 }
 
-function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Hero {
-    const definition = unit_definition_by_type(hero_type);
-
+function unit_base(unit_id: number, dota_unit_name: string, definition: Unit_Definition, at: XY, facing: XY): Battle_Unit_Base {
     return {
-        supertype: Unit_Supertype.hero,
-        handle: create_world_handle_for_battle_unit(hero_type_to_dota_unit_name(hero_type), at, facing),
+        handle: create_world_handle_for_battle_unit(dota_unit_name, at, facing),
         id: unit_id,
-        type: hero_type,
         position: at,
-        owner_remote_id: owner_id,
-        level: 1,
         health: definition.health,
         max_health: definition.health,
         attack_damage: definition.attack_damage,
@@ -259,6 +257,23 @@ function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: 
         max_move_points: definition.move_points,
         modifiers: []
     };
+}
+
+function spawn_creep_for_battle(unit_id: number, definition: Unit_Definition, at: XY, facing: XY): Battle_Creep {
+    return assign<Battle_Unit_Base, Battle_Creep>(unit_base(unit_id, creep_to_dota_unit_name(), definition, at, facing), {
+        supertype: Unit_Supertype.creep
+    })
+}
+
+function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Hero {
+    const definition = unit_definition_by_type(hero_type);
+
+    return assign<Battle_Unit_Base, Battle_Hero>(unit_base(unit_id, creep_to_dota_unit_name(), definition, at, facing), {
+        supertype: Unit_Supertype.hero,
+        type: hero_type,
+        owner_remote_id: owner_id,
+        level: 1
+    });
 }
 
 function tracking_projectile_to_unit(source: Battle_Unit, target: Battle_Unit, particle_path: string, speed: number, out_attach: string = "attach_attack1") {
@@ -1734,6 +1749,17 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             break;
         }
 
+        case Delta_Type.creep_spawn: {
+            const unit = spawn_creep_for_battle(delta.unit_id, creep_definition(), delta.at_position, delta.facing);
+            unit.handle.AddNewModifier(unit.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
+
+            battle.units.push(unit);
+
+            wait(0.25);
+
+            break;
+        }
+
         case Delta_Type.rune_spawn: {
             const handle = create_world_handle_for_rune(delta.rune_type, delta.at);
 
@@ -2049,7 +2075,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     function unit_snapshot_to_dota_unit_name(snapshot: Unit_Snapshot): string {
         switch (snapshot.supertype) {
             case Unit_Supertype.hero: return hero_type_to_dota_unit_name(snapshot.type);
-            case Unit_Supertype.creep: return "dummy";
+            case Unit_Supertype.creep: return creep_to_dota_unit_name();
         }
     }
 
