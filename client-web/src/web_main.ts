@@ -566,8 +566,16 @@ namespace clr {
         return txt(enum_to_string(type), player_color(player_id))
     }
 
-    export function unit_name(unit: Unit) {
-        return hero_type_by_name(unit.type, unit.owner_player_id);
+    export function unit_name(unit: Unit): Colored_String {
+        switch (unit.supertype) {
+            case Unit_Supertype.creep: {
+                return txt("creep", "red");
+            }
+
+            case Unit_Supertype.hero: {
+                return hero_type_by_name(unit.type, unit.owner_player_id);
+            }
+        }
     }
 
     export function source_name(source: Source): Colored_String {
@@ -912,7 +920,8 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
             }
         }
 
-        const ally = unit.owner_player_id == game.player_id;
+        const player = find_player_by_id(game.battle, game.player_id);
+        const ally = player && player_owns_unit(player, unit);
 
         if (ally) {
             if (unit.has_taken_an_action_this_turn) {
@@ -926,18 +935,20 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
 
         ctx.fillRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
 
-        const image = image_from_url(`http://cdn.dota2.com/apps/dota2/images/heroes/${get_hero_name(unit.type)}_icon.png`);
+        if (unit.supertype == Unit_Supertype.hero) {
+            const image = image_from_url(`http://cdn.dota2.com/apps/dota2/images/heroes/${get_hero_name(unit.type)}_icon.png`);
 
-        if (image.loaded) {
-            ctx.drawImage(
-                image.img,
-                0, 0,
-                image.img.width, image.img.height,
-                xy.x * cell_size + icon_offset,
-                xy.y * cell_size + icon_offset,
-                icon_size,
-                icon_size
-            );
+            if (image.loaded) {
+                ctx.drawImage(
+                    image.img,
+                    0, 0,
+                    image.img.width, image.img.height,
+                    xy.x * cell_size + icon_offset,
+                    xy.y * cell_size + icon_offset,
+                    icon_size,
+                    icon_size
+                );
+            }
         }
 
         const text = unit.health.toString();
@@ -960,7 +971,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
         }
 
         // Level
-        {
+        if (unit.supertype == Unit_Supertype.hero) {
             for (let index = 0; index < unit.level; index++) {
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = "black";

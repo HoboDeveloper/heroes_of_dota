@@ -1,12 +1,3 @@
-/** @TupleReturn */
-declare function next(a: any, prev: any): [any, any];
-declare function type(a: any): "table" | "string" | "number";
-declare function tonumber(a: string): number;
-
-declare namespace table {
-    function maxn(array: any[]): number;
-}
-
 let state_transition: Player_State_Data | undefined = undefined;
 
 function print_table(a: object, indent: string = "") {
@@ -96,6 +87,28 @@ function log_chat_debug_message(message: string) {
     CustomGameEventManager.Send_ServerToAllClients("log_chat_debug_message", event);
 }
 
+function unit_to_visualizer_unit_data(unit: Battle_Unit): Visualizer_Unit_Data {
+    // TODO some of those properties are not actually needed
+    const base: Visualizer_Unit_Data_Base = assign(unit as Unit_Stats, {
+        id: unit.id
+    });
+
+    switch (unit.supertype) {
+        case Unit_Supertype.hero: {
+            return assign<Visualizer_Unit_Data_Base, Visualizer_Hero_Data>(base, {
+                supertype: Unit_Supertype.hero,
+                level: unit.level
+            })
+        }
+
+        case Unit_Supertype.creep: {
+            return assign<Visualizer_Unit_Data_Base, Visualizer_Creep_Data>(base, {
+                supertype: Unit_Supertype.creep
+            })
+        }
+    }
+}
+
 function player_state_to_player_net_table(main_player: Main_Player): Player_Net_Table {
     switch (main_player.state) {
         case Player_State.in_battle: {
@@ -104,22 +117,7 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
             const entity_id_to_shop_id: Record<number, number> = {};
 
             for (const unit of battle.units) {
-                // TODO some of those properties are not actually needed
-                entity_id_to_unit_data[unit.handle.entindex()] = {
-                    id: unit.id,
-                    armor: unit.armor,
-                    level: unit.level,
-                    health: unit.health,
-                    max_health: unit.max_health,
-                    move_points: unit.move_points,
-                    max_move_points: unit.max_move_points,
-                    state_stunned_counter: unit.state_stunned_counter,
-                    state_silenced_counter: unit.state_silenced_counter,
-                    state_disarmed_counter: unit.state_disarmed_counter,
-                    state_out_of_the_game_counter: unit.state_out_of_the_game_counter,
-                    attack_bonus: unit.attack_bonus,
-                    attack_damage: unit.attack_damage
-                }
+                entity_id_to_unit_data[unit.handle.entindex()] = unit_to_visualizer_unit_data(unit);
             }
 
             for (const rune of battle.runes) {

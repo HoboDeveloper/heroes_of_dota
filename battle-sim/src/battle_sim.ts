@@ -84,26 +84,28 @@ type Cell = {
 }
 
 type Unit_Base = Unit_Stats & {
-
-}
-
-type Unit = Unit_Stats & {
-    type: Hero_Type;
     id: number;
-    owner_player_id: number;
     dead: boolean;
     position: XY;
     has_taken_an_action_this_turn: boolean;
     attack: Ability;
-    level: number
     abilities: Ability[]
     ability_bench: Ability[]
     modifiers: Modifier[]
 }
 
-type Hero = {}
+type Unit = Hero | Creep
 
-type Creep = {}
+type Hero =  Unit_Base & {
+    type: Hero_Type;
+    supertype: Unit_Supertype.hero
+    owner_player_id: number;
+    level: number
+}
+
+type Creep = Unit_Base & {
+    supertype: Unit_Supertype.creep
+}
 
 type Rune = {
     type: Rune_Type
@@ -225,6 +227,36 @@ function unit_at(battle: Battle, at: XY): Unit | undefined {
     return battle.units.find(unit => is_unit_a_valid_target(unit) && xy_equal(at, unit.position));
 }
 
+function are_units_allies(a: Unit, b: Unit): boolean {
+    /*
+                    hero creep
+            hero     ?    -
+            creep    -    +
+
+            ? : check player ids
+            + : are allies
+            - : are enemies
+     */
+
+    if (a.supertype == Unit_Supertype.creep && b.supertype == Unit_Supertype.creep) {
+        return true;
+    }
+
+    if (a.supertype != Unit_Supertype.creep && b.supertype != Unit_Supertype.creep) {
+        return a.owner_player_id == b.owner_player_id;
+    }
+
+    return true;
+}
+
+function player_owns_unit(player: Battle_Player, unit: Unit) {
+    if (unit.supertype == Unit_Supertype.creep) {
+        return false;
+    }
+
+    return unit.owner_player_id == player.id;
+}
+
 function rune_at(battle: Battle, at: XY) : Rune | undefined {
     return battle.runes.find(rune => xy_equal(rune.position, at));
 }
@@ -259,6 +291,14 @@ function is_unit_a_valid_target(unit: Unit) {
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
     return battle.units.find(unit => unit.id == id);
+}
+
+function find_hero_by_id(battle: Battle, id: number): Hero | undefined {
+    const unit = find_unit_by_id(battle, id);
+
+    if (unit && unit.supertype == Unit_Supertype.hero) {
+        return unit;
+    }
 }
 
 function find_player_by_id(battle: Battle, id: number): Battle_Player | undefined {
@@ -566,7 +606,9 @@ function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Abil
         if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
     }
 
-    if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
+    if (unit.supertype == Unit_Supertype.hero) {
+        if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
+    }
 
     if (ability.charges_remaining < 1) return error(Ability_Error.no_charges);
 
@@ -600,7 +642,9 @@ function end_turn_default(battle: Battle) {
     }
 
     for (const unit of battle.units) {
-        if (unit.owner_player_id == turn_passed_from_player_id) {
+        const is_creep = unit.supertype == Unit_Supertype.creep;
+
+        if (unit.supertype == Unit_Supertype.creep || unit.owner_player_id == turn_passed_from_player_id) {
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
                     if (modifier.duration_remaining > 0) {
@@ -917,13 +961,13 @@ function collapse_unit_target_spell_use(battle: Battle, caster: Battle_Player, t
     }
 }
 
-function collapse_item_equip(battle: Battle, unit: Unit, delta: Delta_Equip_Item) {
+function collapse_item_equip(battle: Battle, hero: Hero, delta: Delta_Equip_Item) {
     const source = item_source(delta.item_id);
 
     switch (delta.item_id) {
         case Item_Id.refresher_shard: {
             for (const change of delta.charge_changes) {
-                const ability = find_unit_ability(unit, change.ability_id);
+                const ability = find_unit_ability(hero, change.ability_id);
 
                 if (ability && ability.type != Ability_Type.passive) {
                     ability.charges_remaining = change.charges_remaining;
@@ -934,32 +978,32 @@ function collapse_item_equip(battle: Battle, unit: Unit, delta: Delta_Equip_Item
         }
 
         case Item_Id.tome_of_knowledge: {
-            unit.level = delta.new_level;
+            hero.level = delta.new_level;
             break;
         }
 
         case Item_Id.assault_cuirass: {
-            apply_modifier(battle, source, unit, delta.modifier);
+            apply_modifier(battle, source, hero, delta.modifier);
             break;
         }
 
         case Item_Id.divine_rapier: {
-            apply_modifier(battle, source, unit, delta.modifier);
+            apply_modifier(battle, source, hero, delta.modifier);
             break
         }
 
         case Item_Id.heart_of_tarrasque: {
-            apply_modifier(battle, source, unit, delta.modifier);
+            apply_modifier(battle, source, hero, delta.modifier);
             break
         }
 
         case Item_Id.satanic: {
-            apply_modifier(battle, source, unit, delta.modifier);
+            apply_modifier(battle, source, hero, delta.modifier);
             break
         }
 
         case Item_Id.boots_of_travel: {
-            apply_modifier(battle, source, unit, delta.modifier);
+            apply_modifier(battle, source, hero, delta.modifier);
             break
         }
 
@@ -993,7 +1037,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.rune_pick_up: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
+            const unit = find_hero_by_id(battle, delta.unit_id);
             const rune_index = battle.runes.findIndex(rune => rune.id == delta.rune_id);
 
             if (!unit) break;
@@ -1039,10 +1083,11 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
-        case Delta_Type.unit_spawn: {
+        case Delta_Type.hero_spawn: {
             const definition = unit_definition_by_type(delta.hero_type);
 
             battle.units.push({
+                supertype: Unit_Supertype.hero,
                 type: delta.hero_type,
                 id: delta.unit_id,
                 owner_player_id: delta.owner_id,
@@ -1189,7 +1234,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.level_change: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
+            const unit = find_hero_by_id(battle, delta.unit_id);
 
             if (unit) {
                 unit.level = delta.new_level;
@@ -1279,7 +1324,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.purchase_item: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
+            const unit = find_hero_by_id(battle, delta.unit_id);
             const shop = find_shop_by_id(battle, delta.shop_id);
 
             if (!unit) break;
@@ -1300,10 +1345,10 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.equip_item: {
-            const unit = find_unit_by_id(battle, delta.unit_id);
+            const hero = find_hero_by_id(battle, delta.unit_id);
 
-            if (unit) {
-                collapse_item_equip(battle, unit, delta);
+            if (hero) {
+                collapse_item_equip(battle, hero, delta);
             }
 
             break;

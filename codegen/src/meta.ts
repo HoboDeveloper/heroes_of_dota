@@ -70,6 +70,17 @@ export default function run_transformer(program: ts.Program, options: Options): 
         return result;
     }
 
+    function object_to_property_assignments(object: ts.ObjectLiteralExpression): ts.PropertyAssignment[] {
+        return object.properties
+            .map(property => {
+                if (property.kind == ts.SyntaxKind.PropertyAssignment) {
+                    return property as ts.PropertyAssignment;
+                } else {
+                    error_out(property, `${property.getText()} is not a property assignment in type ${toSimpleType(object, checker).name}`);
+                }
+            });
+    }
+
     function process_node(node: ts.Node): ts.Node | undefined {
         if (node.kind == ts.SyntaxKind.CallExpression) {
             const call = node as ts.CallExpression;
@@ -144,6 +155,18 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     } else {
                         error_out(argument, "Only string literals are supported, " + type.kind + " given");
                     }
+                } else if (function_name == "assign") {
+                    const source = call.arguments[0];
+                    const type = resolve_alias(toSimpleType(source, checker));
+                    const assign_target = call.arguments[1];
+                    const result_properties: ts.PropertyAssignment[] = extract_members([ type ])
+                        .map(member => ts.createPropertyAssignment(member.name, ts.createPropertyAccess(source, member.name)))
+
+                    const argument_properties = object_to_property_assignments(assign_target as ts.ObjectLiteralExpression);
+
+                    result_properties.push(...argument_properties);
+
+                    return ts.createObjectLiteral(result_properties, true);
                 } else if (function_name == "spell" || function_name == "active_ability" || function_name == "passive_ability") {
                     const type = resolve_alias(toSimpleType(call.typeArguments[0], checker));
                     const argument = call.arguments[0];
@@ -167,15 +190,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                         }
                     }
 
-                    const argument_object = argument as ts.ObjectLiteralExpression;
-                    const argument_properties = argument_object.properties
-                        .map(property => {
-                            if (property.kind == ts.SyntaxKind.PropertyAssignment) {
-                                return property as ts.PropertyAssignment;
-                            } else {
-                                error_out(property, `${property.getText()} is not a property assignment in type ${call.typeArguments[0].getText()}`);
-                            }
-                        });
+                    const argument_properties = object_to_property_assignments(argument as ts.ObjectLiteralExpression);
 
                     result_properties.push(...argument_properties);
 
@@ -236,12 +251,16 @@ export default function run_transformer(program: ts.Program, options: Options): 
     }
 
     return context => (node: ts.Node) => {
-        if (ts.isBundle(node)) {
-            const new_files = node.sourceFiles.map(file => process_and_update_source_file(context, file));
+        try {
+            if (ts.isBundle(node)) {
+                const new_files = node.sourceFiles.map(file => process_and_update_source_file(context, file));
 
-            return ts.updateBundle(node, new_files);
-        } else if (ts.isSourceFile(node)) {
-            return process_and_update_source_file(context, node);
+                return ts.updateBundle(node, new_files);
+            } else if (ts.isSourceFile(node)) {
+                return process_and_update_source_file(context, node);
+            }
+        } catch (e) {
+            console.error(e);
         }
 
         return node;

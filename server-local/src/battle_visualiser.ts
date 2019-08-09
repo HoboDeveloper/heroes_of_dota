@@ -28,13 +28,25 @@ type Battle_Player = {
     gold: number
 }
 
-type Battle_Unit = Visualizer_Unit_Data & {
-    type: Hero_Type
-    owner_remote_id: number
+type Battle_Unit_Base = Unit_Stats & {
+    id: number
     handle: CDOTA_BaseNPC_Hero
     position: XY;
     modifiers: Modifier_Data[]
 }
+
+type Battle_Hero = Battle_Unit_Base & {
+    supertype: Unit_Supertype.hero
+    owner_remote_id: number
+    level: number
+    type: Hero_Type
+}
+
+type Battle_Creep = Battle_Unit_Base & {
+    supertype: Unit_Supertype.creep
+}
+
+type Battle_Unit = Battle_Hero | Battle_Creep
 
 type Rune = {
     id: number
@@ -51,10 +63,10 @@ type Shop = {
     handle: CDOTA_BaseNPC
 }
 
-declare const enum Shake {
-    weak = 0,
-    medium = 1,
-    strong = 2
+const enum Shake {
+    weak,
+    medium,
+    strong
 }
 
 type Ranged_Attack_Spec = {
@@ -86,6 +98,14 @@ function get_battle_remote_head(): number {
 
 function find_unit_by_id(id: number): Battle_Unit | undefined {
     return array_find(battle.units, unit => unit.id == id);
+}
+
+function find_hero_by_id(id: number): Battle_Hero | undefined {
+    const unit = find_unit_by_id(id);
+
+    if (unit && unit.supertype == Unit_Supertype.hero) {
+        return unit;
+    }
 }
 
 function manhattan(from: XY, to: XY) {
@@ -151,9 +171,9 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
     }
 }
 
-function create_world_handle_for_battle_unit(type: Hero_Type, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
+function create_world_handle_for_battle_unit(dota_unit_name: string, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
     const world_location = battle_position_to_world_position_center(at);
-    const handle = CreateUnitByName(hero_type_to_dota_unit_name(type), world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
+    const handle = CreateUnitByName(dota_unit_name, world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS) as CDOTA_BaseNPC_Hero;
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
     handle.SetForwardVector(Vector(facing.x, facing.y));
@@ -215,11 +235,12 @@ function destroy_rune(rune: Rune, destroy_effects_instantly: boolean) {
     rune.rune_fx.destroy_and_release(destroy_effects_instantly);
 }
 
-function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Unit {
+function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Hero {
     const definition = unit_definition_by_type(hero_type);
 
     return {
-        handle: create_world_handle_for_battle_unit(hero_type, at, facing),
+        supertype: Unit_Supertype.hero,
+        handle: create_world_handle_for_battle_unit(hero_type_to_dota_unit_name(hero_type), at, facing),
         id: unit_id,
         type: hero_type,
         position: at,
@@ -486,31 +507,41 @@ function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_
     wait_for_all_forks(forks);
 }
 
-function get_ranged_attack_spec(type: Hero_Type): Ranged_Attack_Spec | undefined {
-    switch (type) {
-        case Hero_Type.sniper: return {
-            particle_path: "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf",
-            projectile_speed: 1600,
-            attack_point: 0.1,
-            shake_on_attack: Shake.weak
-        };
+function get_ranged_attack_spec(unit: Battle_Unit): Ranged_Attack_Spec | undefined {
+    switch (unit.supertype) {
+        case Unit_Supertype.hero: {
+            switch (unit.type) {
+                case Hero_Type.sniper: return {
+                    particle_path: "particles/units/heroes/hero_sniper/sniper_base_attack.vpcf",
+                    projectile_speed: 1600,
+                    attack_point: 0.1,
+                    shake_on_attack: Shake.weak
+                };
 
-        case Hero_Type.luna: return {
-            particle_path: "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf",
-            projectile_speed: 900,
-            attack_point: 0.4
-        };
+                case Hero_Type.luna: return {
+                    particle_path: "particles/units/heroes/hero_luna/luna_moon_glaive.vpcf",
+                    projectile_speed: 900,
+                    attack_point: 0.4
+                };
 
-        case Hero_Type.skywrath_mage: return {
-            particle_path: "particles/units/heroes/hero_skywrath_mage/skywrath_mage_base_attack.vpcf",
-            projectile_speed: 800,
-            attack_point: 0.5
-        };
+                case Hero_Type.skywrath_mage: return {
+                    particle_path: "particles/units/heroes/hero_skywrath_mage/skywrath_mage_base_attack.vpcf",
+                    projectile_speed: 800,
+                    attack_point: 0.5
+                };
 
-        case Hero_Type.lion: return {
-            particle_path: "particles/units/heroes/hero_lion/lion_base_attack.vpcf",
-            projectile_speed: 1200,
-            attack_point: 0.4
+                case Hero_Type.lion: return {
+                    particle_path: "particles/units/heroes/hero_lion/lion_base_attack.vpcf",
+                    projectile_speed: 1200,
+                    attack_point: 0.4
+                }
+            }
+
+            break;
+        }
+
+        case Unit_Supertype.creep: {
+            return;
         }
     }
 }
@@ -528,7 +559,11 @@ function get_unit_deny_voice_line(type: Hero_Type): string {
     }
 }
 
-function try_play_sound_for_unit(unit: Battle_Unit, supplier: (type: Hero_Type) => string | undefined, target: Battle_Unit = unit) {
+function try_play_sound_for_hero(unit: Battle_Unit, supplier: (type: Hero_Type) => string | undefined, target: Battle_Unit = unit) {
+    if (unit.supertype != Unit_Supertype.hero) {
+        return;
+    }
+
     const sound = supplier(unit.type);
 
     if (sound) {
@@ -605,19 +640,19 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         }
     }
 
-    const ranged_attack_spec = get_ranged_attack_spec(unit.type);
+    const ranged_attack_spec = get_ranged_attack_spec(unit);
 
     function is_attack_hit(cast: Basic_Attack_Hit | Line_Ability_Miss): cast is Basic_Attack_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
     }
 
     if (ranged_attack_spec) {
-        try_play_sound_for_unit(unit, get_unit_attack_vo);
+        try_play_sound_for_hero(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
-        try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
+        try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
         unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, ranged_attack_spec.attack_point);
-        try_play_sound_for_unit(unit, get_unit_attack_sound);
+        try_play_sound_for_hero(unit, get_unit_attack_sound);
 
         if (ranged_attack_spec.shake_on_attack) {
             shake_screen(unit.position, ranged_attack_spec.shake_on_attack);
@@ -633,7 +668,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
 
             tracking_projectile_to_unit(unit, target_unit, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
             change_health(main_player, unit, target_unit, cast.result.damage_dealt);
-            try_play_sound_for_unit(unit, get_unit_ranged_impact_sound, target_unit);
+            try_play_sound_for_hero(unit, get_unit_ranged_impact_sound, target_unit);
 
             if (ranged_attack_spec.shake_on_impact) {
                 shake_screen(target_unit.position, ranged_attack_spec.shake_on_impact);
@@ -642,10 +677,10 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
-        try_play_sound_for_unit(unit, get_unit_attack_vo);
+        try_play_sound_for_hero(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
-        try_play_sound_for_unit(unit, get_unit_pre_attack_sound);
+        try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
         unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
         if (is_attack_hit(cast.result)) {
@@ -656,7 +691,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             }
 
             shake_screen(target, Shake.weak);
-            try_play_sound_for_unit(unit, get_unit_attack_sound);
+            try_play_sound_for_hero(unit, get_unit_attack_sound);
         }
     }
 }
@@ -1387,7 +1422,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             const original_target = find_unit_by_id(effect.original_target_id);
 
             if (source && target && original_target) {
-                const spec = get_ranged_attack_spec(source.type);
+                const spec = get_ranged_attack_spec(source);
 
                 if (spec) {
                     tracking_projectile_to_unit(original_target, target, spec.particle_path, spec.projectile_speed, "attach_hitloc");
@@ -1404,7 +1439,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
     }
 }
 
-function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, delta: Delta_Rune_Pick_Up) {
+function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Hero, delta: Delta_Rune_Pick_Up) {
     switch (delta.rune_type) {
         case Rune_Type.bounty: {
             fx("particles/generic_gameplay/rune_bounty_owner.vpcf")
@@ -1464,46 +1499,46 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Unit, del
     }
 }
 
-function play_item_equip_delta(main_player: Main_Player, unit: Battle_Unit, delta: Delta_Equip_Item) {
+function play_item_equip_delta(main_player: Main_Player, hero: Battle_Hero, delta: Delta_Equip_Item) {
     wait(0.3);
 
-    unit_emit_sound(unit, "Item.PickUpShop");
+    unit_emit_sound(hero, "Item.PickUpShop");
 
     switch (delta.item_id) {
         case Item_Id.assault_cuirass: {
-            apply_modifier(main_player, unit, delta.modifier);
+            apply_modifier(main_player, hero, delta.modifier);
             break;
         }
 
         case Item_Id.boots_of_travel: {
-            apply_modifier(main_player, unit, delta.modifier);
+            apply_modifier(main_player, hero, delta.modifier);
             break;
         }
 
         case Item_Id.divine_rapier: {
-            apply_modifier(main_player, unit, delta.modifier);
+            apply_modifier(main_player, hero, delta.modifier);
             break;
         }
 
         case Item_Id.heart_of_tarrasque: {
-            apply_modifier(main_player, unit, delta.modifier);
+            apply_modifier(main_player, hero, delta.modifier);
             break;
         }
 
         case Item_Id.satanic: {
-            apply_modifier(main_player, unit, delta.modifier);
-            unit_emit_sound(unit, "equip_satanic");
+            apply_modifier(main_player, hero, delta.modifier);
+            unit_emit_sound(hero, "equip_satanic");
             break;
         }
 
         case Item_Id.tome_of_knowledge: {
-            change_unit_level(main_player, unit, delta.new_level);
+            change_hero_level(main_player, hero, delta.new_level);
             break;
         }
 
         case Item_Id.refresher_shard: {
-            fx("particles/items2_fx/refresher.vpcf").to_unit_attach_point(0, unit, "attach_hitloc").release();
-            unit_emit_sound(unit, "equip_refresher");
+            fx("particles/items2_fx/refresher.vpcf").to_unit_attach_point(0, hero, "attach_hitloc").release();
+            unit_emit_sound(hero, "equip_refresher");
 
             break;
         }
@@ -1589,8 +1624,10 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
     update_player_state_net_table(main_player);
 
     if (change.new_value == 0) {
-        if (source.owner_remote_id == target.owner_remote_id) {
-            unit_emit_sound(source, get_unit_deny_voice_line(source.type));
+        if (source.supertype != Unit_Supertype.creep && target.supertype != Unit_Supertype.creep) {
+            if (source.owner_remote_id == target.owner_remote_id) {
+                unit_emit_sound(source, get_unit_deny_voice_line(source.type));
+            }
         }
 
         target.handle.ForceKill(false);
@@ -1613,11 +1650,11 @@ function move_unit(main_player: Main_Player, unit: Battle_Unit, path: XY[]) {
     }
 }
 
-function change_unit_level(main_player: Main_Player, unit: Battle_Unit, new_level: number) {
-    unit.level = new_level;
+function change_hero_level(main_player: Main_Player, hero: Battle_Hero, new_level: number) {
+    hero.level = new_level;
 
-    unit_emit_sound(unit, "hero_level_up");
-    fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+    unit_emit_sound(hero, "hero_level_up");
+    fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", hero).release();
 }
 
 function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
@@ -1657,7 +1694,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
     print(`Well delta type is: ${delta.type}`);
 
     switch (delta.type) {
-        case Delta_Type.unit_spawn: {
+        case Delta_Type.hero_spawn: {
             function hero_type_to_spawn_sound(type: Hero_Type): string {
                 switch (type) {
                     case Hero_Type.pudge: return "vo_pudge_spawn";
@@ -1736,7 +1773,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.rune_pick_up: {
-            const unit = find_unit_by_id(delta.unit_id);
+            const unit = find_hero_by_id(delta.unit_id);
             const rune_index = array_find_index(battle.runes, rune => rune.id == delta.rune_id);
             const path = battle.delta_paths[head];
 
@@ -1769,7 +1806,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.purchase_item: {
-            const unit = find_unit_by_id(delta.unit_id);
+            const unit = find_hero_by_id(delta.unit_id);
 
             if (!unit) break;
 
@@ -1783,10 +1820,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.equip_item: {
-            const unit = find_unit_by_id(delta.unit_id);
+            const hero = find_hero_by_id(delta.unit_id);
 
-            if (unit) {
-                play_item_equip_delta(main_player, unit, delta);
+            if (hero) {
+                play_item_equip_delta(main_player, hero, delta);
             }
 
             break;
@@ -1853,10 +1890,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
         }
 
         case Delta_Type.level_change: {
-            const unit = find_unit_by_id(delta.unit_id);
+            const hero = find_hero_by_id(delta.unit_id);
 
-            if (unit) {
-                change_unit_level(main_player, unit, delta.new_level);
+            if (hero) {
+                change_hero_level(main_player, hero, delta.new_level);
                 update_player_state_net_table(main_player);
                 wait(1);
             }
@@ -2009,40 +2046,46 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         shop.handle.RemoveSelf();
     }
 
+    function unit_snapshot_to_dota_unit_name(snapshot: Unit_Snapshot): string {
+        switch (snapshot.supertype) {
+            case Unit_Supertype.hero: return hero_type_to_dota_unit_name(snapshot.type);
+            case Unit_Supertype.creep: return "dummy";
+        }
+    }
+
     battle.players = snapshot.players.map(player => ({
         id: player.id,
         gold: player.gold
     }));
 
     battle.units = snapshot.units.map(unit => {
-        const restored_unit: Battle_Unit = {
+        const base: Battle_Unit_Base = assign(unit as Unit_Stats, {
             id: unit.id,
-            type: unit.type,
-            armor: unit.armor,
-            health: unit.health,
-            max_health: unit.max_health,
-            move_points: unit.move_points,
-            max_move_points: unit.max_move_points,
-            attack_damage: unit.attack_damage,
-            attack_bonus: unit.attack_bonus,
-            level: unit.level,
-            state_stunned_counter: unit.state_stunned_counter,
-            state_silenced_counter: unit.state_silenced_counter,
-            state_disarmed_counter: unit.state_disarmed_counter,
-            state_out_of_the_game_counter: unit.state_out_of_the_game_counter,
+            position: unit.position,
+            handle: create_world_handle_for_battle_unit(unit_snapshot_to_dota_unit_name(unit), unit.position, unit.facing),
             modifiers: from_client_array(unit.modifiers).map(modifier => ({
                 modifier_id: modifier.modifier_id,
                 modifier_handle_id: modifier.modifier_handle_id,
                 changes: from_client_array(modifier.changes)
             })),
-            position: unit.position,
-            owner_remote_id: unit.owner_id,
-            handle: create_world_handle_for_battle_unit(unit.type, unit.position, unit.facing)
-        };
+        });
 
-        battle.units.push(restored_unit);
+        switch (unit.supertype) {
+            case Unit_Supertype.hero: {
+                return assign<Battle_Unit_Base, Battle_Hero>(base, {
+                    supertype: Unit_Supertype.hero,
+                    level: unit.level,
+                    type: unit.type,
+                    owner_remote_id: unit.owner_id
+                });
+            }
 
-        return restored_unit;
+            case Unit_Supertype.creep: {
+                return assign<Battle_Unit_Base, Battle_Creep>(base, {
+                    supertype: Unit_Supertype.creep
+                });
+            }
+        }
     });
 
     battle.runes = snapshot.runes.map(rune => {

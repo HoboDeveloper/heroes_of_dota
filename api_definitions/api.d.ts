@@ -6,8 +6,9 @@ declare const enum Player_State {
 
 declare const enum Delta_Type {
     health_change = 0,
-    unit_move = 2,
-    unit_spawn = 3,
+    unit_move = 1,
+    hero_spawn = 2,
+    creep_spawn = 3,
     start_turn = 4,
     end_turn = 5,
     use_ground_target_ability = 7,
@@ -54,6 +55,11 @@ declare const enum Hero_Type {
     skywrath_mage = 5,
     dragon_knight = 6,
     lion = 7
+}
+
+declare const enum Unit_Supertype {
+    hero = 0,
+    creep = 1
 }
 
 declare const enum Modifier_Field {
@@ -120,7 +126,6 @@ type Unit_Stats = {
     health: number
     max_health: number
     attack_damage: number
-    level: number
     move_points: number
     max_move_points: number
     attack_bonus: number
@@ -315,8 +320,8 @@ type Delta_Move = {
     }
 }
 
-type Delta_Spawn = {
-    type: Delta_Type.unit_spawn
+type Delta_Hero_Spawn = {
+    type: Delta_Type.hero_spawn
     hero_type: Hero_Type
     unit_id: number
     owner_id: number
@@ -510,7 +515,7 @@ type Delta_Game_Over = {
 type Delta =
     Delta_Health_Change |
     Delta_Move |
-    Delta_Spawn |
+    Delta_Hero_Spawn |
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |

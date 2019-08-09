@@ -248,7 +248,7 @@ function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Play
         player_id: player.id
     };
 
-    const owned_units = battle.units.filter(unit => is_unit_a_valid_target(unit) && unit.owner_player_id == player.id);
+    const owned_units = battle.units.filter(unit => is_unit_a_valid_target(unit) && player_owns_unit(player, unit));
 
     switch (spell.spell_id) {
         case Spell_Id.mekansm: {
@@ -501,8 +501,8 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
 
         case Ability_Id.skywrath_concussive_shot: {
             const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
-            const enemies = targets.filter(target => target.owner_player_id != unit.owner_player_id);
-            const allies = targets.filter(target => target.owner_player_id == unit.owner_player_id);
+            const enemies = targets.filter(target => !are_units_allies(unit, target));
+            const allies = targets.filter(target => are_units_allies(unit, target));
             const target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 
             if (target) {
@@ -623,7 +623,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
     }
 }
 
-function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_Equip_Item {
+function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_Equip_Item {
     switch (item_id) {
         case Item_Id.refresher_shard: {
             const changes: {
@@ -631,7 +631,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
                 charges_remaining: number
             }[] = [];
 
-            for (const ability of unit.abilities) {
+            for (const ability of hero.abilities) {
                 if (ability.type != Ability_Type.passive) {
                     changes.push({
                         ability_id: ability.id,
@@ -642,7 +642,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
 
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 charge_changes: changes
             }
@@ -651,7 +651,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
         case Item_Id.boots_of_travel: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 modifier: new_modifier(battle, Modifier_Id.item_boots_of_travel, [Modifier_Field.move_points_bonus, 3])
             }
@@ -660,7 +660,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
         case Item_Id.divine_rapier: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 modifier: new_modifier(battle, Modifier_Id.item_divine_rapier, [Modifier_Field.attack_bonus, 8])
             }
@@ -669,7 +669,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
         case Item_Id.assault_cuirass: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 modifier: new_modifier(battle, Modifier_Id.item_assault_cuirass, [Modifier_Field.armor_bonus, 4])
             }
@@ -678,16 +678,16 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
         case Item_Id.tome_of_knowledge: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
-                new_level: Math.min(unit.level + 1, max_unit_level)
+                new_level: Math.min(hero.level + 1, max_unit_level)
             }
         }
 
         case Item_Id.heart_of_tarrasque: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 modifier: new_modifier(battle, Modifier_Id.item_heart_of_tarrasque, [Modifier_Field.health_bonus, 10])
             }
@@ -696,7 +696,7 @@ function equip_item(battle: Battle_Record, unit: Unit, item_id: Item_Id): Delta_
         case Item_Id.satanic: {
             return {
                 type: Delta_Type.equip_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 item_id: item_id,
                 modifier: new_modifier(battle, Modifier_Id.item_satanic)
             }
@@ -715,14 +715,15 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
     }
 
     for (const ability of source.abilities) {
-        if (source.level < ability.available_since_level) continue;
+        if (source.supertype == Unit_Supertype.hero) {
+            if (source.level < ability.available_since_level) continue;
+        }
 
         switch (ability.id) {
             case Ability_Id.luna_moon_glaive: {
-                const is_ally = (target: Unit) => target.owner_player_id == source.owner_player_id;
                 const targets = query_units_in_rectangular_area_around_point(battle, target.position, 2);
-                const allies = targets.filter(target => is_ally(target) && target != source);
-                const enemies = targets.filter(target => !is_ally(target));
+                const allies = targets.filter(target => are_units_allies(source, target) && target != source);
+                const enemies = targets.filter(target => !are_units_allies(source, target));
                 const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 
                 if (glaive_target) {
@@ -740,7 +741,7 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
 }
 
 function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
-    function find_valid_unit_for_action(id: number): Unit | undefined {
+    function find_valid_unit_for_action(id: number): Hero | undefined {
         const unit = find_valid_target_unit(id);
 
         if (!unit) return;
@@ -751,8 +752,8 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         return unit;
     }
 
-    function find_valid_target_unit(id: number): Unit | undefined {
-        const unit = find_unit_by_id(battle, id);
+    function find_valid_target_unit(id: number): Hero | undefined {
+        const unit = find_hero_by_id(battle, id);
 
         if (!unit) return;
         if (!is_unit_a_valid_target(unit)) return;
@@ -1029,11 +1030,11 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
     }
 }
 
-function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Hero_Type) : Delta_Spawn {
+function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Hero_Type) : Delta_Hero_Spawn {
     const id = get_next_unit_id(battle);
 
     return {
-        type: Delta_Type.unit_spawn,
+        type: Delta_Type.hero_spawn,
         at_position: at_position,
         owner_id: owner.id,
         hero_type: type,
@@ -1095,7 +1096,7 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     let last_alive_unit_player_id: number | undefined = undefined;
 
     for (const unit of battle.units) {
-        if (!unit.dead) {
+        if (!unit.dead && unit.supertype != Unit_Supertype.creep) {
             if (last_alive_unit_player_id == undefined) {
                 last_alive_unit_player_id = unit.owner_player_id;
             } else if (last_alive_unit_player_id != unit.owner_player_id) {
@@ -1111,16 +1112,18 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
     const killed = change_health_default(battle, source, target, change);
 
     if (source.type == Source_Type.unit) {
-        if (source.ability_id == source.unit.attack.id) {
-            on_target_dealt_damage_by_attack(battle, source.unit, target, -change.value_delta);
+        const unit = source.unit;
+
+        if (source.ability_id == unit.attack.id) {
+            on_target_dealt_damage_by_attack(battle, unit, target, -change.value_delta);
         }
 
         if (killed) {
-            if (source.unit.owner_player_id != target.owner_player_id && source.unit.level < max_unit_level) {
+            if (!are_units_allies(unit, target) && unit.supertype == Unit_Supertype.hero && unit.level < max_unit_level) {
                 battle.deltas.push({
                     type: Delta_Type.level_change,
-                    unit_id: source.unit.id,
-                    new_level: source.unit.level + 1
+                    unit_id: unit.id,
+                    new_level: unit.level + 1
                 });
             }
         }

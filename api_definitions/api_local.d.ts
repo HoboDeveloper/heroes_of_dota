@@ -1,9 +1,19 @@
 type Move_Delta_Paths = Record<number, { x: number, y: number }[]>
 
-type Visualizer_Unit_Data = Unit_Stats & {
+type Visualizer_Unit_Data_Base = Unit_Stats & {
     id: number
+}
+
+type Visualizer_Hero_Data = Visualizer_Unit_Data_Base & {
+    supertype: Unit_Supertype.hero
     level: number
 }
+
+type Visualizer_Creep_Data = Visualizer_Unit_Data_Base & {
+    supertype: Unit_Supertype.creep
+}
+
+type Visualizer_Unit_Data = Visualizer_Hero_Data | Visualizer_Creep_Data
 
 type Visualizer_Player_Data = {
     id: number
@@ -95,11 +105,8 @@ type Player_Snapshot = {
     gold: number
 }
 
-type Unit_Snapshot = Unit_Stats & {
+type Unit_Snapshot_Base = Unit_Stats & {
     id: number
-    level: number
-    owner_id: number
-    type: Hero_Type
     modifiers: Modifier_Data[]
     position: {
         x: number
@@ -110,6 +117,19 @@ type Unit_Snapshot = Unit_Stats & {
         y: number
     }
 }
+
+type Hero_Snapshot = Unit_Snapshot_Base & {
+    supertype: Unit_Supertype.hero
+    level: number
+    owner_id: number
+    type: Hero_Type
+}
+
+type Creep_Snapshot = Unit_Snapshot_Base & {
+    supertype: Unit_Supertype.creep
+}
+
+type Unit_Snapshot = Hero_Snapshot | Creep_Snapshot
 
 type Rune_Snapshot = {
     id: number
