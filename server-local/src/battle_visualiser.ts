@@ -1066,6 +1066,10 @@ function unit_emit_sound(unit: Battle_Unit, sound: string) {
     unit.handle.EmitSound(sound);
 }
 
+function battle_emit_sound(sound: string) {
+    EmitSoundOnLocationWithCaster(battle.camera_dummy.GetAbsOrigin(), sound, battle.camera_dummy);
+}
+
 function play_unit_target_ability_delta(main_player: Main_Player, unit: Battle_Unit, cast: Delta_Unit_Target_Ability, target: Battle_Unit) {
     turn_unit_towards_target(unit, target.position);
     highlight_grid_for_targeted_ability(unit, cast.ability_id, target.position);
@@ -1399,7 +1403,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.mekansm: {
-            EmitSoundOnLocationWithCaster(battle.camera_dummy.GetAbsOrigin(), "DOTA_Item.Mekansm.Activate", battle.camera_dummy);
+            battle_emit_sound("DOTA_Item.Mekansm.Activate");
 
             for (const effect of from_client_array(cast.targets)) {
                 const target = find_unit_by_id(effect.target_unit_id);
@@ -1468,7 +1472,7 @@ function play_rune_pickup_delta(main_player: Main_Player, unit: Battle_Hero, del
             const player = array_find(battle.players, player => player.id == unit.owner_remote_id);
 
             if (player) {
-                player.gold += delta.gold_gained;
+                change_gold(main_player, player, delta.gold_gained);
             }
 
             unit_emit_sound(unit, "Rune.Bounty");
@@ -1642,6 +1646,14 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
     update_player_state_net_table(main_player);
 
     if (change.new_value == 0) {
+        if (source.supertype != Unit_Supertype.creep) {
+            fx("particles/generic_gameplay/lasthit_coins.vpcf").to_unit_origin(1, target).release();
+            fx_follow_unit("particles/generic_gameplay/lasthit_coins_local.vpcf", source)
+                .to_unit_origin(1, target)
+                .to_unit_attach_point(2, source, "attach_hitloc")
+                .release();
+        }
+
         if (source.supertype != Unit_Supertype.creep && target.supertype != Unit_Supertype.creep) {
             if (source.owner_remote_id == target.owner_remote_id) {
                 unit_emit_sound(source, get_unit_deny_voice_line(source.type));
@@ -1673,6 +1685,18 @@ function change_hero_level(main_player: Main_Player, hero: Battle_Hero, new_leve
 
     unit_emit_sound(hero, "hero_level_up");
     fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", hero).release();
+
+    update_player_state_net_table(main_player);
+}
+
+function change_gold(main_player: Main_Player, player: Battle_Player, change: number) {
+    if (player.id == main_player.remote_id) {
+        battle_emit_sound("General.Coins");
+    }
+
+    player.gold += change;
+
+    update_player_state_net_table(main_player);
 }
 
 function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
@@ -1828,7 +1852,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             const player = array_find(battle.players, player => player.id == delta.player_id);
 
             if (player) {
-                player.gold += delta.change;
+                change_gold(main_player, player, delta.change);
             }
 
             break;

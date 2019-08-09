@@ -1133,6 +1133,18 @@ function try_compute_battle_winner_player_id(battle: Battle_Record): number | un
     return last_alive_unit_player_id;
 }
 
+function get_gold_for_killing(target: Unit): number {
+    switch (target.supertype) {
+        case Unit_Supertype.hero: {
+            return 4 * target.level;
+        }
+
+        case Unit_Supertype.creep: {
+            return random_int_range(4, 6);
+        }
+    }
+}
+
 function server_change_health(battle: Battle_Record, source: Source, target: Unit, change: Health_Change) {
     const killed = change_health_default(battle, source, target, change);
 
@@ -1144,12 +1156,20 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
         }
 
         if (killed) {
-            if (!are_units_allies(attacker, target) && attacker.supertype == Unit_Supertype.hero && attacker.level < max_unit_level) {
+            if (!are_units_allies(attacker, target) && attacker.supertype != Unit_Supertype.creep) {
                 battle.deltas.push({
-                    type: Delta_Type.level_change,
-                    unit_id: attacker.id,
-                    new_level: attacker.level + 1
+                    type: Delta_Type.gold_change,
+                    player_id: attacker.owner_player_id,
+                    change: get_gold_for_killing(target)
                 });
+
+                if (attacker.level < max_unit_level) {
+                    battle.deltas.push({
+                        type: Delta_Type.level_change,
+                        unit_id: attacker.id,
+                        new_level: attacker.level + 1
+                    });
+                }
             }
         }
     }
