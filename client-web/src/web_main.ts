@@ -482,7 +482,7 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
     }
 }
 
-function get_hero_name(type: Unit_Type): string {
+function get_hero_name(type: Hero_Type): string {
     switch (type) {
         default: return enum_to_string(type);
     }
@@ -562,19 +562,19 @@ namespace clr {
         return txt(player.name, player_color(player.id))
     }
 
-    export function unit_name_by_type(type: Unit_Type, player_id: number) {
+    export function hero_type_by_name(type: Hero_Type, player_id: number) {
         return txt(enum_to_string(type), player_color(player_id))
     }
 
     export function unit_name(unit: Unit) {
-        return unit_name_by_type(unit.type, unit.owner_player_id);
+        return hero_type_by_name(unit.type, unit.owner_player_id);
     }
 
     export function source_name(source: Source): Colored_String {
         switch (source.type) {
             case Source_Type.none: return txt("none", "gray");
             case Source_Type.unit: return unit_name(source.unit);
-            case Source_Type.item: return txt(enum_to_string(source.item_id), "gray")
+            case Source_Type.item: return txt(enum_to_string(source.item_id), "gray");
             case Source_Type.player: return player_name(source.player);
         }
     }
@@ -585,7 +585,7 @@ namespace clr {
 
     export function card_name(card: Card) {
         switch (card.type) {
-            case Card_Type.hero: return txt(enum_to_string(card.unit_type), "gray");
+            case Card_Type.hero: return txt(enum_to_string(card.hero_type), "gray");
         }
 
         return plain("Unknown");
@@ -608,7 +608,7 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
                 case Card_Type.hero: return [
                     clr.player_name(player),
                     clr.plain(" summons "),
-                    clr.unit_name_by_type(card.unit_type, delta.player_id)
+                    clr.hero_type_by_name(card.hero_type, delta.player_id)
                 ];
 
                 default: break;
@@ -1045,7 +1045,7 @@ function draw_card_list(game: Game_In_Battle, player: Battle_Player) {
         const top_left_y = 180 + index * 34;
 
         if (card.type == Card_Type.hero) {
-            if (button(enum_to_string(card.unit_type), top_left_x, top_left_y, 18, 6)) {
+            if (button(enum_to_string(card.hero_type), top_left_x, top_left_y, 18, 6)) {
                 game.selection = {
                     type: Selection_Type.card,
                     card_id: card.id

@@ -45,7 +45,7 @@ declare const enum Action_Type {
     use_unit_target_spell_card = 11
 }
 
-declare const enum Unit_Type {
+declare const enum Hero_Type {
     ursa = 0,
     sniper = 1,
     pudge = 2,
@@ -276,7 +276,7 @@ type Card_Unknown = {
 
 type Card_Hero = {
     type: Card_Type.hero
-    unit_type: Unit_Type
+    hero_type: Hero_Type
     id: number
 }
 
@@ -317,7 +317,7 @@ type Delta_Move = {
 
 type Delta_Spawn = {
     type: Delta_Type.unit_spawn
-    unit_type: Unit_Type
+    hero_type: Hero_Type
     unit_id: number
     owner_id: number
     at_position: {
@@ -381,7 +381,7 @@ type Delta_Draw_Hero_Card = {
     type: Delta_Type.draw_hero_card
     player_id: number
     card_id: number
-    unit_type: Unit_Type
+    hero_type: Hero_Type
 }
 
 type Delta_Draw_Spell_Card = {

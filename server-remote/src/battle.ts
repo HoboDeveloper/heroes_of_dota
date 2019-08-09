@@ -881,7 +881,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             return [
                 use_card(player, card),
-                spawn_unit(battle, player, action.at, card.unit_type)
+                spawn_hero(battle, player, action.at, card.hero_type)
             ]
         }
 
@@ -1024,23 +1024,23 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
     }
 }
 
-function spawn_unit(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Unit_Type) : Delta_Spawn {
+function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Hero_Type) : Delta_Spawn {
     const id = get_next_unit_id(battle);
 
     return {
         type: Delta_Type.unit_spawn,
         at_position: at_position,
         owner_id: owner.id,
-        unit_type: type,
+        hero_type: type,
         unit_id: id
     };
 }
 
-function draw_hero_card(battle: Battle_Record, player: Battle_Player, unit_type: Unit_Type): Delta_Draw_Hero_Card {
+function draw_hero_card(battle: Battle_Record, player: Battle_Player, hero_type: Hero_Type): Delta_Draw_Hero_Card {
     return {
         type: Delta_Type.draw_hero_card,
         player_id: player.id,
-        unit_type: unit_type,
+        hero_type: hero_type,
         card_id: get_next_card_id(battle)
     }
 }
@@ -1245,12 +1245,12 @@ export function start_battle(players: Player[]): number {
     ];
 
     const hero_collection = [
-        Unit_Type.dragon_knight,
-        Unit_Type.pudge,
-        Unit_Type.tidehunter,
-        Unit_Type.luna,
-        Unit_Type.skywrath_mage,
-        Unit_Type.lion
+        Hero_Type.dragon_knight,
+        Hero_Type.pudge,
+        Hero_Type.tidehunter,
+        Hero_Type.luna,
+        Hero_Type.skywrath_mage,
+        Hero_Type.lion
     ];
 
     const spawn_deltas: Delta[] = [];
@@ -1266,10 +1266,10 @@ export function start_battle(players: Player[]): number {
         );
     }
 
-    for (const unit_type of hero_collection) {
+    for (const hero_type of hero_collection) {
         spawn_deltas.push(
-            draw_hero_card(battle, battle.players[0], unit_type),
-            draw_hero_card(battle, battle.players[1], unit_type)
+            draw_hero_card(battle, battle.players[0], hero_type),
+            draw_hero_card(battle, battle.players[1], hero_type)
         );
     }
 

@@ -1558,16 +1558,16 @@ function get_ability_icon(ability_id: Ability_Id): string {
     }
 }
 
-function get_hero_name(type: Unit_Type): string {
+function get_hero_name(type: Hero_Type): string {
     switch (type) {
-        case Unit_Type.sniper: return "sniper";
-        case Unit_Type.pudge: return "pudge";
-        case Unit_Type.ursa: return "ursa";
-        case Unit_Type.tidehunter: return "tidehunter";
-        case Unit_Type.luna: return "luna";
-        case Unit_Type.skywrath_mage: return "skywrath_mage";
-        case Unit_Type.dragon_knight: return "dragon_knight";
-        case Unit_Type.lion: return "lion";
+        case Hero_Type.sniper: return "sniper";
+        case Hero_Type.pudge: return "pudge";
+        case Hero_Type.ursa: return "ursa";
+        case Hero_Type.tidehunter: return "tidehunter";
+        case Hero_Type.luna: return "luna";
+        case Hero_Type.skywrath_mage: return "skywrath_mage";
+        case Hero_Type.dragon_knight: return "dragon_knight";
+        case Hero_Type.lion: return "lion";
     }
 }
 
@@ -1581,7 +1581,7 @@ function get_full_ability_icon_path(id: Ability_Id): string {
     return `file://{images}/spellicons/${get_ability_icon(id)}.png`;
 }
 
-function get_full_unit_icon_path(type: Unit_Type): string {
+function get_full_unit_icon_path(type: Hero_Type): string {
     return `file://{images}/heroes/npc_dota_hero_${get_hero_name(type)}.png`;
 }
 
@@ -2350,16 +2350,16 @@ function create_card_ui(root: Panel, card: Card) {
 
     switch (card.type) {
         case Card_Type.hero: {
-            const definition = unit_definition_by_type(card.unit_type);
+            const definition = unit_definition_by_type(card.hero_type);
 
             const art = $.CreatePanel("Image", container, "card_art");
             art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
-            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_name(card.unit_type)}.jpg`);
+            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_name(card.hero_type)}.jpg`);
 
             const name_panel = $.CreatePanel("Panel", container, "name_panel");
             const hero_name = $.CreatePanel("Label", name_panel, "");
 
-            hero_name.text = get_hero_name(card.unit_type);
+            hero_name.text = get_hero_name(card.hero_type);
 
             const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
 

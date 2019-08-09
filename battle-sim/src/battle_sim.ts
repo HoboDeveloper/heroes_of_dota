@@ -83,8 +83,12 @@ type Cell = {
     position: XY;
 }
 
+type Unit_Base = Unit_Stats & {
+
+}
+
 type Unit = Unit_Stats & {
-    type: Unit_Type;
+    type: Hero_Type;
     id: number;
     owner_player_id: number;
     dead: boolean;
@@ -96,6 +100,10 @@ type Unit = Unit_Stats & {
     ability_bench: Ability[]
     modifiers: Modifier[]
 }
+
+type Hero = {}
+
+type Creep = {}
 
 type Rune = {
     type: Rune_Type
@@ -1032,10 +1040,10 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.unit_spawn: {
-            const definition = unit_definition_by_type(delta.unit_type);
+            const definition = unit_definition_by_type(delta.hero_type);
 
             battle.units.push({
-                type: delta.unit_type,
+                type: delta.hero_type,
                 id: delta.unit_id,
                 owner_player_id: delta.owner_id,
                 position: delta.at_position,
@@ -1232,7 +1240,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 player.hand.push({
                     type: Card_Type.hero,
                     id: delta.card_id,
-                    unit_type: delta.unit_type
+                    hero_type: delta.hero_type
                 });
             }
 

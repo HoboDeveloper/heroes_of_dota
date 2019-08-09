@@ -99,7 +99,7 @@ type Unit_Snapshot = Unit_Stats & {
     id: number
     level: number
     owner_id: number
-    type: Unit_Type
+    type: Hero_Type
     modifiers: Modifier_Data[]
     position: {
         x: number

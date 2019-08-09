@@ -66,9 +66,9 @@ function basic_attack(range: number): Ability_Basic_Attack {
     });
 }
 
-function unit_definition_by_type(type: Unit_Type): Unit_Definition {
+function unit_definition_by_type(type: Hero_Type): Unit_Definition {
     switch (type) {
-        case Unit_Type.ursa: {
+        case Hero_Type.ursa: {
             return {
                 health: 15,
                 attack_damage: 5,
@@ -80,7 +80,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.sniper: {
+        case Hero_Type.sniper: {
             return {
                 health: 12,
                 move_points: 3,
@@ -92,7 +92,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.pudge: {
+        case Hero_Type.pudge: {
             return {
                 health: 16,
                 move_points: 2,
@@ -122,7 +122,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.tidehunter: {
+        case Hero_Type.tidehunter: {
             return {
                 health: 16,
                 move_points: 3,
@@ -154,7 +154,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.luna: {
+        case Hero_Type.luna: {
             return {
                 health: 12,
                 move_points: 4,
@@ -181,7 +181,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.skywrath_mage: {
+        case Hero_Type.skywrath_mage: {
             return {
                 health: 10,
                 move_points: 3,
@@ -213,7 +213,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.dragon_knight: {
+        case Hero_Type.dragon_knight: {
             return {
                 health: 14,
                 move_points: 3,
@@ -253,7 +253,7 @@ function unit_definition_by_type(type: Unit_Type): Unit_Definition {
             }
         }
 
-        case Unit_Type.lion: {
+        case Hero_Type.lion: {
             return {
                 health: 9,
                 move_points: 3,
