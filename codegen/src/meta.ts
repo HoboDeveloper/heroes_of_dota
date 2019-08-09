@@ -182,7 +182,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     return ts.createObjectLiteral(result_properties, true);
                 } else if (function_name == "copy") {
                     const argument = call.arguments[0];
-                    const type = resolve_alias(toSimpleType(checker.getTypeAtLocation(argument), checker));
+                    const type = resolve_alias(toSimpleType(argument, checker));
 
                     if (type.kind == SimpleTypeKind.UNION || type.kind == SimpleTypeKind.INTERSECTION) {
                         const set: Record<string, undefined> = {};

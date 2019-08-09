@@ -308,15 +308,8 @@ function main() {
     link_modifier("Modifier_Lion_Hex", "modifiers/modifier_lion_hex");
     link_modifier("Modifier_Euls_Scepter", "modifiers/modifier_euls_scepter");
 
-    const scheduler: Scheduler = {
-        tasks: new Map<Coroutine<any>, Task>()
-    };
-
-    // TODO hack, pushes the context_scheduler
-    update_scheduler(scheduler);
-
     mode.SetContextThink("scheduler_think", () => {
-        update_scheduler(scheduler);
+        update_scheduler();
         return 0;
     }, 0);
 

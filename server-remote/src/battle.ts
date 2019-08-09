@@ -248,12 +248,18 @@ function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Play
         player_id: player.id
     };
 
+    const owned_units = battle.units.filter(unit => is_unit_a_valid_target(unit) && unit.owner_player_id == player.id);
+
     switch (spell.spell_id) {
         case Spell_Id.mekansm: {
             return {
                 ...base,
                 spell_id: spell.spell_id,
-                targets: [] // TODO actually make it work
+                targets: owned_units.map(target => ({
+                    target_unit_id: target.id,
+                    change: health_change(target, spell.heal),
+                    modifier: new_timed_modifier(battle, Modifier_Id.spell_mekansm, spell.duration, [Modifier_Field.armor_bonus, spell.armor])
+                }))
             }
         }
     }
@@ -507,7 +513,6 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                         hit: true,
                         target_unit_id: target.id,
                         damage: health_change(target, -ability.damage),
-                        duration: ability.duration,
                         modifier: new_modifier(
                             battle,
                             Modifier_Id.skywrath_concussive_shot,
@@ -1293,7 +1298,8 @@ export function start_battle(players: Player[]): number {
                 const items: Item_Id[] = [];
 
                 for (let remaining = 3; remaining; remaining--) {
-                    items.push(random_in_array(all_items)!);
+                    const index = random_int_up_to(all_items.length);
+                    items.push(...all_items.splice(index, 1));
                 }
 
                 spawn_deltas.push({
@@ -1322,6 +1328,9 @@ export function start_battle(players: Player[]): number {
 
 export function cheat(battle: Battle_Record, player: Player, cheat: string, selected_unit_id: number) {
     const parts = cheat.split(" ");
+    const battle_player = battle.players.find(battle_player => battle_player.id == player.id);
+
+    if (!battle_player) return;
 
     function refresh_unit(battle: Battle_Record, unit: Unit) {
         const deltas: Delta[] = [
@@ -1454,6 +1463,12 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             };
 
             submit_battle_deltas(battle, [ delta ]);
+
+            break;
+        }
+
+        case "spl": {
+            submit_battle_deltas(battle, enum_values<Spell_Id>().map(id => draw_spell_card(battle, battle_player, id)));
 
             break;
         }

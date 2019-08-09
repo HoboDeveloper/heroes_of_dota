@@ -968,6 +968,9 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
             fx_follow_unit("particles/items2_fx/satanic_buff.vpcf", target)
         );
         case Modifier_Id.spell_euls_scepter: return complex("Modifier_Euls_Scepter");
+        case Modifier_Id.spell_mekansm: return simple(target =>
+            fx_follow_unit("particles/items_fx/buckler.vpcf", target)
+        )
     }
 }
 
@@ -1343,10 +1346,14 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.mekansm: {
+            EmitSoundOnLocationWithCaster(battle.camera_dummy.GetAbsOrigin(), "DOTA_Item.Mekansm.Activate", battle.camera_dummy);
+
             for (const effect of from_client_array(cast.targets)) {
                 const target = find_unit_by_id(effect.target_unit_id);
 
                 if (target) {
+                    fx_follow_unit("particles/items2_fx/mekanism.vpcf", target).release();
+                    unit_emit_sound(target, "DOTA_Item.Mekansm.Target");
                     apply_modifier(main_player, target, effect.modifier);
                     change_health(main_player, target, target, effect.change);
                 }
@@ -1362,6 +1369,7 @@ function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No
 function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.euls_scepter: {
+            unit_emit_sound(target, "DOTA_Item.Cyclone.Activate");
             apply_modifier(main_player, target, cast.modifier);
 
             break;
@@ -1508,27 +1516,15 @@ function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
     const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
 
-    {
-        // TODO guarded_wait_until
-        const guard_hit = guarded_wait_until(3, () => {
-            unit.handle.FaceTowards(towards_world_position);
-
-            return desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95;
-        });
-
-        if (guard_hit) {
-            log_chat_debug_message(`Failed waiting on FaceTowards`);
-        }
-    }
-    /*while (true) {
-        unit.handle.FaceTowards(attacked_world_position);
+    while (true) {
+        unit.handle.FaceTowards(towards_world_position);
 
         if (desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95) {
             break;
         }
 
         wait_one_frame();
-    }*/
+    }
 }
 
 function update_specific_state_visuals(unit: Battle_Unit, counter: number, associated_modifier: string) {
@@ -1622,6 +1618,39 @@ function change_unit_level(main_player: Main_Player, unit: Battle_Unit, new_leve
 
     unit_emit_sound(unit, "hero_level_up");
     fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", unit).release();
+}
+
+function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
+    if (modifier_id == Modifier_Id.spell_euls_scepter) {
+        const handle = unit.handle;
+        const ground = battle_position_to_world_position_center(unit.position);
+        const delta_z = handle.GetAbsOrigin().z - ground.z;
+
+        const start_time = GameRules.GetGameTime();
+        const fall_time = 0.45;
+
+        function f(x: number) {
+            return ((1 - Math.sin(x * 6 - 6)/(x * 6 - 6)) + (1 - x * x)) / 2;
+        }
+
+        while (true) {
+            const current_time = GameRules.GetGameTime();
+            const delta_time = Math.min(current_time - start_time, fall_time);
+
+            if (delta_time >= fall_time) {
+                break;
+            }
+
+            handle.SetAbsOrigin(Vector(ground.x, ground.y, f(delta_time / fall_time) * delta_z + ground.z));
+
+            wait_one_frame();
+        }
+
+        handle.SetAbsOrigin(ground);
+
+        unit_emit_sound(unit, "eul_scepter_drop");
+        fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
+    }
 }
 
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
@@ -1874,6 +1903,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
                                         }
                                     }
                                 }
+
+                                on_modifier_removed(unit, modifier.modifier_id);
                             }
 
                             unit.modifiers.splice(index, 1);

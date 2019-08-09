@@ -1,8 +1,9 @@
-declare const enum Selection_Type {
-    none = 0,
-    unit = 1,
-    ability = 2,
-    shop = 3
+const enum Selection_Type {
+    none,
+    unit,
+    ability,
+    shop,
+    card
 }
 
 type No_Selection = {
@@ -34,13 +35,21 @@ type Shop_Selection = {
     arrow_particle: ParticleId
 }
 
-type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection;
+type Card_Selection = {
+    type: Selection_Type.card
+
+    previous_selection: Selection_State
+    card_panel: Card_Panel
+    // offset: XY
+    // returning_to_cursor: boolean
+}
+
+type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection | Card_Selection;
 
 type Held_Card = {
     card_panel: Card_Panel;
     offset: XY;
     returning_to_cursor: boolean;
-    zone_highlight_particles: ParticleId[];
 }
 
 type UI_Player_Data = {
@@ -86,6 +95,7 @@ type UI_Battle = Battle & {
     cell_index_to_rune: Rune[]
     outline_particles: ParticleId[]
     shop_range_outline_particles: ParticleId[]
+    zone_highlight_particles: ParticleId[]
 }
 
 type UI_Cell = Cell & {
@@ -157,6 +167,10 @@ const control_panel: Control_Panel = {
 
 const battle_cell_size = 144;
 const hand: Card_Panel[] = [];
+
+function is_unit_selection(selection: Selection_State): selection is (Unit_Selection | Shop_Selection | Ability_Selection) {
+    return selection.type == Selection_Type.unit || selection.type == Selection_Type.shop || selection.type == Selection_Type.ability;
+}
 
 function find_unit_by_entity_id(battle: UI_Battle, entity_id: EntityId | undefined): Unit | undefined {
     if (entity_id == undefined) return;
@@ -473,6 +487,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             shop_id_to_facing: {},
             outline_particles: [],
             shop_range_outline_particles: [],
+            zone_highlight_particles: [],
             change_health: change_health_default
         };
 
@@ -773,7 +788,12 @@ type Grid_Selection_Shop = {
     shop: Shop
 }
 
-type Grid_Selection = Grid_Selection_None | Grid_Selection_Unit | Grid_Selection_Ability | Grid_Selection_Shop;
+type Grid_Selection_Card = {
+    type: Selection_Type.card
+    card: Card
+}
+
+type Grid_Selection = Grid_Selection_None | Grid_Selection_Unit | Grid_Selection_Ability | Grid_Selection_Shop | Grid_Selection_Card;
 
 function selection_to_grid_selection(): Grid_Selection {
     function none(): Grid_Selection_None {
@@ -823,6 +843,13 @@ function selection_to_grid_selection(): Grid_Selection {
                 shop: selection.shop
             }
         }
+
+        case Selection_Type.card: {
+            return {
+                type: Selection_Type.card,
+                card: selection.card_panel.card
+            }
+        }
     }
 }
 
@@ -853,7 +880,7 @@ function compute_unit_cell_color(unit_in_cell: Unit): [ XYZ, number ] {
 
     let alpha = 50;
 
-    if (selection.type != Selection_Type.none && selection.unit == unit_in_cell) {
+    if (is_unit_selection(selection) && selection.unit == unit_in_cell) {
         alpha = 255;
     }
 
@@ -1031,6 +1058,41 @@ function update_grid_visuals_for_shop_selection(selection: Grid_Selection_Shop, 
     }
 }
 
+function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, cell_index_to_zone_highlight: boolean[]) {
+    function is_point_in_deployment_zone(player: Battle_Player, xy: XY) {
+        const zone = player.deployment_zone;
+
+        return (
+            xy.x >= zone.min_x &&
+            xy.y >= zone.min_y &&
+            xy.x <  zone.max_x &&
+            xy.y <  zone.max_y
+        );
+    }
+
+    const player = find_player_by_id(battle, this_player_id);
+
+    if (!player) return;
+
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+        const unit_in_cell = battle.cell_index_to_unit[index];
+
+        let cell_color: XYZ = color_nothing;
+        let alpha = 20;
+
+        if (unit_in_cell) {
+            [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
+        }
+
+        if (is_point_in_deployment_zone(player, cell.position)) {
+            cell_index_to_zone_highlight[index] = true;
+        }
+
+        color_cell(cell, cell_color, alpha);
+    }
+}
+
 function update_grid_visuals_for_no_selection(cell_index_to_shop_highlight: boolean[]) {
     const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
 
@@ -1059,6 +1121,7 @@ function update_grid_visuals() {
     const selection = selection_to_grid_selection();
     const cell_index_to_highlight: boolean[] = [];
     const cell_index_to_shop_highlight: boolean[] = [];
+    const cell_index_to_zone_highlight: boolean[] = [];
 
     switch (selection.type) {
         case Selection_Type.none: {
@@ -1081,6 +1144,11 @@ function update_grid_visuals() {
             break;
         }
 
+        case Selection_Type.card: {
+            update_grid_visuals_for_card_selection(selection, cell_index_to_zone_highlight);
+            break;
+        }
+
         default: unreachable(selection);
     }
 
@@ -1098,6 +1166,7 @@ function update_grid_visuals() {
 
     battle.outline_particles = update_outline(battle.outline_particles, cell_index_to_highlight, color_red);
     battle.shop_range_outline_particles = update_outline(battle.shop_range_outline_particles, cell_index_to_shop_highlight, color_yellow);
+    battle.zone_highlight_particles = update_outline(battle.zone_highlight_particles, cell_index_to_zone_highlight, color_green);
 }
 
 function periodically_drop_selection_in_battle() {
@@ -1363,7 +1432,7 @@ function process_state_update(state: Player_Net_Table) {
         for (const leftover_id_string of leftover_entity_ids) {
             const leftover_id = Number(leftover_id_string);
 
-            if (selection.type != Selection_Type.none && selection.unit_entity == leftover_id) {
+            if (is_unit_selection(selection) && selection.unit_entity == leftover_id) {
                 const old_selected_unit_data = battle.entity_id_to_unit_data[leftover_id];
 
                 for (const new_entity_id in state.battle.entity_id_to_unit_data) {
@@ -1495,16 +1564,13 @@ function clear_hand_state() {
 }
 
 function clear_held_card() {
-    if (held_card) {
-        for (const particle of held_card.zone_highlight_particles) {
-            Particles.DestroyParticleEffect(particle, false);
-            Particles.ReleaseParticleIndex(particle);
-        }
-
-        held_card.zone_highlight_particles = [];
-    }
-
     held_card = undefined;
+
+    if (selection.type == Selection_Type.card) {
+        selection = selection.previous_selection;
+
+        update_grid_visuals();
+    }
 }
 
 function get_ability_tooltip(a: Ability): string {
@@ -1654,10 +1720,8 @@ function add_spawned_hero_to_control_panel(unit: Unit) {
         });
 
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
-            if (selection.type != Selection_Type.none) {
-                if (selection.unit.id == unit.id) {
-                    set_current_hovered_ability(ability.id);
-                }
+            if (is_unit_selection(selection) && selection.unit.id == unit.id) {
+                set_current_hovered_ability(ability.id);
             }
 
             $.DispatchEvent("DOTAShowTextTooltip", ability_panel, get_ability_tooltip(ability));
@@ -1769,7 +1833,7 @@ function select_unit_ability(unit: Unit, ability: Ability) {
 }
 
 function before_unit_selection_change() {
-    if (selection.type != Selection_Type.none) {
+    if (is_unit_selection(selection)) {
         const unit_data = battle.entity_id_to_unit_data[selection.unit_entity];
 
         if (unit_data) {
@@ -1854,7 +1918,7 @@ function select_shop(new_entity_id: EntityId) {
 
     if (!shop) return;
 
-    if (selection.type != Selection_Type.none) {
+    if (is_unit_selection(selection)) {
         if (!is_point_in_shop_range(selection.unit.position, shop)) {
             show_generic_error("Not in shop range");
 
@@ -1912,7 +1976,7 @@ function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
 function update_current_ability_based_on_cursor_state() {
     const click_behaviors = GameUI.GetClickBehaviors();
 
-    if (selection.type != Selection_Type.none && click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK) {
+    if (is_unit_selection(selection) && click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK) {
         select_unit_ability(selection.unit, selection.unit.attack);
         return;
     }
@@ -2558,26 +2622,16 @@ function update_hand() {
             const player = find_player_by_id(battle, this_player_id);
 
             if (player) {
-                const zone = player.deployment_zone;
-                const outline: boolean[] = [];
-
-                for (let x = zone.min_x; x < zone.max_x; x++) {
-                    for (let y = zone.min_y; y < zone.max_y; y++) {
-                        const index = grid_cell_index_raw(battle, x, y);
-
-                        if (index != undefined) {
-                            outline[index] = true;
-                        }
-                    }
-                }
-
-                const particles = highlight_outline(outline, color_yellow);
+                selection = {
+                    type: Selection_Type.card,
+                    previous_selection: selection,
+                    card_panel: card
+                };
 
                 held_card = {
                     card_panel: card,
                     offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
                     returning_to_cursor: false,
-                    zone_highlight_particles: particles
                 };
 
                 card.panel.SetHasClass("in_hand", false);

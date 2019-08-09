@@ -1,25 +1,30 @@
 class Modifier_Euls_Scepter extends CDOTA_Modifier_Lua {
+    initial_forward: Vector;
+
     OnCreated(): void {
         if (IsServer()) {
+            this.initial_forward = this.GetParent().GetForwardVector();
+
             this.StartIntervalThink(0);
         }
     }
 
-    // TODO remember initial forward vector and reset it on landing
-    // TODO reimplement visual Z with custom falling particles etc
     OnIntervalThink(): void {
+        const parent = this.GetParent();
+        const position = parent.GetAbsOrigin();
+        const ground = GetGroundHeight(position, undefined);
         const current_angle = (GameRules.GetGameTime() * 16.0) % (Math.PI * 2);
-        this.GetParent().SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)))
+        const target_height = 400;
+        const delta_time = Math.min(this.GetElapsedTime() / 1.5, 1);
+        const current_height = Math.sin(delta_time * (Math.PI / 2)) * target_height;
+        parent.SetForwardVector(Vector(Math.cos(current_angle), Math.sin(current_angle)));
+        parent.SetAbsOrigin(Vector(position.x, position.y, ground + current_height));
     }
 
-    DeclareFunctions(): modifierfunction[] {
-        return [
-            modifierfunction.MODIFIER_PROPERTY_VISUAL_Z_DELTA
-        ]
-    }
-
-    GetVisualZDelta(): number {
-        return 400
+    OnDestroy(): void {
+        if (IsServer()) {
+            this.GetParent().SetForwardVector(this.initial_forward);
+        }
     }
 
     GetEffectName(): string {
