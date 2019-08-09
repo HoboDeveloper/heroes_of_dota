@@ -454,7 +454,7 @@ function game_loop() {
 
                         if (!delta) break;
 
-                        print(`Playing delta ${battle.delta_head}`);
+                        print(`Playing delta ${delta.type} (#${battle.delta_head})`);
 
                         play_delta(main_player, delta, battle.delta_head);
                         update_player_state_net_table(main_player);

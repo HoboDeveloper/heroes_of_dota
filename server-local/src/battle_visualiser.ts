@@ -1733,8 +1733,6 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
 }
 
 function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
-    print(`Well delta type is: ${delta.type}`);
-
     switch (delta.type) {
         case Delta_Type.hero_spawn: {
             function hero_type_to_spawn_sound(type: Hero_Type): string {

@@ -121,6 +121,10 @@ export function random_in_array<T>(array: T[], length = array.length): T | undef
     return array[random_int_up_to(length)];
 }
 
+function defer_delta(battle: Battle_Record, supplier: () => Delta) {
+    battle.deferred_actions.push(() => battle.deltas.push(supplier()));
+}
+
 type Scan_Result_Hit = {
     hit: true,
     unit: Unit
@@ -728,12 +732,12 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
 
 function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, target: Unit, damage: number): void {
     if (source.modifiers.some(modifier => modifier.id == Modifier_Id.item_satanic)) {
-        battle.deltas.push({
+        defer_delta(battle, () => ({
             type: Delta_Type.health_change,
             source_unit_id: source.id,
             target_unit_id: source.id,
             ...health_change(source, Math.max(0, -damage)) // In case we have a healing attack, I guess
-        });
+        }));
     }
 
     for (const ability of source.abilities) {
@@ -749,13 +753,13 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
                 const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 
                 if (glaive_target) {
-                    battle.deltas.push(apply_ability_effect_delta({
+                    defer_delta(battle, () => (apply_ability_effect_delta({
                         ability_id: ability.id,
                         source_unit_id: source.id,
                         target_unit_id: glaive_target.id,
                         original_target_id: target.id,
                         damage_dealt: health_change(glaive_target, -damage)
-                    }));
+                    })));
                 }
             }
         }
@@ -1174,17 +1178,15 @@ function creep_try_retaliate(battle: Battle_Record, creep: Creep, target: Unit):
 
         if (move_cost <= creep.move_points) {
             if (ability_targeting_fits(attack.targeting, cell.position, target.position)) {
-                battle.deltas.push({
+                defer_delta(battle, () => ({
                     type: Delta_Type.unit_move,
                     to_position: cell.position,
                     unit_id: creep.id,
                     move_cost: move_cost
-                });
+                }));
 
                 if (attack.type == Ability_Type.target_ground) {
-                    battle.deferred_actions.push(() => {
-                        battle.deltas.push(perform_ability_cast_ground(battle, creep, attack, target.position));
-                    });
+                    defer_delta(battle, () => perform_ability_cast_ground(battle, creep, attack, target.position));
 
                     battle.creep_targets.set(creep, target);
 
@@ -1209,18 +1211,18 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
 
         if (killed) {
             if (!are_units_allies(attacker, target) && attacker.supertype != Unit_Supertype.creep) {
-                battle.deltas.push({
+                defer_delta(battle, () => ({
                     type: Delta_Type.gold_change,
                     player_id: attacker.owner_player_id,
                     change: get_gold_for_killing(target)
-                });
+                }));
 
                 if (attacker.level < max_unit_level) {
-                    battle.deltas.push({
+                    defer_delta(battle, () => ({
                         type: Delta_Type.level_change,
                         unit_id: attacker.id,
                         new_level: attacker.level + 1
-                    });
+                    }));
                 }
             }
         } else {
@@ -1236,6 +1238,32 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
 function server_end_turn(battle: Battle_Record) {
     end_turn_default(battle);
 
+    for (const unit of battle.units) {
+        for (const modifier of unit.modifiers) {
+            if (!modifier.permanent && modifier.duration_remaining == 0) {
+                defer_delta(battle, () => ({
+                    type: Delta_Type.modifier_removed,
+                    modifier_handle_id: modifier.handle_id
+                }));
+            }
+
+            if (!unit.dead) {
+                if (modifier.id == Modifier_Id.item_heart_of_tarrasque) {
+                    defer_delta(battle, () => ({
+                        type: Delta_Type.health_change,
+                        source_unit_id: unit.id,
+                        target_unit_id: unit.id,
+                        ...health_change(unit, 3)
+                    }));
+                }
+            }
+        }
+    }
+
+    defer_delta(battle, () => ({
+        type: Delta_Type.start_turn
+    }));
+
     for (const creep of battle.units) {
         if (creep.supertype == Unit_Supertype.creep) {
             const target = battle.creep_targets.get(creep);
@@ -1247,34 +1275,21 @@ function server_end_turn(battle: Battle_Record) {
             }
         }
     }
+}
 
-    for (const unit of battle.units) {
-        for (const modifier of unit.modifiers) {
-            if (!modifier.permanent && modifier.duration_remaining == 0) {
-                battle.deltas.push({
-                    type: Delta_Type.modifier_removed,
-                    modifier_handle_id: modifier.handle_id
-                })
-            }
+function check_battle_over(battle: Battle_Record) {
+    const possible_winner = try_compute_battle_winner_player_id(battle);
 
-            if (!unit.dead) {
-                if (modifier.id == Modifier_Id.item_heart_of_tarrasque) {
-                    battle.deltas.push({
-                        type: Delta_Type.health_change,
-                        source_unit_id: unit.id,
-                        target_unit_id: unit.id,
-                        ...health_change(unit, 3)
-                    })
-                }
-            }
-        }
+    if (possible_winner != undefined) {
+        defer_delta(battle, () => ({
+            type: Delta_Type.game_over,
+            winner_player_id: possible_winner
+        }));
+
+        battle.finished = true;
+
+        report_battle_over(battle, possible_winner);
     }
-
-    battle.deferred_actions.push(() => {
-        battle.deltas.push({
-            type: Delta_Type.start_turn
-        })
-    });
 }
 
 export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
@@ -1292,19 +1307,6 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
     if (new_deltas) {
         submit_battle_deltas(battle, new_deltas);
 
-        const possible_winner = try_compute_battle_winner_player_id(battle);
-
-        if (possible_winner != undefined) {
-            submit_battle_deltas(battle, [{
-                type: Delta_Type.game_over,
-                winner_player_id: possible_winner
-            }]);
-
-            battle.finished = true;
-
-            report_battle_over(battle, possible_winner);
-        }
-
         return get_battle_deltas_after(battle, initial_head);
     } else {
         return;
@@ -1317,11 +1319,15 @@ function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     while (battle.deltas.length != battle.delta_head) {
         catch_up_to_head(battle);
 
-        for (const action of battle.deferred_actions) {
-            action();
+        if (!battle.finished) {
+            check_battle_over(battle);
         }
 
-        battle.deferred_actions = [];
+        const action = battle.deferred_actions.shift();
+
+        if (action) {
+            action();
+        }
     }
 }
 
