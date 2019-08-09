@@ -40,10 +40,14 @@ export default function run_transformer(program: ts.Program, options: Options): 
     transpiler.emitLuaLib();
 
     return context => (node: ts.Node) => {
-        if (ts.isBundle(node)) {
-            node.sourceFiles.forEach(transpile_source_file);
-        } else if (ts.isSourceFile(node)) {
-            transpile_source_file(node);
+        try {
+            if (ts.isBundle(node)) {
+                node.sourceFiles.forEach(transpile_source_file);
+            } else if (ts.isSourceFile(node)) {
+                transpile_source_file(node);
+            }
+        } catch (e) {
+            console.error(e);
         }
 
         return ts.createSourceFile("empty", "", ts.ScriptTarget.ES3);
