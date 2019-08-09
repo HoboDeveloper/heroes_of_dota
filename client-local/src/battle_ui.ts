@@ -360,6 +360,8 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
             break;
         }
 
+        $.Msg(battle.delta_head, " ", enum_to_string(delta.type));
+
         update_related_visual_data_from_delta(delta, delta_paths);
         collapse_delta(battle, delta);
 
@@ -1939,7 +1941,11 @@ function select_shop(new_entity_id: EntityId) {
         };
     } else {
         const ally_units_in_shop_range = battle.units
-            .filter(unit => player_owns_unit(battle.this_player, unit) && is_point_in_shop_range(unit.position, shop));
+            .filter(unit =>
+                player_owns_unit(battle.this_player, unit) &&
+                is_point_in_shop_range(unit.position, shop) &&
+                is_unit_a_valid_target(unit)
+            );
 
         if (ally_units_in_shop_range.length == 0) {
             show_generic_error("No heroes in shop range");
