@@ -246,7 +246,7 @@ function are_units_allies(a: Unit, b: Unit): boolean {
         return a.owner_player_id == b.owner_player_id;
     }
 
-    return true;
+    return false;
 }
 
 function player_owns_unit(player: Battle_Player, unit: Unit) {

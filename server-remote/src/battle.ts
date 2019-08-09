@@ -20,7 +20,7 @@ export type Battle_Record = Battle & {
 const battles: Battle_Record[] = [];
 
 const default_bg = {
-    grid_size: xy(13, 8),
+    grid_size: xy(13, 10),
     deployment_zone_width: 3
 };
 
@@ -30,17 +30,17 @@ const battlegrounds: Battleground_Definition[] = [
         deployment_zones: [
             {
                 min_x: 0,
-                min_y: 0,
+                min_y: 3,
                 max_x: default_bg.deployment_zone_width,
-                max_y: default_bg.grid_size.y,
+                max_y: default_bg.grid_size.y - 3,
                 face_x: 1,
                 face_y: 0
             },
             {
                 min_x: default_bg.grid_size.x - default_bg.deployment_zone_width,
-                min_y: 0,
+                min_y: 3,
                 max_x: default_bg.grid_size.x,
-                max_y: default_bg.grid_size.y,
+                max_y: default_bg.grid_size.y - 3,
                 face_x: -1,
                 face_y: 0
             }
@@ -753,19 +753,19 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
 }
 
 function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
-    function find_valid_unit_for_action(id: number): Hero | undefined {
+    function find_valid_unit_for_action(id: number): Unit | undefined {
         const unit = find_valid_target_unit(id);
 
         if (!unit) return;
-        if (unit.owner_player_id != player.id) return;
         if (unit.has_taken_an_action_this_turn) return;
+        if (!player_owns_unit(player, unit)) return;
         if (is_unit_stunned(unit)) return;
 
         return unit;
     }
 
-    function find_valid_target_unit(id: number): Hero | undefined {
-        const unit = find_hero_by_id(battle, id);
+    function find_valid_target_unit(id: number): Unit | undefined {
+        const unit = find_unit_by_id(battle, id);
 
         if (!unit) return;
         if (!is_unit_a_valid_target(unit)) return;
@@ -942,6 +942,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             if (!unit) break;
             if (!shop) break;
+            if (unit.supertype != Unit_Supertype.hero) break;
             if (!is_point_in_shop_range(unit.position, shop)) break;
 
             if (shop.items.indexOf(action.item_id) == -1) break;
@@ -973,6 +974,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 
             if (!unit) break;
             if (!rune) break;
+            if (unit.supertype != Unit_Supertype.hero) break;
 
             const [could_find_path, cost] = can_find_path(battle, unit.position, rune.position, unit.move_points, true);
 
@@ -1135,18 +1137,18 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
     const killed = change_health_default(battle, source, target, change);
 
     if (source.type == Source_Type.unit) {
-        const unit = source.unit;
+        const attacker = source.unit;
 
-        if (source.ability_id == unit.attack.id) {
-            on_target_dealt_damage_by_attack(battle, unit, target, -change.value_delta);
+        if (source.ability_id == attacker.attack.id) {
+            on_target_dealt_damage_by_attack(battle, attacker, target, -change.value_delta);
         }
 
         if (killed) {
-            if (!are_units_allies(unit, target) && unit.supertype == Unit_Supertype.hero && unit.level < max_unit_level) {
+            if (!are_units_allies(attacker, target) && attacker.supertype == Unit_Supertype.hero && attacker.level < max_unit_level) {
                 battle.deltas.push({
                     type: Delta_Type.level_change,
-                    unit_id: unit.id,
-                    new_level: unit.level + 1
+                    unit_id: attacker.id,
+                    new_level: attacker.level + 1
                 });
             }
         }

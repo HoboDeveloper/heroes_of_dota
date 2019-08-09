@@ -487,10 +487,10 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
     if (new_state.state == Player_State.in_battle) {
         const new_data = new_state.battle;
         const base = make_battle(from_server_array(new_data.participants), new_data.grid_size.width, new_data.grid_size.height);
-        const this_player = find_player_by_id(battle, new_state.id);
+        const this_player = find_player_by_id(base, new_state.id);
 
         if (!this_player) {
-            $.Msg("Error: not participating in this battle")
+            $.Msg("Error: not participating in this battle");
             return;
         }
 

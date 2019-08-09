@@ -292,7 +292,7 @@ function creep_definition(): Unit_Definition {
     return {
         attack: basic_attack(1),
         attack_damage: 3,
-        health: 5,
+        health: 6,
         move_points: 3,
         abilities: [],
         ability_bench: []

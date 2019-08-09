@@ -29,13 +29,15 @@ function Precache(context: CScriptPrecacheContext) {
         print("Precaching", path);
     }
 
-    for (const hero_name of heroes) {
-        const full_name = `npc_dota_hero_${hero_name}`;
+    const hero_types = enum_values<Hero_Type>();
 
-        PrecacheUnitByNameSync(full_name, context);
+    for (const hero_type of hero_types) {
+        PrecacheUnitByNameSync(hero_type_to_dota_unit_name(hero_type), context);
 
-        print("Precaching", full_name);
+        print("Precaching", hero_type_to_dota_unit_name(hero_type));
     }
+
+    PrecacheUnitByNameSync(creep_to_dota_unit_name(), context);
 
     PrecacheResource("soundfile", "soundevents/custom_game/game_sounds.vsndevts", context);
     PrecacheResource("soundfile", "soundevents/game_sounds_ui_imported.vsndevts", context);
