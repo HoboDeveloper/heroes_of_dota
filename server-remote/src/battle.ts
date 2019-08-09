@@ -513,7 +513,6 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                         hit: true,
                         target_unit_id: target.id,
                         damage: health_change(target, -ability.damage),
-                        duration: ability.duration,
                         modifier: new_modifier(
                             battle,
                             Modifier_Id.skywrath_concussive_shot,
