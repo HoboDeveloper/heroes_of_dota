@@ -1,4 +1,6 @@
-let context_scheduler: Scheduler;
+const scheduler: Scheduler = {
+    tasks: new Map<Coroutine<any>, Task>()
+};
 
 type Scheduler = {
     tasks: Map<Coroutine<any>, Task>;
@@ -12,9 +14,7 @@ type Fork = {
     has_finished: boolean
 }
 
-function update_scheduler(scheduler: Scheduler) {
-    context_scheduler = scheduler;
-    
+function update_scheduler() {
     scheduler.tasks.forEach((task, routine) => {
         if (task.is_waiting) {
             task.is_waiting = false;
@@ -50,7 +50,7 @@ function fork(code: () => void): Fork {
         fork.has_finished = true;
     });
 
-    context_scheduler.tasks.set(routine, task);
+    scheduler.tasks.set(routine, task);
 
     coroutine.resume(routine);
 
@@ -59,7 +59,7 @@ function fork(code: () => void): Fork {
 
 function wait_one_frame() {
     const routine = coroutine.running();
-    const task = context_scheduler.tasks.get(routine as Coroutine<any>);
+    const task = scheduler.tasks.get(routine as Coroutine<any>);
 
     if (task && routine) {
         task.is_waiting = true;
