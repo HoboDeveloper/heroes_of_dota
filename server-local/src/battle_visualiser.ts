@@ -1516,27 +1516,15 @@ function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
     const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
 
-    {
-        // TODO guarded_wait_until
-        const guard_hit = guarded_wait_until(3, () => {
-            unit.handle.FaceTowards(towards_world_position);
-
-            return desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95;
-        });
-
-        if (guard_hit) {
-            log_chat_debug_message(`Failed waiting on FaceTowards`);
-        }
-    }
-    /*while (true) {
-        unit.handle.FaceTowards(attacked_world_position);
+    while (true) {
+        unit.handle.FaceTowards(towards_world_position);
 
         if (desired_forward.Dot(unit.handle.GetForwardVector()) > 0.95) {
             break;
         }
 
         wait_one_frame();
-    }*/
+    }
 }
 
 function update_specific_state_visuals(unit: Battle_Unit, counter: number, associated_modifier: string) {
