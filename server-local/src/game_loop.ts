@@ -240,8 +240,18 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
     if (current_state == Player_State.in_battle) {
         print("Battle over");
 
+        // TODO copypaste
+        // TODO remove particles
         for (const unit of battle.units) {
             unit.handle.RemoveSelf();
+        }
+
+        for (const rune of battle.runes) {
+            destroy_rune(rune, true);
+        }
+
+        for (const shop of battle.shops) {
+            shop.handle.RemoveSelf();
         }
 
         battle.delta_head = 0;
@@ -249,6 +259,8 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.delta_paths = [];
         battle.players = [];
         battle.units = [];
+        battle.shops = [];
+        battle.runes = [];
         battle.is_over = false;
 
         PlayerResource.SetCameraTarget(main_player.player_id, main_player.hero_unit);
@@ -412,7 +424,10 @@ function game_loop() {
 
     fork(() => {
         while(true) {
-            periodically_update_battle();
+            if (main_player.state == Player_State.in_battle) {
+                periodically_update_battle();
+            }
+
             wait_one_frame();
         }
     });

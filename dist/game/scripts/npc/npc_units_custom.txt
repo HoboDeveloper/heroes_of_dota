@@ -16,4 +16,16 @@
         "VisionDaytimeRange"  "0"
         "VisionNighttimeRange"  "0"
     }
+
+    "hod_creep" {
+        "Model"  "models/creeps/neutral_creeps/n_creep_centaur_lrg/n_creep_centaur_lrg.vmdl"
+        "BaseClass"  "npc_dota_creature"
+        "ModelScale"  "1"
+
+        "AttackCapabilities"  "DOTA_UNIT_CAP_NO_ATTACK"
+        "MovementCapabilities"  "DOTA_UNIT_CAP_MOVE_GROUND"
+
+        "VisionDaytimeRange"  "0"
+        "VisionNighttimeRange"  "0"
+    }
 }

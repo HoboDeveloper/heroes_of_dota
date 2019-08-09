@@ -172,7 +172,7 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
 }
 
 function creep_to_dota_unit_name(): string {
-    return "npc_dota_neutral_centaur_khan";
+    return "hod_creep";
 }
 
 function create_world_handle_for_battle_unit(dota_unit_name: string, at: XY, facing: XY): CDOTA_BaseNPC_Hero {

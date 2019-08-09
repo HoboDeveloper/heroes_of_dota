@@ -149,6 +149,11 @@ type XY = {
     y: number;
 }
 
+type Cost_Population_Result = {
+    cell_index_to_cost: number[];
+    cell_index_to_parent_index: number[];
+}
+
 const max_unit_level = 3;
 const shop_range = 2;
 
@@ -434,6 +439,77 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     return [false, 0];
 }
 
+// TODO the relation between to == undefined and Cost_Population_Result == undefined produces too many non-null asserts
+function populate_path_costs(battle: Battle, from: XY, to: XY | undefined = undefined, ignore_runes = false): Cost_Population_Result | undefined {
+    const cell_index_to_cost: number[] = [];
+    const cell_index_to_parent_index: number[] = [];
+    const indices_already_checked: boolean[] = [];
+    const from_index = grid_cell_index(battle, from);
+
+    let indices_not_checked: number[] = [];
+
+    indices_not_checked.push(from_index);
+    indices_already_checked[from_index] = true;
+    cell_index_to_cost[from_index] = 0;
+
+    for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
+        const new_indices: number[] = [];
+
+        for (const index of indices_not_checked) {
+            const cell = battle.cells[index];
+            const at = cell.position;
+
+            cell_index_to_cost[index] = current_cost;
+
+            if (to && xy_equal(to, at)) {
+                return {
+                    cell_index_to_cost: cell_index_to_cost,
+                    cell_index_to_parent_index: cell_index_to_parent_index
+                };
+            }
+
+            const neighbors = grid_cell_neighbors(battle, at);
+
+            for (const neighbor of neighbors) {
+                if (!neighbor) continue;
+
+                const neighbor_cell_index = grid_cell_index(battle, neighbor.position);
+
+                if (indices_already_checked[neighbor_cell_index]) continue;
+
+                let neighbor_occupied = neighbor.occupied;
+
+                if (ignore_runes) {
+                    const occupied_by_rune = !!rune_at(battle, neighbor.position);
+
+                    neighbor_occupied = neighbor.occupied && !occupied_by_rune;
+                }
+
+                if (neighbor_occupied) {
+                    indices_already_checked[neighbor_cell_index] = true;
+                    continue;
+                }
+
+                new_indices.push(neighbor_cell_index);
+
+                cell_index_to_parent_index[neighbor_cell_index] = index;
+                indices_already_checked[neighbor_cell_index] = true;
+            }
+        }
+
+        indices_not_checked = new_indices;
+    }
+
+    if (to) {
+        return undefined;
+    } else {
+        return {
+            cell_index_to_cost: cell_index_to_cost,
+            cell_index_to_parent_index: cell_index_to_parent_index
+        };
+    }
+}
+
 function ability_targeting_fits(targeting: Ability_Targeting, from: XY, check_at: XY): boolean {
     switch (targeting.type) {
         case Ability_Targeting_Type.line: {
@@ -642,8 +718,6 @@ function end_turn_default(battle: Battle) {
     }
 
     for (const unit of battle.units) {
-        const is_creep = unit.supertype == Unit_Supertype.creep;
-
         if (unit.supertype == Unit_Supertype.creep || unit.owner_player_id == turn_passed_from_player_id) {
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {

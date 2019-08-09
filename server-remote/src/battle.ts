@@ -15,6 +15,8 @@ export type Battle_Record = Battle & {
     card_id_auto_increment: number
     finished: boolean
     turn_index: number
+    deferred_actions: Deferred_Action[]
+    creep_targets: Map<Creep, Unit>
 }
 
 const battles: Battle_Record[] = [];
@@ -87,6 +89,12 @@ type Creep_Spawn = {
     facing: XY
 }
 
+const enum Creep_Retaliation_Result {
+    ok,
+    target_lost,
+    cant_act
+}
+
 type Battleground_Spawn = Rune_Spawn | Shop_Spawn | Creep_Spawn;
 
 type Battleground_Definition = {
@@ -94,6 +102,8 @@ type Battleground_Definition = {
     deployment_zones: Deployment_Zone[]
     spawns: Battleground_Spawn[]
 }
+
+type Deferred_Action = () => void
 
 export function random_int_range(lower_bound: number, upper_bound: number) {
     const range = upper_bound - lower_bound;
@@ -1145,6 +1155,48 @@ function get_gold_for_killing(target: Unit): number {
     }
 }
 
+function creep_try_retaliate(battle: Battle_Record, creep: Creep, target: Unit): Creep_Retaliation_Result {
+    const attack = creep.attack;
+
+    // TODO use action authorization functions
+    if (!is_unit_a_valid_target(creep)) return Creep_Retaliation_Result.cant_act;
+    if (is_unit_stunned(creep)) return Creep_Retaliation_Result.cant_act;
+    if (is_unit_disarmed(creep)) return Creep_Retaliation_Result.cant_act;
+    if (creep.has_taken_an_action_this_turn) return Creep_Retaliation_Result.cant_act;
+    if (attack.type == Ability_Type.passive) return Creep_Retaliation_Result.cant_act;
+    if (target.dead) return Creep_Retaliation_Result.target_lost;
+
+    const costs = populate_path_costs(battle, creep.position)!;
+
+    for (const cell of battle.cells) {
+        const index = grid_cell_index(battle, cell.position);
+        const move_cost = costs.cell_index_to_cost[index];
+
+        if (move_cost <= creep.move_points) {
+            if (ability_targeting_fits(attack.targeting, cell.position, target.position)) {
+                battle.deltas.push({
+                    type: Delta_Type.unit_move,
+                    to_position: cell.position,
+                    unit_id: creep.id,
+                    move_cost: move_cost
+                });
+
+                if (attack.type == Ability_Type.target_ground) {
+                    battle.deferred_actions.push(() => {
+                        battle.deltas.push(perform_ability_cast_ground(battle, creep, attack, target.position));
+                    });
+
+                    battle.creep_targets.set(creep, target);
+
+                    return Creep_Retaliation_Result.ok;
+                }
+            }
+        }
+    }
+
+    return Creep_Retaliation_Result.target_lost;
+}
+
 function server_change_health(battle: Battle_Record, source: Source, target: Unit, change: Health_Change) {
     const killed = change_health_default(battle, source, target, change);
 
@@ -1171,14 +1223,30 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
                     });
                 }
             }
+        } else {
+            if (target.supertype == Unit_Supertype.creep) {
+                creep_try_retaliate(battle, target, attacker);
+            }
         }
     }
 
     return killed;
 }
 
-function end_turn_server(battle: Battle) {
+function server_end_turn(battle: Battle_Record) {
     end_turn_default(battle);
+
+    for (const creep of battle.units) {
+        if (creep.supertype == Unit_Supertype.creep) {
+            const target = battle.creep_targets.get(creep);
+
+            if (target) {
+                if (creep_try_retaliate(battle, creep, target) == Creep_Retaliation_Result.target_lost) {
+                    battle.creep_targets.delete(creep);
+                }
+            }
+        }
+    }
 
     for (const unit of battle.units) {
         for (const modifier of unit.modifiers) {
@@ -1202,9 +1270,11 @@ function end_turn_server(battle: Battle) {
         }
     }
 
-    battle.deltas.push({
-        type: Delta_Type.start_turn
-    })
+    battle.deferred_actions.push(() => {
+        battle.deltas.push({
+            type: Delta_Type.start_turn
+        })
+    });
 }
 
 export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
@@ -1244,7 +1314,15 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
 function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     battle.deltas.push(...battle_deltas);
 
-    catch_up_to_head(battle);
+    while (battle.deltas.length != battle.delta_head) {
+        catch_up_to_head(battle);
+
+        for (const action of battle.deferred_actions) {
+            action();
+        }
+
+        battle.deferred_actions = [];
+    }
 }
 
 export function get_battle_deltas_after(battle: Battle, head: number): Delta[] {
@@ -1277,9 +1355,11 @@ export function start_battle(players: Player[]): number {
         shop_id_auto_increment: 0,
         modifier_handle_id_auto_increment: 0,
         card_id_auto_increment: 0,
+        deferred_actions: [],
         finished: false,
+        creep_targets: new Map(),
         change_health: server_change_health,
-        end_turn: end_turn_server
+        end_turn: server_end_turn
     };
 
     fill_grid(battle);

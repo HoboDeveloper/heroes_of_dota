@@ -144,11 +144,6 @@ type Level_Bar = {
     pips: Panel[]
 }
 
-type Cost_Population_Result = {
-    cell_index_to_cost: number[];
-    cell_index_to_parent_index: number[];
-}
-
 type Card_Panel = {
     panel: Panel
     card: Card
@@ -166,7 +161,7 @@ let selection: Selection_State = {
     type: Selection_Type.none
 };
 
-const ui_shop_data: UI_Shop_Data[] = [];
+let ui_shop_data: UI_Shop_Data[] = [];
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
 
@@ -517,6 +512,8 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             type: Selection_Type.none
         };
 
+        ui_shop_data = [];
+
         const particle_bottom_left_origin: XYZ = [
             battle.world_origin.x + battle_cell_size / 2,
             battle.world_origin.y + battle_cell_size / 2,
@@ -551,76 +548,6 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
     }
 }
 
-function populate_path_costs(from: XY, to: XY | undefined = undefined, ignore_runes = false): Cost_Population_Result | undefined {
-    const cell_index_to_cost: number[] = [];
-    const cell_index_to_parent_index: number[] = [];
-    const indices_already_checked: boolean[] = [];
-    const from_index = grid_cell_index(battle, from);
-
-    let indices_not_checked: number[] = [];
-
-    indices_not_checked.push(from_index);
-    indices_already_checked[from_index] = true;
-    cell_index_to_cost[from_index] = 0;
-
-    for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
-        const new_indices: number[] = [];
-
-        for (const index of indices_not_checked) {
-            const cell = battle.cells[index];
-            const at = cell.position;
-
-            cell_index_to_cost[index] = current_cost;
-
-            if (to && xy_equal(to, at)) {
-                return {
-                    cell_index_to_cost: cell_index_to_cost,
-                    cell_index_to_parent_index: cell_index_to_parent_index
-                };
-            }
-
-            const neighbors = grid_cell_neighbors(battle, at);
-
-            for (const neighbor of neighbors) {
-                if (!neighbor) continue;
-
-                const neighbor_cell_index = grid_cell_index(battle, neighbor.position);
-
-                if (indices_already_checked[neighbor_cell_index]) continue;
-
-                let neighbor_occupied = neighbor.occupied;
-
-                if (ignore_runes) {
-                    const occupied_by_rune = !!rune_at(battle, neighbor.position);
-
-                    neighbor_occupied = neighbor.occupied && !occupied_by_rune;
-                }
-
-                if (neighbor_occupied) {
-                    indices_already_checked[neighbor_cell_index] = true;
-                    continue;
-                }
-
-                new_indices.push(neighbor_cell_index);
-
-                cell_index_to_parent_index[neighbor_cell_index] = index;
-                indices_already_checked[neighbor_cell_index] = true;
-            }
-        }
-
-        indices_not_checked = new_indices;
-    }
-
-    if (to) {
-        return undefined;
-    } else {
-        return {
-            cell_index_to_cost: cell_index_to_cost,
-            cell_index_to_parent_index: cell_index_to_parent_index
-        };
-    }
-}
-
 function find_grid_path(from: XY, to: XY, ignore_runes = false): XY[] | undefined {
     const cell_from = grid_cell_at(battle, from);
     const cell_to = grid_cell_at(battle, to);
@@ -629,7 +556,7 @@ function find_grid_path(from: XY, to: XY, ignore_runes = false): XY[] | undefine
         return;
     }
 
-    const populated = populate_path_costs(from, to, ignore_runes);
+    const populated = populate_path_costs(battle, from, to, ignore_runes);
 
     if (!populated) {
         return;
@@ -840,7 +767,7 @@ function selection_to_grid_selection(): Grid_Selection {
                 }
             }
 
-            const selected_entity_path = populate_path_costs(selection.unit.position)!;
+            const selected_entity_path = populate_path_costs(battle, selection.unit.position)!;
 
             return {
                 type: Selection_Type.unit,
@@ -860,7 +787,7 @@ function selection_to_grid_selection(): Grid_Selection {
         case Selection_Type.shop: {
             return {
                 type: Selection_Type.shop,
-                path: populate_path_costs(selection.unit.position)!,
+                path: populate_path_costs(battle, selection.unit.position)!,
                 unit: selection.unit,
                 shop: selection.shop
             }
