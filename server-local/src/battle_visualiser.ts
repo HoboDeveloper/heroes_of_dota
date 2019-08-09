@@ -172,7 +172,7 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
 }
 
 function creep_to_dota_unit_name(): string {
-    return "npc_dota_neutral_centaur_outrunner";
+    return "npc_dota_neutral_centaur_khan";
 }
 
 function create_world_handle_for_battle_unit(dota_unit_name: string, at: XY, facing: XY): CDOTA_BaseNPC_Hero {
@@ -260,15 +260,18 @@ function unit_base(unit_id: number, dota_unit_name: string, definition: Unit_Def
 }
 
 function spawn_creep_for_battle(unit_id: number, definition: Unit_Definition, at: XY, facing: XY): Battle_Creep {
-    return assign<Battle_Unit_Base, Battle_Creep>(unit_base(unit_id, creep_to_dota_unit_name(), definition, at, facing), {
+    const base = unit_base(unit_id, creep_to_dota_unit_name(), definition, at, facing);
+
+    return assign<Battle_Unit_Base, Battle_Creep>(base, {
         supertype: Unit_Supertype.creep
     })
 }
 
 function spawn_hero_for_battle(hero_type: Hero_Type, unit_id: number, owner_id: number, at: XY, facing: XY): Battle_Hero {
     const definition = unit_definition_by_type(hero_type);
+    const base = unit_base(unit_id, hero_type_to_dota_unit_name(hero_type), definition, at, facing);
 
-    return assign<Battle_Unit_Base, Battle_Hero>(unit_base(unit_id, creep_to_dota_unit_name(), definition, at, facing), {
+    return assign<Battle_Unit_Base, Battle_Hero>(base, {
         supertype: Unit_Supertype.hero,
         type: hero_type,
         owner_remote_id: owner_id,
@@ -2085,7 +2088,8 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     }));
 
     battle.units = snapshot.units.map(unit => {
-        const base: Battle_Unit_Base = assign(unit as Unit_Stats, {
+        const stats = unit as Unit_Stats;
+        const base: Battle_Unit_Base = assign(stats, {
             id: unit.id,
             position: unit.position,
             handle: create_world_handle_for_battle_unit(unit_snapshot_to_dota_unit_name(unit), unit.position, unit.facing),

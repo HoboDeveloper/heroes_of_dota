@@ -89,7 +89,8 @@ function log_chat_debug_message(message: string) {
 
 function unit_to_visualizer_unit_data(unit: Battle_Unit): Visualizer_Unit_Data {
     // TODO some of those properties are not actually needed
-    const base: Visualizer_Unit_Data_Base = assign(unit as Unit_Stats, {
+    const stats = unit as Unit_Stats;
+    const base: Visualizer_Unit_Data_Base = assign(stats, {
         id: unit.id
     });
 
@@ -264,7 +265,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         battle.participants = next_state.participants;
         battle.grid_size = next_state.grid_size;
 
-        const camera_look_at = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height - 4) * get_battle_cell_size() / 2 as Vector;
+        const camera_look_at = battle.world_origin + Vector(next_state.grid_size.width, next_state.grid_size.height - 2) * get_battle_cell_size() / 2 as Vector;
 
         battle.camera_dummy.SetAbsOrigin(camera_look_at);
 

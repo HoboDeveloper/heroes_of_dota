@@ -23,7 +23,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
     function error_out(node: ts.Node, error: string) {
         const source = node.getSourceFile();
         const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
-        throw new Error(`${bright}${red}ERROR${reset}: ${source.fileName}:${line + 1},${character + 1} / ${error}`);
+        throw new Error(`${bright}${red}ERROR${reset}: ${path.normalize(source.fileName)}:${line + 1}:${character + 1} / ${error}`);
     }
 
     function copy_object(expression: ts.Expression, type: SimpleTypeObject) {
@@ -159,8 +159,13 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     const source = call.arguments[0];
                     const type = resolve_alias(toSimpleType(source, checker));
                     const assign_target = call.arguments[1];
+
+                    if (source.kind != ts.SyntaxKind.ObjectLiteralExpression && source.kind != ts.SyntaxKind.Identifier) {
+                        error_out(source, "Unsupported argument type, currently only identifiers and object literals are supported");
+                    }
+
                     const result_properties: ts.PropertyAssignment[] = extract_members([ type ])
-                        .map(member => ts.createPropertyAssignment(member.name, ts.createPropertyAccess(source, member.name)))
+                        .map(member => ts.createPropertyAssignment(member.name, ts.createPropertyAccess(source, member.name)));
 
                     const argument_properties = object_to_property_assignments(assign_target as ts.ObjectLiteralExpression);
 
