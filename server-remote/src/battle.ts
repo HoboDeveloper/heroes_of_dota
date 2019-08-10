@@ -1,6 +1,7 @@
 import {Player, report_battle_over} from "./server";
 import {readFileSync} from "fs";
 import {submit_chat_message} from "./chat";
+import {Battleground, Spawn_Type} from "./battleground";
 
 eval(readFileSync("dist/battle_sim.js", "utf8"));
 
@@ -8,11 +9,7 @@ let battle_id_auto_increment = 0;
 
 export type Battle_Record = Battle & {
     id: number
-    unit_id_auto_increment: number
-    rune_id_auto_increment: number
-    shop_id_auto_increment: number
-    modifier_handle_id_auto_increment: number
-    card_id_auto_increment: number
+    entity_id_auto_increment: number
     finished: boolean
     turn_index: number
     deferred_actions: Deferred_Action[]
@@ -21,86 +18,10 @@ export type Battle_Record = Battle & {
 
 const battles: Battle_Record[] = [];
 
-const default_bg = {
-    grid_size: xy(13, 10),
-    deployment_zone_width: 3
-};
-
-const battlegrounds: Battleground_Definition[] = [
-    {
-        grid_size: default_bg.grid_size,
-        deployment_zones: [
-            {
-                min_x: 0,
-                min_y: 3,
-                max_x: default_bg.deployment_zone_width,
-                max_y: default_bg.grid_size.y - 3,
-                face_x: 1,
-                face_y: 0
-            },
-            {
-                min_x: default_bg.grid_size.x - default_bg.deployment_zone_width,
-                min_y: 3,
-                max_x: default_bg.grid_size.x,
-                max_y: default_bg.grid_size.y - 3,
-                face_x: -1,
-                face_y: 0
-            }
-        ],
-        spawns: [
-            {
-                type: Spawn_Type.rune,
-                at: xy(6, 6)
-            },
-            {
-                type: Spawn_Type.shop,
-                at: xy(6, 1),
-                facing: xy(0, 1)
-            },
-            {
-                type: Spawn_Type.creep,
-                at: xy(6, 3),
-                facing: xy(-1, 0)
-            }
-        ]
-    }
-];
-
-const enum Spawn_Type {
-    rune ,
-    shop,
-    creep
-}
-
-type Rune_Spawn = {
-    type: Spawn_Type.rune
-    at: XY
-}
-
-type Shop_Spawn = {
-    type: Spawn_Type.shop
-    at: XY
-    facing: XY
-}
-
-type Creep_Spawn = {
-    type: Spawn_Type.creep
-    at: XY
-    facing: XY
-}
-
 const enum Creep_Retaliation_Result {
     ok,
     target_lost,
     cant_act
-}
-
-type Battleground_Spawn = Rune_Spawn | Shop_Spawn | Creep_Spawn;
-
-type Battleground_Definition = {
-    grid_size: XY
-    deployment_zones: Deployment_Zone[]
-    spawns: Battleground_Spawn[]
 }
 
 type Deferred_Action = () => void
@@ -264,7 +185,7 @@ function convert_field_changes(changes: [Modifier_Field, number][]): Modifier_Ch
 function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modifier_Field, number][]): Modifier_Application {
     return {
         modifier_id: id,
-        modifier_handle_id: get_next_modifier_handle_id(battle),
+        modifier_handle_id: get_next_entity_id(battle),
         changes: convert_field_changes(changes)
     }
 }
@@ -272,7 +193,7 @@ function new_modifier(battle: Battle_Record, id: Modifier_Id, ...changes: [Modif
 function new_timed_modifier(battle: Battle_Record, id: Modifier_Id, duration: number, ...changes: [Modifier_Field, number][]): Modifier_Application {
     return {
         modifier_id: id,
-        modifier_handle_id: get_next_modifier_handle_id(battle),
+        modifier_handle_id: get_next_entity_id(battle),
         changes: convert_field_changes(changes),
         duration: duration
     }
@@ -573,7 +494,7 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 ability_id: ability.id,
                 modifier: {
                     modifier_id: Modifier_Id.dragon_knight_elder_dragon_form,
-                    modifier_handle_id: get_next_modifier_handle_id(battle),
+                    modifier_handle_id: get_next_entity_id(battle),
                     changes: [{
                         type: Modifier_Change_Type.ability_swap,
                         swap_to: Ability_Id.dragon_knight_elder_dragon_form_attack,
@@ -1071,7 +992,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
 }
 
 function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY, type: Hero_Type) : Delta_Hero_Spawn {
-    const id = get_next_unit_id(battle);
+    const id = get_next_entity_id(battle);
 
     return {
         type: Delta_Type.hero_spawn,
@@ -1083,7 +1004,7 @@ function spawn_hero(battle: Battle_Record, owner: Battle_Player, at_position: XY
 }
 
 function spawn_creep(battle: Battle_Record, at_position: XY, facing: XY): Delta_Creep_Spawn {
-    const id = get_next_unit_id(battle);
+    const id = get_next_entity_id(battle);
 
     return {
         type: Delta_Type.creep_spawn,
@@ -1093,12 +1014,22 @@ function spawn_creep(battle: Battle_Record, at_position: XY, facing: XY): Delta_
     };
 }
 
+function spawn_tree(battle: Battle_Record, at_position: XY): Delta_Tree_Spawn {
+    const id = get_next_entity_id(battle);
+
+    return {
+        type: Delta_Type.tree_spawn,
+        tree_id: id,
+        at_position: at_position
+    }
+}
+
 function draw_hero_card(battle: Battle_Record, player: Battle_Player, hero_type: Hero_Type): Delta_Draw_Hero_Card {
     return {
         type: Delta_Type.draw_hero_card,
         player_id: player.id,
         hero_type: hero_type,
-        card_id: get_next_card_id(battle)
+        card_id: get_next_entity_id(battle)
     }
 }
 
@@ -1107,7 +1038,7 @@ function draw_spell_card(battle: Battle_Record, player: Battle_Player, spell_id:
         type: Delta_Type.draw_spell_card,
         player_id: player.id,
         spell_id: spell_id,
-        card_id: get_next_card_id(battle)
+        card_id: get_next_entity_id(battle)
     }
 }
 
@@ -1119,24 +1050,8 @@ function use_card(player: Battle_Player, card: Card): Delta_Use_Card {
     }
 }
 
-function get_next_unit_id(battle: Battle_Record) {
-    return battle.unit_id_auto_increment++;
-}
-
-function get_next_modifier_handle_id(battle: Battle_Record) {
-    return battle.modifier_handle_id_auto_increment++;
-}
-
-function get_next_card_id(battle: Battle_Record) {
-    return battle.card_id_auto_increment++;
-}
-
-function get_next_rune_id(battle: Battle_Record) {
-    return battle.rune_id_auto_increment++;
-}
-
-function get_next_shop_id(battle: Battle_Record) {
-    return battle.shop_id_auto_increment;
+function get_next_entity_id(battle: Battle_Record) {
+    return battle.entity_id_auto_increment++;
 }
 
 function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
@@ -1361,9 +1276,7 @@ export function get_all_battles(): Battle_Record[] {
     return battles;
 }
 
-export function start_battle(players: Player[]): number {
-    const battleground = random_in_array(battlegrounds)!;
-
+export function start_battle(players: Player[], battleground: Battleground): number {
     const battle_players: Battle_Participant_Info[] = players.map(player => ({
         id: player.id,
         name: player.name,
@@ -1374,11 +1287,7 @@ export function start_battle(players: Player[]): number {
         ...make_battle(battle_players, battleground.grid_size.x, battleground.grid_size.y),
         id: battle_id_auto_increment++,
         turn_index: 0,
-        unit_id_auto_increment: 0,
-        rune_id_auto_increment: 0,
-        shop_id_auto_increment: 0,
-        modifier_handle_id_auto_increment: 0,
-        card_id_auto_increment: 0,
+        entity_id_auto_increment: 0,
         deferred_actions: [],
         finished: false,
         creep_targets: new Map(),
@@ -1438,7 +1347,7 @@ export function start_battle(players: Player[]): number {
                 spawn_deltas.push({
                     type: Delta_Type.rune_spawn,
                     rune_type: random_rune,
-                    rune_id: get_next_rune_id(battle),
+                    rune_id: get_next_entity_id(battle),
                     at: spawn.at
                 });
 
@@ -1456,7 +1365,7 @@ export function start_battle(players: Player[]): number {
 
                 spawn_deltas.push({
                     type: Delta_Type.shop_spawn,
-                    shop_id: get_next_shop_id(battle),
+                    shop_id: get_next_entity_id(battle),
                     item_pool: items,
                     at: spawn.at,
                     facing: spawn.facing
@@ -1469,6 +1378,12 @@ export function start_battle(players: Player[]): number {
                 spawn_deltas.push(spawn_creep(battle, spawn.at, spawn.facing));
 
                 break;
+            }
+
+            case Spawn_Type.tree: {
+                spawn_deltas.push(spawn_tree(battle, spawn.at));
+
+                break
             }
 
             default: unreachable(spawn);
@@ -1615,7 +1530,7 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
 
             const delta: Delta_Rune_Spawn = {
                 type: Delta_Type.rune_spawn,
-                rune_id: get_next_rune_id(battle),
+                rune_id: get_next_entity_id(battle),
                 rune_type: rune_type(),
                 at: at
             };

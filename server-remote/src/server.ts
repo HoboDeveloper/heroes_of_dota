@@ -11,6 +11,7 @@ import {unreachable, XY, xy} from "./common";
 import {pull_pending_chat_messages_for_player, submit_chat_message} from "./chat";
 import {performance} from "perf_hooks"
 import {readFileSync} from "fs";
+import * as battleground from "./battleground";
 
 eval(readFileSync("dist/battle_sim.js", "utf8"));
 
@@ -298,7 +299,7 @@ function initiate_battle_between_players(player_one: Player, player_two: Player)
     const battle_id = start_battle([
         player_one,
         player_two
-    ]);
+    ], battleground.forest());
 
     player_one.current_battle_id = battle_id;
     player_two.current_battle_id = battle_id;

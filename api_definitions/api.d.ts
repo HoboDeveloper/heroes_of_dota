@@ -351,6 +351,15 @@ type Delta_Creep_Spawn = {
     }
 }
 
+type Delta_Tree_Spawn = {
+    type: Delta_Type.tree_spawn
+    tree_id: number
+    at_position: {
+        x: number
+        y: number
+    }
+}
+
 type Delta_Ground_Target_Ability_Base = {
     type: Delta_Type.use_ground_target_ability
     unit_id: number
@@ -537,6 +546,9 @@ type Delta =
     Delta_Move |
     Delta_Hero_Spawn |
     Delta_Creep_Spawn |
+    Delta_Tree_Spawn |
+    Delta_Rune_Spawn |
+    Delta_Shop_Spawn |
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |
@@ -550,8 +562,6 @@ type Delta =
     Delta_Draw_Hero_Card |
     Delta_Draw_Spell_Card |
     Delta_Use_Card |
-    Delta_Rune_Spawn |
-    Delta_Shop_Spawn |
     Delta_Purchase_Item |
     Delta_Equip_Item |
     Delta_Gold_Change |
