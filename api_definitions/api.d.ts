@@ -5,32 +5,39 @@ declare const enum Player_State {
 }
 
 declare const enum Delta_Type {
-    health_change = 0,
-    unit_move = 1,
-    hero_spawn = 2,
-    creep_spawn = 3,
-    start_turn = 4,
-    end_turn = 5,
-    use_ground_target_ability = 7,
-    use_unit_target_ability = 8,
-    use_no_target_ability = 9,
-    level_change = 10,
-    modifier_removed = 12,
-    set_ability_charges_remaining = 14,
-    ability_effect_applied = 15,
-    draw_hero_card = 16,
-    draw_spell_card = 17,
-    use_card = 18,
-    rune_spawn = 19,
-    rune_pick_up = 20,
-    shop_spawn = 21,
+    hero_spawn = 0,
+    creep_spawn = 1,
+    tree_spawn = 2,
+    rune_spawn = 3,
+    shop_spawn = 4,
+
+    gold_change = 5,
+    health_change = 6,
+    level_change = 7,
+
+    use_ground_target_spell = 8,
+    use_unit_target_spell = 9,
+    use_no_target_spell = 10,
+
+    use_ground_target_ability = 11,
+    use_unit_target_ability = 12,
+    use_no_target_ability = 13,
+
+    draw_hero_card = 14,
+    draw_spell_card = 15,
+    use_card = 16,
+
+    unit_move = 17,
+    modifier_removed = 18,
+    set_ability_charges_remaining = 19,
+    ability_effect_applied = 20,
+    rune_pick_up = 21,
     purchase_item = 22,
     equip_item = 23,
-    gold_change = 24,
-    use_ground_target_spell = 25,
-    use_unit_target_spell = 26,
-    use_no_target_spell = 27,
-    game_over = 30
+
+    start_turn = 24,
+    end_turn = 25,
+    game_over = 26,
 }
 
 declare const enum Action_Type {
