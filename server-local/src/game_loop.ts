@@ -235,28 +235,8 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
     if (current_state == Player_State.in_battle) {
         print("Battle over");
 
-        // TODO copypaste
-        // TODO remove particles
-        for (const unit of battle.units) {
-            unit.handle.RemoveSelf();
-        }
-
-        for (const rune of battle.runes) {
-            destroy_rune(rune, true);
-        }
-
-        for (const shop of battle.shops) {
-            shop.handle.RemoveSelf();
-        }
-
-        battle.delta_head = 0;
-        battle.deltas = [];
-        battle.delta_paths = [];
-        battle.players = [];
-        battle.units = [];
-        battle.shops = [];
-        battle.runes = [];
-        battle.is_over = false;
+        clean_battle_world_handles();
+        reinitialize_battle(battle.world_origin, battle.camera_dummy);
 
         PlayerResource.SetCameraTarget(main_player.player_id, main_player.hero_unit);
         wait_one_frame();
@@ -266,10 +246,10 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
     if (next_state.state == Player_State.in_battle) {
         print("Battle started");
 
+        clean_battle_world_handles();
+        reinitialize_battle(battle.world_origin, battle.camera_dummy);
+
         battle.id = next_state.battle_id;
-        battle.delta_head = 0;
-        battle.units = [];
-        battle.deltas = [];
         battle.players = next_state.participants.map(participant => ({
             id: participant.id,
             gold: 0
@@ -295,6 +275,22 @@ function try_submit_state_transition(main_player: Main_Player, new_state: Player
 
         state_transition = new_state;
     }
+}
+
+function get_default_battleground_data(): [Vector, CDOTA_BaseNPC] {
+    const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
+
+    const camera_entity = CreateModifierThinker(
+        undefined,
+        undefined,
+        "",
+        {},
+        Vector(),
+        DOTATeam_t.DOTA_TEAM_GOODGUYS,
+        false
+    ) as CDOTA_BaseNPC;
+
+    return [origin, camera_entity];
 }
 
 function main() {
@@ -333,7 +329,7 @@ function game_loop() {
     let player_unit: CDOTA_BaseNPC_Hero | undefined = undefined;
     let players: Player_Map = {};
 
-    load_battle_data();
+    reinitialize_battle(...get_default_battleground_data());
 
     on_player_connected_async(id => player_id = id);
 

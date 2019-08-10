@@ -2051,19 +2051,30 @@ function periodically_update_battle() {
     }
 }
 
-function load_battle_data() {
-    const origin = Entities.FindByName(undefined, "battle_bottom_left").GetAbsOrigin();
+function clean_battle_world_handles() {
+    for (const unit of battle.units) {
+        unit.handle.RemoveSelf();
+    }
 
-    const camera_entity = CreateModifierThinker(
-        undefined,
-        undefined,
-        "",
-        {},
-        Vector(),
-        DOTATeam_t.DOTA_TEAM_GOODGUYS,
-        false
-    ) as CDOTA_BaseNPC;
+    for (const rune of battle.runes) {
+        destroy_rune(rune, true);
+    }
 
+    for (const shop of battle.shops) {
+        shop.handle.RemoveSelf();
+    }
+
+    for (const fx of battle.modifier_tied_fxs) {
+        fx.fx.destroy_and_release(true);
+    }
+
+    battle.units = [];
+    battle.shops = [];
+    battle.runes = [];
+    battle.modifier_tied_fxs = [];
+}
+
+function reinitialize_battle(world_origin: Vector, camera_entity: CDOTA_BaseNPC) {
     battle = {
         id: -1,
         deltas: [],
@@ -2071,7 +2082,7 @@ function load_battle_data() {
         participants: [],
         delta_paths: {},
         delta_head: 0,
-        world_origin: origin,
+        world_origin: world_origin,
         units: [],
         runes: [],
         shops: [],
@@ -2088,18 +2099,7 @@ function load_battle_data() {
 function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_Snapshot) {
     print("Fast forwarding from snapshot, new head", snapshot.delta_head);
 
-    // TODO remove particles
-    for (const unit of battle.units) {
-        unit.handle.RemoveSelf();
-    }
-
-    for (const rune of battle.runes) {
-        destroy_rune(rune, true);
-    }
-
-    for (const shop of battle.shops) {
-        shop.handle.RemoveSelf();
-    }
+    clean_battle_world_handles();
 
     function unit_snapshot_to_dota_unit_name(snapshot: Unit_Snapshot): string {
         switch (snapshot.supertype) {
