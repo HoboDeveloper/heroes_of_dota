@@ -5,6 +5,7 @@ type XY = {
 
 type Battle = {
     id: number
+    random_seed: number
     participants: Battle_Participant_Info[]
     players: Battle_Player[]
     deltas: Delta[]
@@ -14,6 +15,7 @@ type Battle = {
     units: Battle_Unit[]
     runes: Rune[]
     shops: Shop[]
+    trees: Tree[]
     grid_size: {
         width: number
         height: number
@@ -47,6 +49,11 @@ type Battle_Creep = Battle_Unit_Base & {
 }
 
 type Battle_Unit = Battle_Hero | Battle_Creep
+
+type Tree = {
+    id: number
+    handle: CBaseEntity
+}
 
 type Rune = {
     id: number
@@ -222,6 +229,26 @@ function create_world_handle_for_shop(at: XY, facing: XY): CDOTA_BaseNPC {
     handle.SetUnitCanRespawn(true);
 
     return handle;
+}
+
+function create_world_handle_for_tree(tree_id: number, at: XY): CBaseEntity {
+    const models = [
+        "models/props_tree/cypress/tree_cypress010.vmdl",
+        "models/props_tree/cypress/tree_cypress008.vmdl"
+    ];
+
+    const r_variance = ((battle.random_seed + tree_id) * 2) % 20 - 10;
+    const g_variance = ((battle.random_seed + tree_id) * 3) % 20 - 10;
+    const random_model = models[(battle.random_seed + tree_id) % models.length];
+
+    const entity = SpawnEntityFromTableSynchronous("prop_dynamic", {
+        origin: battle_position_to_world_position_center(at),
+        model: random_model
+    }) as CBaseModelEntity;
+
+    entity.SetRenderColor(80 + r_variance, 90 + g_variance, 30);
+
+    return entity;
 }
 
 function create_fx_for_rune_handle(type: Rune_Type, handle: Handle_Provider): FX {
@@ -1736,7 +1763,7 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
     }
 }
 
-function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
+function play_delta(main_player: Main_Player, delta: Delta, head: number) {
     switch (delta.type) {
         case Delta_Type.hero_spawn: {
             function hero_type_to_spawn_sound(type: Hero_Type): string {
@@ -1808,6 +1835,15 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number = 0) {
             battle.shops.push({
                 id: delta.shop_id,
                 handle: create_world_handle_for_shop(delta.at, delta.facing)
+            });
+
+            break;
+        }
+
+        case Delta_Type.tree_spawn: {
+            battle.trees.push({
+                id: delta.tree_id,
+                handle: create_world_handle_for_tree(delta.tree_id, delta.at_position)
             });
 
             break;
@@ -2064,6 +2100,10 @@ function clean_battle_world_handles() {
         shop.handle.RemoveSelf();
     }
 
+    for (const tree of battle.trees) {
+        tree.handle.Kill();
+    }
+
     for (const fx of battle.modifier_tied_fxs) {
         fx.fx.destroy_and_release(true);
     }
@@ -2071,12 +2111,14 @@ function clean_battle_world_handles() {
     battle.units = [];
     battle.shops = [];
     battle.runes = [];
+    battle.trees = [];
     battle.modifier_tied_fxs = [];
 }
 
 function reinitialize_battle(world_origin: Vector, camera_entity: CDOTA_BaseNPC) {
     battle = {
         id: -1,
+        random_seed: 0,
         deltas: [],
         players: [],
         participants: [],
@@ -2086,6 +2128,7 @@ function reinitialize_battle(world_origin: Vector, camera_entity: CDOTA_BaseNPC)
         units: [],
         runes: [],
         shops: [],
+        trees: [],
         grid_size: {
             width: 0,
             height: 0
@@ -2159,6 +2202,11 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
     battle.shops = snapshot.shops.map(shop => ({
         id: shop.id,
         handle: create_world_handle_for_shop(shop.position, shop.facing)
+    }));
+
+    battle.trees = snapshot.trees.map(tree => ({
+        id: tree.id,
+        handle: create_world_handle_for_tree(tree.id, tree.position)
     }));
 
     battle.delta_head = snapshot.delta_head;

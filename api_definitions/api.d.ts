@@ -698,6 +698,7 @@ type Player_State_On_Global_Map_Data = {
 type Player_State_In_Battle_Data = {
     state: Player_State.in_battle
     battle_id: number
+    random_seed: number
     grid_size: {
         width: number
         height: number
@@ -748,6 +749,7 @@ type Battle_Info = {
         width: number
         height: number
     }
+    random_seed: number
     participants: Battle_Participant_Info[]
 }
 

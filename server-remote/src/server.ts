@@ -224,6 +224,7 @@ function player_to_player_state_object(player: Player): Player_State_Data {
             return {
                 state: player.state,
                 battle_id: player.current_battle_id,
+                random_seed: battle.random_seed,
                 participants: battle.players.map(player => ({
                     id: player.id,
                     name: player.name,
@@ -594,6 +595,7 @@ handlers.set("/query_battles", body => {
         return {
             battles: get_all_battles().map(battle => ({
                 id: battle.id,
+                random_seed: battle.random_seed,
                 grid_size: {
                     width: battle.grid_size.x,
                     height: battle.grid_size.y

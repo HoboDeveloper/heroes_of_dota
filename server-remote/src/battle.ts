@@ -12,6 +12,7 @@ export type Battle_Record = Battle & {
     entity_id_auto_increment: number
     finished: boolean
     turn_index: number
+    random_seed: number
     deferred_actions: Deferred_Action[]
     creep_targets: Map<Creep, Unit>
 }
@@ -1289,6 +1290,7 @@ export function start_battle(players: Player[], battleground: Battleground): num
         turn_index: 0,
         entity_id_auto_increment: 0,
         deferred_actions: [],
+        random_seed: random_int_range(0, 65536),
         finished: false,
         creep_targets: new Map(),
         change_health: server_change_health,
@@ -1416,16 +1418,18 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             }
         ];
 
-        const cooldown_deltas = unit.abilities
-            .filter(ability => ability.type != Ability_Type.passive && ability.charges_remaining < 1)
-            .map(ability => ({
-                type: Delta_Type.set_ability_charges_remaining,
-                unit_id: unit.id,
-                ability_id: ability.id,
-                charges_remaining: (ability as Ability_Active).charges
-            }) as Delta_Set_Ability_Charges_Remaining); // WTF typescript
+        for (const ability of unit.abilities) {
+            if (ability.type != Ability_Type.passive && ability.charges_remaining != ability.charges) {
+                deltas.push({
+                    type: Delta_Type.set_ability_charges_remaining,
+                    unit_id: unit.id,
+                    ability_id: ability.id,
+                    charges_remaining: (ability as Ability_Active).charges
+                });
+            }
+        }
 
-        submit_battle_deltas(battle, deltas.concat(cooldown_deltas));
+        submit_battle_deltas(battle, deltas);
     }
 
     switch (parts[0]) {

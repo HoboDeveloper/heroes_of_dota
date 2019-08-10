@@ -58,6 +58,7 @@ type Battle = {
     units: Unit[]
     runes: Rune[]
     shops: Shop[]
+    trees: Tree[]
     players: Battle_Player[]
     deltas: Delta[]
     turning_player_index: number
@@ -117,6 +118,11 @@ type Shop = {
     id: number
     position: XY
     items: Item_Id[]
+}
+
+type Tree = {
+    id: number
+    position: XY
 }
 
 type Modifier_Base = {
@@ -368,6 +374,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         runes: [],
         shops: [],
         cells: [],
+        trees: [],
         players: participants.map(participant => ({
             id: participant.id,
             name: participant.name,
@@ -698,7 +705,7 @@ function change_health_default(battle: Battle, source: Source, target: Unit, cha
     target.health = change.new_value;
 
     if (!target.dead && change.new_value == 0) {
-        grid_cell_at_unchecked(battle, target.position).occupied = false;
+        free_cell(battle, target.position);
 
         target.dead = true;
 
@@ -751,6 +758,22 @@ function get_item_gold_cost(item_id: Item_Id): number {
         case Item_Id.satanic: return 10;
         case Item_Id.tome_of_knowledge: return 6;
         case Item_Id.refresher_shard: return 8;
+    }
+}
+
+function occupy_cell(battle: Battle, at: XY) {
+    const cell = grid_cell_at(battle, at);
+
+    if (cell) {
+        cell.occupied = true;
+    }
+}
+
+function free_cell(battle: Battle, at: XY) {
+    const cell = grid_cell_at(battle, at);
+
+    if (cell) {
+        cell.occupied = false;
     }
 }
 
@@ -1190,7 +1213,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 level: 1,
             });
 
-            grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
+            occupy_cell(battle, delta.at_position);
 
             break;
         }
@@ -1201,7 +1224,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 supertype: Unit_Supertype.creep
             });
 
-            grid_cell_at_unchecked(battle, delta.at_position).occupied = true;
+            occupy_cell(battle, delta.at_position);
 
             break;
         }
@@ -1224,7 +1247,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 position: delta.at
             });
 
-            grid_cell_at_unchecked(battle, delta.at).occupied = true;
+            occupy_cell(battle, delta.at);
 
             break;
         }
@@ -1236,7 +1259,18 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 position: delta.at
             });
 
-            grid_cell_at_unchecked(battle, delta.at).occupied = true;
+            occupy_cell(battle, delta.at);
+
+            break;
+        }
+
+        case Delta_Type.tree_spawn: {
+            battle.trees.push({
+                id: delta.tree_id,
+                position: delta.at_position
+            });
+
+            occupy_cell(battle, delta.at_position);
 
             break;
         }

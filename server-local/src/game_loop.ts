@@ -250,6 +250,7 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
         reinitialize_battle(battle.world_origin, battle.camera_dummy);
 
         battle.id = next_state.battle_id;
+        battle.random_seed = next_state.random_seed;
         battle.players = next_state.participants.map(participant => ({
             id: participant.id,
             gold: 0
@@ -389,6 +390,7 @@ function game_loop() {
             units: from_client_array(event.units),
             runes: from_client_array(event.runes),
             shops: from_client_array(event.shops),
+            trees: from_client_array(event.trees),
             delta_head: event.delta_head
         });
     });

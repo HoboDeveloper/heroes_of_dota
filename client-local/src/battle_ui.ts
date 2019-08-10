@@ -1548,6 +1548,10 @@ function make_battle_snapshot(): Battle_Snapshot {
             position: shop.position,
             facing: battle.shop_id_to_facing[shop.id]
         })),
+        trees: battle.trees.map(tree => ({
+            id: tree.id,
+            position: tree.position
+        })),
         delta_head: battle.delta_head
     }
 }

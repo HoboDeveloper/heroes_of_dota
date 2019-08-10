@@ -1093,7 +1093,8 @@ function draw_battle_list(global_map: Game_On_Global_Map) {
                 state: Player_State.in_battle,
                 battle_id: battle.id,
                 grid_size: battle.grid_size,
-                participants: battle.participants
+                participants: battle.participants,
+                random_seed: battle.random_seed
             }, game);
 
             if (game.state == Player_State.in_battle) {

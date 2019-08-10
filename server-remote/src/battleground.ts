@@ -36,6 +36,10 @@ export type Battleground = {
 }
 
 export function forest(): Battleground {
+    function xy(x: number, y: number): XY {
+        return { x: x, y: y };
+    }
+
     function creep(x: number, y: number, facing: XY): Creep_Spawn {
         return {
             type: Spawn_Type.creep,

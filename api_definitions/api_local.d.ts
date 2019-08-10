@@ -152,10 +152,19 @@ type Shop_Snapshot = {
     }
 }
 
+type Tree_Snapshot = {
+    id: number
+    position: {
+        x: number
+        y: number
+    }
+}
+
 type Battle_Snapshot = {
     players: Player_Snapshot[]
     units: Unit_Snapshot[]
     runes: Rune_Snapshot[]
     shops: Shop_Snapshot[]
+    trees: Tree_Snapshot[]
     delta_head: number
 }
