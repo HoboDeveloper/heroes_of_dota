@@ -121,8 +121,18 @@ export function random_in_array<T>(array: T[], length = array.length): T | undef
     return array[random_int_up_to(length)];
 }
 
-function defer_delta(battle: Battle_Record, supplier: () => Delta) {
-    battle.deferred_actions.push(() => battle.deltas.push(supplier()));
+function defer(battle: Battle_Record, action: () => void) {
+    battle.deferred_actions.push(action);
+}
+
+function defer_delta(battle: Battle_Record, supplier: () => Delta | undefined) {
+    battle.deferred_actions.push(() => {
+        const delta = supplier();
+
+        if (delta) {
+            battle.deltas.push(delta);
+        }
+    });
 }
 
 type Scan_Result_Hit = {
@@ -747,20 +757,22 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
 
         switch (ability.id) {
             case Ability_Id.luna_moon_glaive: {
-                const targets = query_units_in_rectangular_area_around_point(battle, target.position, 2);
-                const allies = targets.filter(target => are_units_allies(source, target) && target != source);
-                const enemies = targets.filter(target => !are_units_allies(source, target));
-                const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
+                defer_delta(battle, () => {
+                    const targets = query_units_in_rectangular_area_around_point(battle, target.position, 2);
+                    const allies = targets.filter(target => are_units_allies(source, target) && target != source);
+                    const enemies = targets.filter(target => !are_units_allies(source, target));
+                    const glaive_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
 
-                if (glaive_target) {
-                    defer_delta(battle, () => (apply_ability_effect_delta({
-                        ability_id: ability.id,
-                        source_unit_id: source.id,
-                        target_unit_id: glaive_target.id,
-                        original_target_id: target.id,
-                        damage_dealt: health_change(glaive_target, -damage)
-                    })));
-                }
+                    if (glaive_target) {
+                        return apply_ability_effect_delta({
+                            ability_id: ability.id,
+                            source_unit_id: source.id,
+                            target_unit_id: glaive_target.id,
+                            original_target_id: target.id,
+                            damage_dealt: health_change(glaive_target, -damage)
+                        });
+                    }
+                })
             }
         }
     }
@@ -1168,7 +1180,7 @@ function creep_try_retaliate(battle: Battle_Record, creep: Creep, target: Unit):
     if (is_unit_disarmed(creep)) return Creep_Retaliation_Result.cant_act;
     if (creep.has_taken_an_action_this_turn) return Creep_Retaliation_Result.cant_act;
     if (attack.type == Ability_Type.passive) return Creep_Retaliation_Result.cant_act;
-    if (target.dead) return Creep_Retaliation_Result.target_lost;
+    if (!is_unit_a_valid_target(target)) return Creep_Retaliation_Result.target_lost;
 
     const costs = populate_path_costs(battle, creep.position)!;
 
@@ -1211,23 +1223,27 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
 
         if (killed) {
             if (!are_units_allies(attacker, target) && attacker.supertype != Unit_Supertype.creep) {
+                const bounty = get_gold_for_killing(target);
+
                 defer_delta(battle, () => ({
                     type: Delta_Type.gold_change,
                     player_id: attacker.owner_player_id,
-                    change: get_gold_for_killing(target)
+                    change: bounty
                 }));
 
-                if (attacker.level < max_unit_level) {
-                    defer_delta(battle, () => ({
-                        type: Delta_Type.level_change,
-                        unit_id: attacker.id,
-                        new_level: attacker.level + 1
-                    }));
-                }
+                defer_delta(battle, () => {
+                    if (attacker.level < max_unit_level) {
+                        return {
+                            type: Delta_Type.level_change,
+                            unit_id: attacker.id,
+                            new_level: attacker.level + 1
+                        };
+                    }
+                });
             }
         } else {
             if (target.supertype == Unit_Supertype.creep) {
-                creep_try_retaliate(battle, target, attacker);
+                defer(battle, () => creep_try_retaliate(battle, target, attacker));
             }
         }
     }
@@ -1266,13 +1282,15 @@ function server_end_turn(battle: Battle_Record) {
 
     for (const creep of battle.units) {
         if (creep.supertype == Unit_Supertype.creep) {
-            const target = battle.creep_targets.get(creep);
+            defer(battle, () => {
+                const target = battle.creep_targets.get(creep);
 
-            if (target) {
-                if (creep_try_retaliate(battle, creep, target) == Creep_Retaliation_Result.target_lost) {
-                    battle.creep_targets.delete(creep);
+                if (target) {
+                    if (creep_try_retaliate(battle, creep, target) == Creep_Retaliation_Result.target_lost) {
+                        battle.creep_targets.delete(creep);
+                    }
                 }
-            }
+            });
         }
     }
 }
@@ -1316,7 +1334,7 @@ export function try_take_turn_action(battle: Battle_Record, player: Battle_Playe
 function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     battle.deltas.push(...battle_deltas);
 
-    while (battle.deltas.length != battle.delta_head) {
+    while (battle.deltas.length != battle.delta_head || battle.deferred_actions.length > 0) {
         catch_up_to_head(battle);
 
         if (!battle.finished) {
