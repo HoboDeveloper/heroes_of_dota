@@ -118,16 +118,11 @@ function player_state_to_player_net_table(main_player: Main_Player): Player_Net_
             const entity_id_to_shop_id: Record<number, number> = {};
 
             for (const unit of battle.units) {
-                // TODO a bit of a hack, we probably shouldn't let units decompose
-                if (!unit.handle.IsNull()) {
-                    entity_id_to_unit_data[unit.handle.entindex()] = unit_to_visualizer_unit_data(unit);
-                }
+                entity_id_to_unit_data[unit.handle.entindex()] = unit_to_visualizer_unit_data(unit);
             }
 
             for (const rune of battle.runes) {
-                if (!rune.handle.IsNull()) {
-                    entity_id_to_rune_id[rune.handle.entindex()] = rune.id;
-                }
+                entity_id_to_rune_id[rune.handle.entindex()] = rune.id;
             }
 
             for (const shop of battle.shops) {

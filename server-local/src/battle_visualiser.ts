@@ -181,6 +181,7 @@ function create_world_handle_for_battle_unit(dota_unit_name: string, at: XY, fac
     handle.SetBaseMoveSpeed(500);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
     handle.SetForwardVector(Vector(facing.x, facing.y));
+    handle.SetUnitCanRespawn(true);
 
     return handle;
 }
@@ -189,6 +190,7 @@ function create_world_handle_for_rune(type: Rune_Type, at: XY): CDOTA_BaseNPC {
     const world_location = battle_position_to_world_position_center(at);
     const handle = CreateUnitByName("npc_dummy_unit", world_location, true, null, null, DOTATeam_t.DOTA_TEAM_GOODGUYS);
     handle.AddNewModifier(handle, undefined, "Modifier_Battle_Unit", {});
+    handle.SetUnitCanRespawn(true);
 
     function rune_model(): string {
         switch (type) {
@@ -217,6 +219,7 @@ function create_world_handle_for_shop(at: XY, facing: XY): CDOTA_BaseNPC {
     handle.SetOriginalModel(model);
     handle.StartGesture(GameActivity_t.ACT_DOTA_IDLE);
     handle.SetForwardVector(Vector(facing.x, facing.y));
+    handle.SetUnitCanRespawn(true);
 
     return handle;
 }
@@ -1647,6 +1650,7 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
 
     if (change.new_value == 0) {
         if (source.supertype != Unit_Supertype.creep) {
+            // TODO only show this when killing actual enemies
             fx("particles/generic_gameplay/lasthit_coins.vpcf").to_unit_origin(1, target).release();
             fx_follow_unit("particles/generic_gameplay/lasthit_coins_local.vpcf", source)
                 .to_unit_origin(1, target)

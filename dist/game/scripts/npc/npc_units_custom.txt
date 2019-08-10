@@ -2,7 +2,7 @@
     "Version"  "1"
     
     "npc_dummy_unit" {
-        "BaseClass"  "npc_dota_creep_neutral"
+        "BaseClass"  "npc_dota_creature"
         "Model"  "models/development/invisiblebox.vmdl"
         "Level"  "0"
 
@@ -15,6 +15,10 @@
         "MovementCapabilities"  "DOTA_UNIT_CAP_MOVE_GROUND"
         "VisionDaytimeRange"  "0"
         "VisionNighttimeRange"  "0"
+
+        "Creature" {
+            "CanRespawn"  "1"
+        }
     }
 
     "hod_creep" {
@@ -27,5 +31,9 @@
 
         "VisionDaytimeRange"  "0"
         "VisionNighttimeRange"  "0"
+
+        "Creature" {
+            "CanRespawn"  "1"
+        }
     }
 }
