@@ -247,6 +247,15 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             break;
         }
 
+        case Delta_Type.creep_spawn: {
+            battle.unit_id_to_facing[delta.unit_id] = {
+                x: delta.facing.x,
+                y: delta.facing.y
+            };
+
+            break;
+        }
+
         case Delta_Type.shop_spawn: {
             battle.shop_id_to_facing[delta.shop_id] = delta.facing;
             break;
