@@ -71,6 +71,9 @@ type UI_Unit_Data_Base = {
     stat_move_points: Stat_Indicator
     stat_max_move_points: Stat_Indicator
     stat_max_health: Stat_Indicator
+
+    modifiers: Modifier_Id[]
+    modifier_bar: Panel
 }
 
 type UI_Hero_Data = UI_Unit_Data_Base & {
@@ -1232,8 +1235,10 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
 }
 
 function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
-    const panel = $.CreatePanel("Panel", $("#stat_bar_container"), "");
-    panel.AddClass("unit_stat_bar");
+    const root = $("#stat_bar_container");
+
+    const top_level = $.CreatePanel("Panel", root, "");
+    top_level.AddClass("unit_stat_bar");
 
     function create_health_indicator() {
         return stat_indicator_ui(
@@ -1258,7 +1263,7 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
     }
 
     function create_attack_indicator(): Stat_Indicator {
-        const attack_container = $.CreatePanel("Panel", panel, "attack_container");
+        const attack_container = $.CreatePanel("Panel", top_level, "attack_container");
         const attack_label = $.CreatePanel("Label", attack_container, "attack_label");
         $.CreatePanel("Panel", attack_container, "attack_icon").AddClass("stat_icon");
         attack_container.AddClass("container");
@@ -1271,6 +1276,14 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
         };
     }
 
+    function create_modifier_container(): Panel {
+        const bar = $.CreatePanel("Panel", root, "");
+
+        bar.AddClass("unit_modifier_bar");
+
+        return bar;
+    }
+
     function stat_indicator(label: LabelPanel, value: number): Stat_Indicator {
         return {
             displayed_value: value,
@@ -1281,7 +1294,7 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
     }
 
     function stat_indicator_ui(value: number, max_value: number, container_id: string, icon_id: string, label_id: string, max_label_id: string) {
-        const container = $.CreatePanel("Panel", panel, container_id);
+        const container = $.CreatePanel("Panel", top_level, container_id);
         const value_label = $.CreatePanel("Label", container, label_id);
 
         $.CreatePanel("Label", container, "separator").text = "/";
@@ -1302,10 +1315,11 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
 
     switch (data.supertype) {
         case Unit_Supertype.hero: {
-            const level_bar = create_level_bar(panel, "level_bar");
+            const level_bar = create_level_bar(top_level, "level_bar");
             const [ health, max_health ] = create_health_indicator();
             const [ move_points, max_move_points ] = create_move_points_indicator();
             const attack = create_attack_indicator();
+            const modifiers = create_modifier_container();
 
             return {
                 supertype: Unit_Supertype.hero,
@@ -1316,8 +1330,10 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
                 stat_max_move_points: max_move_points,
                 stat_max_health: max_health,
                 level: data.level,
-                stat_bar_panel: panel,
-                level_bar: level_bar
+                stat_bar_panel: top_level,
+                level_bar: level_bar,
+                modifier_bar: modifiers,
+                modifiers: from_server_array(data.modifiers)
             }
         }
 
@@ -1325,6 +1341,7 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
             const [ health, max_health ] = create_health_indicator();
             const [ move_points, max_move_points ] = create_move_points_indicator();
             const attack = create_attack_indicator();
+            const modifiers = create_modifier_container();
 
             return {
                 supertype: Unit_Supertype.creep,
@@ -1334,7 +1351,9 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
                 stat_move_points: move_points,
                 stat_max_move_points: max_move_points,
                 stat_max_health: max_health,
-                stat_bar_panel: panel,
+                stat_bar_panel: top_level,
+                modifier_bar: modifiers,
+                modifiers: from_server_array(data.modifiers)
             }
         }
     }
@@ -1351,6 +1370,25 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
 
     if (data.supertype == Unit_Supertype.hero) {
         update_level_bar(data.level_bar, data.level);
+    }
+
+    for (const child of data.modifier_bar.Children()) {
+        child.DeleteAsync(0);
+    }
+
+    const unit = find_unit_by_id(battle, data.id);
+
+    if (unit && unit.supertype == Unit_Supertype.hero)
+    $.Msg("Updating unit bar: ", enum_to_string(unit.type), " ", data.modifiers.map(modifier => enum_to_string(modifier)));
+
+    for (const modifier of data.modifiers) {
+        const modifier_panel = $.CreatePanel("Panel", data.modifier_bar, "");
+        const modifier_image = $.CreatePanel("Image", modifier_panel, "image");
+
+        modifier_image.SetImage(`file://{images}/${get_modifier_icon(modifier)}.png`);
+        modifier_image.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
+
+        modifier_panel.AddClass("modifier");
     }
 
     function try_find_and_update_associated_unit() {
@@ -1416,6 +1454,7 @@ function process_state_update(state: Player_Net_Table) {
                 existing_data.stat_move_points.value = new_data.move_points;
                 existing_data.stat_max_move_points.value = new_data.max_move_points;
                 existing_data.stat_attack.value = new_data.attack_bonus;
+                existing_data.modifiers = from_server_array(new_data.modifiers);
 
                 update_unit_stat_bar_data(existing_data);
             } else {
@@ -1680,6 +1719,40 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.lion_hex: return "lion_voodoo";
         case Ability_Id.lion_impale: return "lion_impale";
         case Ability_Id.lion_finger_of_death: return "lion_finger_of_death";
+    }
+}
+
+function get_modifier_icon(modifier_id: Modifier_Id): string {
+    function from_ability(ability_id: Ability_Id): string {
+        return `spellicons/${get_ability_icon(ability_id)}`
+    }
+
+    function from_item(item_id: Item_Id): string {
+        return `items/${get_item_icon_name(item_id)}`;
+    }
+
+    switch (modifier_id) {
+        case Modifier_Id.item_assault_cuirass: from_item(Item_Id.assault_cuirass);
+        case Modifier_Id.item_boots_of_travel: return from_item(Item_Id.boots_of_travel);
+        case Modifier_Id.item_divine_rapier: return from_item(Item_Id.divine_rapier);
+        case Modifier_Id.item_heart_of_tarrasque: return from_item(Item_Id.heart_of_tarrasque);
+        case Modifier_Id.item_mask_of_madness: return from_item(Item_Id.mask_of_madness);
+        case Modifier_Id.item_satanic: return from_item(Item_Id.satanic);
+
+        case Modifier_Id.dragon_knight_dragon_tail: return from_ability(Ability_Id.dragon_knight_dragon_tail);
+        case Modifier_Id.dragon_knight_elder_dragon_form: return from_ability(Ability_Id.dragon_knight_elder_dragon_form);
+        case Modifier_Id.lion_hex: return from_ability(Ability_Id.lion_hex);
+        case Modifier_Id.skywrath_ancient_seal: return from_ability(Ability_Id.skywrath_ancient_seal);
+        case Modifier_Id.skywrath_concussive_shot: return from_ability(Ability_Id.skywrath_concussive_shot);
+        case Modifier_Id.tide_anchor_smash: return from_ability(Ability_Id.tide_anchor_smash);
+        case Modifier_Id.tide_gush: return from_ability(Ability_Id.tide_gush);
+        case Modifier_Id.tide_ravage: return from_ability(Ability_Id.tide_ravage);
+
+        case Modifier_Id.spell_euls_scepter: return "items/cyclone";
+        case Modifier_Id.spell_mekansm: return "items/mekansm";
+
+        case Modifier_Id.rune_double_damage: return "spellicons/rune_doubledamage";
+        case Modifier_Id.rune_haste: return "spellicons/rune_haste";
     }
 }
 
@@ -2101,6 +2174,7 @@ function update_stat_bar_positions() {
         const entity_id = Number(entity_id_string); // TODO holy shit why javascript, why
         const unit_data = battle.entity_id_to_unit_data[entity_id_string];
 
+        position_panel_over_entity_in_the_world(unit_data.modifier_bar, entity_id, 30, 30);
         position_panel_over_entity_in_the_world(unit_data.stat_bar_panel, entity_id, 30, -40);
     }
 }
