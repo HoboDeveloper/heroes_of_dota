@@ -1212,7 +1212,8 @@ function server_end_turn(battle: Battle_Record) {
     }
 
     defer_delta(battle, () => ({
-        type: Delta_Type.start_turn
+        type: Delta_Type.start_turn,
+        of_player_id: battle.players[battle.turning_player_index].id
     }));
 
     for (const creep of battle.units) {

@@ -44,6 +44,12 @@
             <Panel id="shop_panels_container" hittest="false"/>
 
             <Panel id="hand_ui" hittest="false"/>
+
+            <Panel id="your_turn_ui" hittest="false" hittestchildren="false">
+                <Panel id="container">
+                    <Label text="YOUR TURN"/>
+                </Panel>
+            </Panel>
         </Panel>
 
         <Panel id="global_map_ui">

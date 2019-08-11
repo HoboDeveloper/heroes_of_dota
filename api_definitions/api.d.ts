@@ -372,6 +372,7 @@ type Delta_Use_No_Target_Ability_Base = {
 
 type Delta_Start_Turn = {
     type: Delta_Type.start_turn
+    of_player_id: number
 }
 
 type Delta_End_Turn = {

@@ -2840,6 +2840,22 @@ function highlight_grid_for_no_target_ability(event: Grid_Highlight_No_Target_Ab
     );
 }
 
+function show_start_turn_ui() {
+    Game.EmitSound("your_turn");
+
+    const root = $("#your_turn_ui");
+
+    root.RemoveClass("animate_your_turn_fade");
+    root.AddClass("visible");
+    root.AddClass("animate_your_turn");
+
+    $.Schedule(1.2, () => {
+        root.AddClass("animate_your_turn_fade");
+        root.RemoveClass("visible");
+        root.RemoveClass("animate_your_turn");
+    });
+}
+
 function try_select_unit_ability(unit: Unit, ability: Ability) {
     const ability_use = authorize_ability_use_by_unit(unit, ability.id);
 
@@ -2908,3 +2924,4 @@ periodically_update_stat_bar_display();
 periodically_request_battle_deltas_when_in_battle();
 subscribe_to_custom_event<Grid_Highlight_Targeted_Ability_Event>("grid_highlight_targeted_ability", highlight_grid_for_targeted_ability);
 subscribe_to_custom_event<Grid_Highlight_No_Target_Ability_Event>("grid_highlight_no_target_ability", highlight_grid_for_no_target_ability);
+subscribe_to_custom_event("show_start_turn_ui", show_start_turn_ui);

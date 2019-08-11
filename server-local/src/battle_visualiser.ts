@@ -1990,6 +1990,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
                 unit.move_points = unit.max_move_points;
             }
 
+            if (delta.of_player_id == main_player.remote_id) {
+                CustomGameEventManager.Send_ServerToAllClients("show_start_turn_ui", {});
+            }
+
             update_player_state_net_table(main_player);
             break;
         }
