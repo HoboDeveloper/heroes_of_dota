@@ -5,29 +5,58 @@
   height: 100%;
 
   .card {
-    transition-property: width, height;
+    transition-property: transform;
     transition-duration: 0.1s;
 
-    &:not(:hover) #name_panel {
-      vertical-align: top;
+    &.spell {
+      flow-children: down;
+
+      #card_art {
+        height: 55%;
+        horizontal-align: center;
+        background-image: url("s2r://panorama/images/profile_badges/bg_01_psd.vtex");
+        background-size: 100% 100%;
+      }
+
+      #card_text {
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 127, 162, 0.53);
+        box-shadow: #151515 0 0 16px 0;
+        padding: 0 8px;
+
+        Label {
+          text-align: center;
+          align: center center;
+          color: white;
+          font-family: @font-regular;
+          font-size: 18px;
+          text-shadow: 0px 0px 2px 2.0 #333333ff;
+        }
+      }
     }
 
-    &:not(.in_hand) {
-      z-index: 10;
-    }
+    &.hero {
+      #card_art {
+        width: 100%;
+        height: 100%;
 
-    #card_art {
-      width: 100%;
-      height: 100%;
+      }
+
+      #name_panel {
+        background-color: rgba(132, 164, 190, 0.8);
+      }
     }
 
     #name_panel {
       width: 100%;
-      height: 30px;
-      background-color: #d3fffd88;
-      vertical-align: bottom;
-      margin-bottom: 40px;
-      box-shadow: rgba(173, 214, 212, 0.33) 0 0 8px 0;
+      height: 36px;
+      background-color: rgba(0, 127, 162, 0.53);
+      background-image: url("s2r://panorama/images/backgrounds/background_play_button_2x_png.vtex");
+      background-size: 100% 100%;
+      vertical-align: top;
+      //margin-bottom: 40px;
+      box-shadow: #151515 0 0 16px 0;
 
       Label {
         font-size: 24px;
@@ -36,6 +65,7 @@
         text-shadow: 0px 0px 2px 2.0 #333333ff;
         padding-left: 8px;
         width: 100%;
+        vertical-align: center;
       }
     }
 
@@ -76,22 +106,8 @@
       #move_points.stat_container #icon { background-image: @icon-move-points; }
     }
 
-    &.in_hand {
-      transition-property: position;
-      transition-duration: 0.08s;
-      transition-timing-function: cubic-bezier(0.785, 0.385, 0.555, 1.3);
-    }
-
-    &.in_preview {
-      transition-property: position;
-      transition-duration: 0.1s;
-      box-shadow: #76eedd 0 0 8px 0;
-      border: 1px solid #76eedd;
-    }
-
-    &.in_preview_size {
-      width: 200px;
-      height: 300px;
+    &.targeting_something {
+      transform: translateY(-30px);
     }
 
     &.disappearing {
@@ -108,13 +124,23 @@
     width: 150px;
     height: 225px;
     border: 1px solid black;
-    background-color: gray;
+    background-image: url("s2r://panorama/images/backgrounds/dashboard_vignette_png.vtex");
+    background-size: 100% 100%;
+    background-color: #588080;
     box-shadow: #151515 0 0 8px 0;
     border-radius: 2px;
 
-    &:hover {
+    &:not(:hover) {
+      transition-property: transform, position;
+      transition-duration: 0.15s;
+      transition-timing-function: ease-out;
+    }
+
+    &:hover, &.in_preview {
       box-shadow: #76eedd 0 0 8px 0;
       border: 1px solid #76eedd;
+      width: 200px;
+      height: 300px;
       z-index: 10;
     }
   }

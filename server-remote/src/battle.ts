@@ -1573,5 +1573,11 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
 
             break;
         }
+
+        case "heroes": {
+            submit_battle_deltas(battle, enum_values<Hero_Type>().map(type => draw_hero_card(battle, battle_player, type)));
+
+            break;
+        }
     }
 }

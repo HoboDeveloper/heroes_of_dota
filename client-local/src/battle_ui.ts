@@ -40,8 +40,7 @@ type Card_Selection = {
 
     previous_selection: Selection_State
     card_panel: Card_Panel
-    offset: XY
-    returning_to_cursor: boolean
+    targeting_fx: ParticleId
 }
 
 type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection | Card_Selection;
@@ -424,7 +423,7 @@ function cheat(cheat: string) {
 }
 
 function take_battle_action(action: Turn_Action, success_callback?: () => void) {
-    $.Msg("Take action ", action);
+    // $.Msg("Take action ", action);
 
     const request = {
         access_token: get_access_token(),
@@ -1581,9 +1580,36 @@ function clear_hand_state() {
 
 function drop_card_selection() {
     if (selection.type == Selection_Type.card) {
+        Particles.DestroyParticleEffect(selection.targeting_fx, false);
+        Particles.ReleaseParticleIndex(selection.targeting_fx);
+
+        selection.card_panel.panel.SetHasClass("in_preview", false);
+        selection.card_panel.panel.SetHasClass("targeting_something", false);
+
         selection = selection.previous_selection;
 
         update_grid_visuals();
+    }
+}
+
+function get_spell_card_art(spell_id: Spell_Id): string {
+    switch (spell_id) {
+        case Spell_Id.euls_scepter: return "profile_badges/level_71.png";
+        case Spell_Id.mekansm: return "profile_badges/level_45.png";
+    }
+}
+
+function get_spell_name(spell_id: Spell_Id): string {
+    switch (spell_id) {
+        case Spell_Id.euls_scepter: return "Eul's Scepter";
+        case Spell_Id.mekansm: return "Mekansm";
+    }
+}
+
+function get_spell_text(spell: Card_Spell): string {
+    switch (spell.spell_id) {
+        case Spell_Id.euls_scepter: return `Make target untargetable until next turn`;
+        case Spell_Id.mekansm: return `Restore ${spell.heal} health to all allies and give them ${spell.armor} armor for ${spell.duration} turns`
     }
 }
 
@@ -1885,6 +1911,7 @@ function before_unit_selection_change() {
 
 
 function drop_selection() {
+    drop_card_selection();
     before_unit_selection_change();
 
     if (selection.type == Selection_Type.shop) {
@@ -2458,6 +2485,8 @@ function create_card_ui(root: Panel, card: Card) {
 
     switch (card.type) {
         case Card_Type.hero: {
+            container.AddClass("hero");
+
             const definition = unit_definition_by_type(card.hero_type);
 
             const art = $.CreatePanel("Image", container, "card_art");
@@ -2479,9 +2508,20 @@ function create_card_ui(root: Panel, card: Card) {
         }
 
         case Card_Type.spell: {
+            container.AddClass("spell");
+
             const name_panel = $.CreatePanel("Panel", container, "name_panel");
             const spell_name = $.CreatePanel("Label", name_panel, "");
-            spell_name.text = enum_to_string(card.spell_id);
+            spell_name.text = get_spell_name(card.spell_id);
+
+            const art = $.CreatePanel("Image", container, "card_art");
+            art.SetScaling(ScalingFunction.STRETCH_TO_FIT_X_PRESERVE_ASPECT);
+            art.SetImage(`file://{images}/${get_spell_card_art(card.spell_id)}`);
+
+            const text_container = $.CreatePanel("Panel", container, "card_text");
+            const text = $.CreatePanel("Label", text_container, "");
+
+            text.text = get_spell_text(card);
 
             break;
         }
@@ -2503,8 +2543,6 @@ function add_card_panel(card: Card) {
         card: card,
         hovered: false
     };
-
-    ui.SetHasClass("in_hand", true);
 
     ui.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
         card_panel.hovered = true;
@@ -2551,15 +2589,8 @@ function update_hovered_cell() {
 }
 
 function update_hand() {
-    // TODO cancel current state (ability hovering etc)
-    // TODO particle from card to world
-    // TODO fix name panel jumping (needs to only be applied for hover in hand)
-
-    const ratio = 1080 / Game.GetScreenHeight();
     const cursor = GameUI.GetCursorPosition();
     const [ cursor_x, cursor_y ] = cursor;
-    const cursor_ui_x = cursor_x * ratio;
-    const cursor_ui_y = cursor_y * ratio;
 
     const base_x = 400;
     const base_y = 957;
@@ -2614,12 +2645,6 @@ function update_hand() {
     }
 
     if (selection.type == Selection_Type.card && !GameUI.IsMouseDown(0)) {
-        const panel = selection.card_panel.panel;
-
-        panel.SetHasClass("in_hand", true);
-        panel.SetHasClass("in_preview", false);
-        panel.SetHasClass("in_preview_size", false);
-
         if (hovered_cell) {
             const card = selection.card_panel.card;
             const action = card_to_action(card, hovered_cell);
@@ -2658,20 +2683,18 @@ function update_hand() {
             continue;
         }
 
-        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 100 : base_y ;
+        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 180 : base_y ;
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
-        card.panel.SetHasClass("hovered", card.hovered);
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             selection = {
                 type: Selection_Type.card,
                 previous_selection: selection,
                 card_panel: card,
-                offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
-                returning_to_cursor: false,
+                targeting_fx: Particles.CreateParticle("particles/units/heroes/hero_puck/puck_dreamcoil_tether.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0)
             };
 
-            card.panel.SetHasClass("in_hand", false);
+            card.panel.SetHasClass("in_preview", true);
         }
 
         index++;
@@ -2680,45 +2703,14 @@ function update_hand() {
     if (selection.type == Selection_Type.card) {
         const panel = selection.card_panel.panel;
 
-        if (hovered_cell) {
-            const width_ratio = 1920 / Game.GetScreenWidth();
+        const position = panel.GetPositionWithinWindow();
+        const card_position = GameUI.GetScreenWorldPosition([position.x + panel.actuallayoutwidth / 2, position.y  + panel.actuallayoutheight / 2]);
+        const cursor_world = GameUI.GetScreenWorldPosition([cursor_x, cursor_y]);
 
-            panel.SetHasClass("in_preview", true);
-            panel.SetHasClass("in_preview_size", true);
-            panel.style.position = `${1600 / width_ratio}px ${300 / ratio}px 0`;
-        } else {
-            if (panel.BHasClass("in_preview")) {
-                selection.returning_to_cursor = true;
-                panel.SetHasClass("in_preview", false);
-                panel.SetHasClass("in_preview_size", false);
-            }
+        Particles.SetParticleControl(selection.targeting_fx, 0, cursor_world);
+        Particles.SetParticleControl(selection.targeting_fx, 1, [card_position[0], card_position[1], card_position[2] + 100]);
 
-            if (selection.returning_to_cursor) {
-                const pos_x = panel.actualxoffset;
-                const pos_y = panel.actualyoffset;
-                const dir_x = (cursor_x + selection.offset.x) - pos_x;
-                const dir_y = (cursor_y + selection.offset.y) - pos_y;
-                const length = Math.sqrt(dir_x * dir_x + dir_y * dir_y);
-
-                if (length >= 10) {
-                    const normal_x = dir_x / length;
-                    const normal_y = dir_y / length;
-
-                    const move_by = length / 6;
-
-                    const new_x = (pos_x + normal_x * move_by) * ratio;
-                    const new_y = (pos_y + normal_y * move_by) * ratio;
-
-                    panel.style.position = `${new_x}px ${new_y}px 0`;
-                } else {
-                    selection.returning_to_cursor = false;
-                }
-            } else {
-                panel.style.position = `${cursor_ui_x + selection.offset.x * ratio}px ${cursor_ui_y + selection.offset.y * ratio}px 0`;
-                panel.SetHasClass("in_preview", false);
-                panel.SetHasClass("in_preview_size", false);
-            }
-        }
+        panel.SetHasClass("targeting_something", !!hovered_cell);
     }
 }
 
