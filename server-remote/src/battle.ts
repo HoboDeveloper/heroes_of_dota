@@ -2,6 +2,7 @@ import {Player, report_battle_over} from "./server";
 import {readFileSync} from "fs";
 import {submit_chat_message} from "./chat";
 import {Battleground, Spawn_Type} from "./battleground";
+import {XY} from "./common";
 
 eval(readFileSync("dist/battle_sim.js", "utf8"));
 
@@ -1265,6 +1266,19 @@ function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     }
 }
 
+// Hacky, can cause problems
+export function random_unoccupied_point_in_deployment_zone(battle: Battle_Record, zone: Deployment_Zone): XY {
+    while (true) {
+        const x = random_int_range(zone.min_x, zone.max_x);
+        const y = random_int_range(zone.min_y, zone.max_y);
+        const cell = grid_cell_at_raw(battle, x, y);
+
+        if (cell && !cell.occupied) {
+            return cell.position;
+        }
+    }
+}
+
 export function get_battle_deltas_after(battle: Battle, head: number): Delta[] {
     return battle.deltas.slice(head);
 }
@@ -1312,33 +1326,27 @@ export function start_battle(players: Player[], battleground: Battleground): num
         Spell_Id.mekansm
     ];
 
-    const hero_collection = [
-        Hero_Type.dragon_knight,
-        Hero_Type.pudge,
-        Hero_Type.tidehunter,
-        Hero_Type.luna,
-        Hero_Type.skywrath_mage,
-        Hero_Type.lion
-    ];
-
     const spawn_deltas: Delta[] = [];
 
     for (const player of battle.players) {
         spawn_deltas.push(get_starting_gold(player));
-    }
 
-    for (const spell_id of spell_collection) {
-        spawn_deltas.push(
-            draw_spell_card(battle, battle.players[0], spell_id),
-            draw_spell_card(battle, battle.players[1], spell_id),
-        );
-    }
+        for (const spell_id of spell_collection) {
+            spawn_deltas.push(draw_spell_card(battle, player, spell_id));
+        }
 
-    for (const hero_type of hero_collection) {
-        spawn_deltas.push(
-            draw_hero_card(battle, battle.players[0], hero_type),
-            draw_hero_card(battle, battle.players[1], hero_type)
-        );
+        const hero_collection = enum_values<Hero_Type>().filter(id => id != Hero_Type.sniper && id != Hero_Type.ursa);
+
+        for (let index = 3; index > 0; index--) {
+            const index = random_int_up_to(hero_collection.length);
+            const hero_type = hero_collection.splice(index, 1)[0];
+
+            defer_delta(battle, () => {
+                const spawn_at = random_unoccupied_point_in_deployment_zone(battle, player.deployment_zone);
+
+                return spawn_hero(battle, player, spawn_at, hero_type);
+            });
+        }
     }
 
     for (const spawn of battleground.spawns) {
@@ -1392,9 +1400,7 @@ export function start_battle(players: Player[], battleground: Battleground): num
         }
     }
 
-    battle.deltas.push(...spawn_deltas);
-
-    catch_up_to_head(battle);
+    submit_battle_deltas(battle, spawn_deltas);
 
     battles.push(battle);
 

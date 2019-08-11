@@ -424,6 +424,12 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
     }
 }
 
+function cheat(cheat: string) {
+    GameEvents.SendCustomGameEventToServer("cheat", <Battle_Cheat_Event> {
+        message: cheat
+    });
+}
+
 function take_battle_action(action: Turn_Action, success_callback?: () => void) {
     $.Msg("Take action ", action);
 
@@ -2237,6 +2243,18 @@ function setup_mouse_filter() {
                 const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
                 Particles.SetParticleControl(particle, 0, world_position);
                 Particles.ReleaseParticleIndex(particle);
+            }
+
+            if (button == MouseButton.LEFT && selection.type == Selection_Type.none) {
+                if (Game.IsInToolsMode()) {
+                    if (GameUI.IsShiftDown()) {
+                        cheat(`tree ${battle_position.x} ${battle_position.y}`);
+                    } else if (GameUI.IsAltDown()) {
+                        cheat(`rune ${battle_position.x} ${battle_position.y}`);
+                    } else if (GameUI.IsControlDown()) {
+                        cheat(`shop ${battle_position.x} ${battle_position.y}`);
+                    }
+                }
             }
 
             if (selection.type == Selection_Type.ability) {

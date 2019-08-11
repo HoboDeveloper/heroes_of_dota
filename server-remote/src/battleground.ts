@@ -74,6 +74,7 @@ export function forest(): Battleground {
     const deployment_zone_width = 3;
 
     const up = xy(0, 1);
+    const down = xy(0, -1);
     const left = xy(-1, 0);
 
     return {
@@ -81,27 +82,40 @@ export function forest(): Battleground {
         deployment_zones: [
             {
                 min_x: 0,
-                min_y: 3,
+                min_y: 5,
                 max_x: deployment_zone_width,
-                max_y: grid_size.y - 3,
+                max_y: grid_size.y - 1,
                 face_x: 1,
                 face_y: 0
             },
             {
                 min_x: grid_size.x - deployment_zone_width,
-                min_y: 3,
+                min_y: 1,
                 max_x: grid_size.x,
-                max_y: grid_size.y - 3,
+                max_y: grid_size.y - 5,
                 face_x: -1,
                 face_y: 0
             }
         ],
         spawns: [
-            rune(6, 6),
+            tree(0, 2),
+            tree(2, 2),
+            tree(3, 0),
+            tree(8, 1),
+            tree(1, 2),
+            tree(0, 1),
+            tree(1, 0),
+            tree(0, 0),
+            tree(10, 6),
+            tree(11, 6),
+            tree(12, 7),
+            tree(4, 3),
+            tree(4, 9),
+            tree(4, 8),
             shop(6, 1, up),
-            creep(6, 3, left),
-            tree(1, 1),
-            tree(3, 3)
+            shop(6, 8, down),
+            creep(10, 8, left),
+            rune(1, 1),
         ]
     }
 }

@@ -53,23 +53,27 @@ function hack_into_game_chat() {
         chat_input.SetPanelEvent(PanelEvent.ON_INPUT_SUBMIT, function() {
             const text = chat_input.text;
 
-            if (text.length > 0 && text.charAt(0) == "-") {
-                if (text == "-ping") {
-                    Game.ServerCmd("dota_ping");
-                } else {
-                    const unit = selection.type == Selection_Type.unit ? selection.unit : undefined;
+            if (text.length > 0) {
+                if (text.charAt(0) == "-") {
+                    if (text == "-ping") {
+                        Game.ServerCmd("dota_ping");
+                    } else {
+                        const unit = selection.type == Selection_Type.unit ? selection.unit : undefined;
 
-                    remote_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
+                        remote_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
+                            access_token: get_access_token(),
+                            cheat: text.substring(1),
+                            selected_unit_id: unit ? unit.id : -1
+                        }, response => response);
+                    }
+                } else if (text.charAt(0) == "/") {
+                    cheat(text.substring(1));
+                } else {
+                    remote_request<Submit_Chat_Message_Request, Submit_Chat_Message_Response>("/submit_chat_message", {
                         access_token: get_access_token(),
-                        cheat: text.substring(1),
-                        selected_unit_id: unit ? unit.id : -1
-                    }, response => response);
+                        message: text
+                    }, response => add_new_chat_messages(response.messages));
                 }
-            } else if (text.length > 0) {
-                remote_request<Submit_Chat_Message_Request, Submit_Chat_Message_Response>("/submit_chat_message", {
-                    access_token: get_access_token(),
-                    message: text
-                }, response => add_new_chat_messages(response.messages));
             }
 
             chat_input.text = "";

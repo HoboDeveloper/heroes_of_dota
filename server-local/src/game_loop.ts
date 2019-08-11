@@ -395,6 +395,12 @@ function game_loop() {
         });
     });
 
+    if (IsInToolsMode()) {
+        on_custom_event_async<Battle_Cheat_Event>("cheat", event => {
+            use_cheat(event.message);
+        });
+    }
+
     fork(() => submit_and_query_movement_loop(main_player, players));
     fork(() => {
         while(true) {

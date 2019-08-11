@@ -3,7 +3,7 @@ import {randomBytes} from "crypto"
 import {
     Battle_Record, cheat,
     find_battle_by_id, get_all_battles,
-    get_battle_deltas_after, random_in_array, random_int_range,
+    get_battle_deltas_after, random_in_array, random_unoccupied_point_in_deployment_zone,
     start_battle,
     try_take_turn_action
 } from "./battle";
@@ -346,19 +346,7 @@ function take_ai_action(battle: Battle_Record, ai: Battle_Player) {
         const random_hero_card = random_in_array(ai.hand.filter(card => card.type == Card_Type.hero));
 
         if (random_hero_card) {
-            let random_unoccupied_position: XY;
-
-            while (true) {
-                const x = random_int_range(ai.deployment_zone.min_x, ai.deployment_zone.max_x);
-                const y = random_int_range(ai.deployment_zone.min_y, ai.deployment_zone.max_y);
-                const cell = grid_cell_at_raw(battle, x, y);
-
-                if (cell && !cell.occupied) {
-                    random_unoccupied_position = cell.position;
-
-                    break;
-                }
-            }
+            const random_unoccupied_position: XY = random_unoccupied_point_in_deployment_zone(battle, ai.deployment_zone);
 
             act({
                 type: Action_Type.use_hero_card,

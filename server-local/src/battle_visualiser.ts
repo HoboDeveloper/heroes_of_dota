@@ -53,6 +53,7 @@ type Battle_Unit = Battle_Hero | Battle_Creep
 type Tree = {
     id: number
     handle: CBaseEntity
+    position: XY
 }
 
 type Rune = {
@@ -68,6 +69,7 @@ type Rune = {
 type Shop = {
     id: number
     handle: CDOTA_BaseNPC
+    position: XY
 }
 
 const enum Shake {
@@ -1800,7 +1802,9 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
 
             fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
 
-            wait(0.25);
+            update_player_state_net_table(main_player);
+
+            wait(1.5);
 
             break;
         }
@@ -1834,7 +1838,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
         case Delta_Type.shop_spawn: {
             battle.shops.push({
                 id: delta.shop_id,
-                handle: create_world_handle_for_shop(delta.at, delta.facing)
+                handle: create_world_handle_for_shop(delta.at, delta.facing),
+                position: delta.at
             });
 
             break;
@@ -1843,7 +1848,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
         case Delta_Type.tree_spawn: {
             battle.trees.push({
                 id: delta.tree_id,
-                handle: create_world_handle_for_tree(delta.tree_id, delta.at_position)
+                handle: create_world_handle_for_tree(delta.tree_id, delta.at_position),
+                position: delta.at_position
             });
 
             break;
@@ -2077,6 +2083,109 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
     }
 }
 
+function use_cheat(cheat: string) {
+    const parts = cheat.split(" ");
+
+    function create_or_destroy<T extends { position: XY, handle: CBaseEntity }>(things: T[], at: XY, supplier: () => T) {
+        const at_index = array_find_index(things, thing => thing.position.x == at.x && thing.position.y == at.y);
+
+        if (at_index != -1) {
+            things[at_index].handle.RemoveSelf();
+            things.splice(at_index, 1);
+        } else {
+            things.push(supplier());
+        }
+    }
+
+    switch (parts[0]) {
+        case "tree": {
+            const at = {
+                x: tonumber(parts[1]),
+                y: tonumber(parts[2])
+            };
+
+            create_or_destroy(battle.trees, at, () => {
+                const tree: Tree = {
+                    id: 0,
+                    handle: create_world_handle_for_tree(RandomInt(0, 420), at),
+                    position: at
+                };
+
+                return tree;
+            });
+
+            break;
+        }
+
+        case "rune": {
+            const at = {
+                x: tonumber(parts[1]),
+                y: tonumber(parts[2])
+            };
+
+            create_or_destroy(battle.runes, at, () => {
+                const rune: Rune = {
+                    id: 0,
+                    type: Rune_Type.double_damage,
+                    handle: create_world_handle_for_rune(Rune_Type.double_damage, at),
+                    position: at,
+                    highlight_fx: fx(""),
+                    rune_fx: fx("")
+                };
+
+                return rune;
+            });
+
+            break;
+        }
+
+        case "shop": {
+            const at = {
+                x: tonumber(parts[1]),
+                y: tonumber(parts[2])
+            };
+
+            create_or_destroy(battle.shops, at, () => {
+                const shop: Shop = {
+                    id: 0,
+                    handle: create_world_handle_for_shop(at, { x: 0, y: 1 }),
+                    position: at,
+                };
+
+                return shop;
+            });
+
+            break;
+        }
+
+        case "dump": {
+            let result = "";
+
+            for (const tree of battle.trees) {
+                result += `tree(${tree.position.x}, ${tree.position.y}),\n`;
+            }
+
+            for (const shop of battle.shops) {
+                result += `shop(${shop.position.x}, ${shop.position.y}, up),\n`;
+            }
+
+            for (const rune of battle.runes) {
+                result += `rune(${rune.position.x}, ${rune.position.y}),\n`;
+            }
+
+            for (const creep of battle.units) {
+                if (creep.supertype == Unit_Supertype.creep) {
+                    result += `creep(${creep.position.x}, ${creep.position.y}, up),\n`;
+                }
+            }
+
+            print(result);
+
+            break;
+        }
+    }
+}
+
 function periodically_update_battle() {
     for (const rune of battle.runes) {
         // Double damage rune doesn't spin by itself because Valve
@@ -2201,12 +2310,14 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
 
     battle.shops = snapshot.shops.map(shop => ({
         id: shop.id,
-        handle: create_world_handle_for_shop(shop.position, shop.facing)
+        handle: create_world_handle_for_shop(shop.position, shop.facing),
+        position: shop.position
     }));
 
     battle.trees = snapshot.trees.map(tree => ({
         id: tree.id,
-        handle: create_world_handle_for_tree(tree.id, tree.position)
+        handle: create_world_handle_for_tree(tree.id, tree.position),
+        position: tree.position
     }));
 
     battle.delta_head = snapshot.delta_head;

@@ -72,6 +72,10 @@ type Debug_Chat_Message_Event = {
     message: string
 }
 
+type Battle_Cheat_Event = {
+    message: string
+}
+
 type Fast_Forward_Event = Battle_Snapshot
 
 type Grid_Highlight_Targeted_Ability_Event = {
