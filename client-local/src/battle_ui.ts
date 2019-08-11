@@ -40,17 +40,11 @@ type Card_Selection = {
 
     previous_selection: Selection_State
     card_panel: Card_Panel
-    // offset: XY
-    // returning_to_cursor: boolean
+    offset: XY
+    returning_to_cursor: boolean
 }
 
 type Selection_State = No_Selection | Unit_Selection | Ability_Selection | Shop_Selection | Card_Selection;
-
-type Held_Card = {
-    card_panel: Card_Panel;
-    offset: XY;
-    returning_to_cursor: boolean;
-}
 
 type UI_Player_Data = {
     id: number
@@ -154,7 +148,6 @@ let current_state = Player_State.not_logged_in;
 let battle: UI_Battle;
 let current_hovered_ability: Ability_Id | undefined;
 let hovered_cell: XY | undefined;
-let held_card: Held_Card | undefined = undefined;
 let ui_player_data: UI_Player_Data[] = [];
 
 let selection: Selection_State = {
@@ -1037,8 +1030,10 @@ function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, 
             [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
         }
 
-        if (is_point_in_deployment_zone(battle.this_player, cell.position)) {
-            cell_index_to_zone_highlight[index] = true;
+        if (selection.card.type == Card_Type.hero) {
+            if (is_point_in_deployment_zone(battle.this_player, cell.position)) {
+                cell_index_to_zone_highlight[index] = true;
+            }
         }
 
         color_cell(cell, cell_color, alpha);
@@ -1108,7 +1103,7 @@ function update_grid_visuals() {
         const index = grid_cell_index(battle, cell.position);
 
         if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
-            if (held_card) {
+            if (selection.type == Selection_Type.card) {
                 cell_index_to_highlight[index] = true;
             } else {
                 color_cell(cell, color_green, 140);
@@ -1581,12 +1576,10 @@ function clear_hand_state() {
     $("#hand_ui").RemoveAndDeleteChildren();
     hand.length = 0;
 
-    clear_held_card();
+    drop_card_selection();
 }
 
-function clear_held_card() {
-    held_card = undefined;
-
+function drop_card_selection() {
     if (selection.type == Selection_Type.card) {
         selection = selection.previous_selection;
 
@@ -2620,15 +2613,15 @@ function update_hand() {
         }
     }
 
-    if (held_card && !GameUI.IsMouseDown(0)) {
-        const panel = held_card.card_panel.panel;
+    if (selection.type == Selection_Type.card && !GameUI.IsMouseDown(0)) {
+        const panel = selection.card_panel.panel;
 
         panel.SetHasClass("in_hand", true);
         panel.SetHasClass("in_preview", false);
         panel.SetHasClass("in_preview_size", false);
 
         if (hovered_cell) {
-            const card = held_card.card_panel.card;
+            const card = selection.card_panel.card;
             const action = card_to_action(card, hovered_cell);
 
             if (action) {
@@ -2637,8 +2630,8 @@ function update_hand() {
                         if (hand[index].card.id == card.id) {
                             const card_panel = hand[index];
 
-                            if (held_card && held_card.card_panel == card_panel) {
-                                clear_held_card();
+                            if (selection.type == Selection_Type.card && selection.card_panel == card_panel) {
+                                drop_card_selection();
                             }
 
                             hand.splice(index, 1);
@@ -2655,28 +2648,24 @@ function update_hand() {
 
             // TODO failure callback
         } else {
-            clear_held_card();
+            drop_card_selection();
         }
     }
 
     for (const card of hand) {
-        if (held_card && card == held_card.card_panel) {
+        if (selection.type == Selection_Type.card && card == selection.card_panel) {
             index++;
             continue;
         }
 
-        const y = (!held_card && card.hovered) ? base_y - 100 : base_y ;
+        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 100 : base_y ;
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
         card.panel.SetHasClass("hovered", card.hovered);
 
-        if (!held_card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
+        if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             selection = {
                 type: Selection_Type.card,
                 previous_selection: selection,
-                card_panel: card
-            };
-
-            held_card = {
                 card_panel: card,
                 offset: xy(card.panel.actualxoffset - cursor_x, card.panel.actualyoffset - cursor_y),
                 returning_to_cursor: false,
@@ -2688,8 +2677,8 @@ function update_hand() {
         index++;
     }
 
-    if (held_card) {
-        const panel = held_card.card_panel.panel;
+    if (selection.type == Selection_Type.card) {
+        const panel = selection.card_panel.panel;
 
         if (hovered_cell) {
             const width_ratio = 1920 / Game.GetScreenWidth();
@@ -2699,16 +2688,16 @@ function update_hand() {
             panel.style.position = `${1600 / width_ratio}px ${300 / ratio}px 0`;
         } else {
             if (panel.BHasClass("in_preview")) {
-                held_card.returning_to_cursor = true;
+                selection.returning_to_cursor = true;
                 panel.SetHasClass("in_preview", false);
                 panel.SetHasClass("in_preview_size", false);
             }
 
-            if (held_card.returning_to_cursor) {
+            if (selection.returning_to_cursor) {
                 const pos_x = panel.actualxoffset;
                 const pos_y = panel.actualyoffset;
-                const dir_x = (cursor_x + held_card.offset.x) - pos_x;
-                const dir_y = (cursor_y + held_card.offset.y) - pos_y;
+                const dir_x = (cursor_x + selection.offset.x) - pos_x;
+                const dir_y = (cursor_y + selection.offset.y) - pos_y;
                 const length = Math.sqrt(dir_x * dir_x + dir_y * dir_y);
 
                 if (length >= 10) {
@@ -2722,10 +2711,10 @@ function update_hand() {
 
                     panel.style.position = `${new_x}px ${new_y}px 0`;
                 } else {
-                    held_card.returning_to_cursor = false;
+                    selection.returning_to_cursor = false;
                 }
             } else {
-                panel.style.position = `${cursor_ui_x + held_card.offset.x * ratio}px ${cursor_ui_y + held_card.offset.y * ratio}px 0`;
+                panel.style.position = `${cursor_ui_x + selection.offset.x * ratio}px ${cursor_ui_y + selection.offset.y * ratio}px 0`;
                 panel.SetHasClass("in_preview", false);
                 panel.SetHasClass("in_preview_size", false);
             }
