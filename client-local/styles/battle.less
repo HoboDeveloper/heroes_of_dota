@@ -486,8 +486,18 @@
       }
     }
 
+    &:not(.enemy) {
+      box-shadow: rgb(17, 162, 0) 0px 0px 4px 0;
+      border: 1px solid rgb(16, 120, 0);
+    }
+
+    &.enemy {
+      box-shadow: #aa0000aa 0px 0px 4px 0;
+      border: 1px solid rgba(126, 0, 0, 0.67);
+    }
+
     &.enemy:not(.show_additional_stats) #health_container #health_label {
-      text-shadow: 0px 0px 2px 2.0 #aa0000aa;
+      //text-shadow: 0px 0px 2px 2.0 #aa0000aa;
     }
 
     #health_container {
