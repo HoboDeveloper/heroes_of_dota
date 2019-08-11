@@ -1093,6 +1093,11 @@ function collapse_item_equip(battle: Battle, hero: Hero, delta: Delta_Equip_Item
             break
         }
 
+        case Item_Id.mask_of_madness: {
+            apply_modifier(battle, source, hero, delta.modifier);
+            break
+        }
+
         default: unreachable(delta);
     }
 }

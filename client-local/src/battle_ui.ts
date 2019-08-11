@@ -1153,6 +1153,7 @@ function get_item_icon_name(id: Item_Id): string {
         case Item_Id.divine_rapier: return "rapier";
         case Item_Id.boots_of_travel: return "travel_boots";
         case Item_Id.refresher_shard: return "refresher_shard";
+        case Item_Id.mask_of_madness: return "mask_of_madness";
     }
 }
 
@@ -1602,6 +1603,7 @@ function get_item_tooltip(i: Item): string {
         case Item_Id.refresher_shard: return `Restore charges of all abilities once`;
         case Item_Id.satanic: return `Restore health per damage point dealt by basic attack`;
         case Item_Id.tome_of_knowledge: return `Gain a level`;
+        case Item_Id.mask_of_madness: return `+${i.damage_bonus} damage, but silence yourself`;
     }
 }
 

@@ -38,6 +38,12 @@ function item_id_to_item(item_id: Item_Id): Item {
             id: item_id,
             move_points_bonus: 3,
             gold_cost: 8
-        }
+        };
+
+        case Item_Id.mask_of_madness: return {
+            id: item_id,
+            damage_bonus: 4,
+            gold_cost: 6
+        };
     }
 }

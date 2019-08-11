@@ -660,6 +660,18 @@ function equip_item(battle: Battle_Record, hero: Hero, item: Item): Delta_Equip_
                 modifier: new_modifier(battle, Modifier_Id.item_satanic)
             }
         }
+
+        case Item_Id.mask_of_madness: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: hero.id,
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_mask_of_madness,
+                    [Modifier_Field.state_silenced_counter, 1],
+                    [Modifier_Field.attack_bonus, item.damage_bonus]
+                )
+            }
+        }
     }
 }
 
