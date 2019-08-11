@@ -165,6 +165,18 @@ const control_panel: Control_Panel = {
 const battle_cell_size = 144;
 const hand: Card_Panel[] = [];
 
+function set_selection(new_selection: Selection_State) {
+    if (selection.type == Selection_Type.card) {
+        Particles.DestroyParticleEffect(selection.targeting_fx, false);
+        Particles.ReleaseParticleIndex(selection.targeting_fx);
+
+        selection.card_panel.panel.SetHasClass("in_preview", false);
+        selection.card_panel.panel.SetHasClass("targeting_something", false);
+    }
+
+    selection = new_selection;
+}
+
 function is_unit_selection(selection: Selection_State): selection is (Unit_Selection | Shop_Selection | Ability_Selection) {
     return selection.type == Selection_Type.unit || selection.type == Selection_Type.shop || selection.type == Selection_Type.ability;
 }
@@ -508,9 +520,9 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             change_health: change_health_default
         };
 
-        selection = {
+        set_selection({
             type: Selection_Type.none
-        };
+        });
 
         ui_shop_data = [];
 
@@ -1580,13 +1592,7 @@ function clear_hand_state() {
 
 function drop_card_selection() {
     if (selection.type == Selection_Type.card) {
-        Particles.DestroyParticleEffect(selection.targeting_fx, false);
-        Particles.ReleaseParticleIndex(selection.targeting_fx);
-
-        selection.card_panel.panel.SetHasClass("in_preview", false);
-        selection.card_panel.panel.SetHasClass("targeting_something", false);
-
-        selection = selection.previous_selection;
+        set_selection(selection.previous_selection);
 
         update_grid_visuals();
     }
@@ -1876,12 +1882,12 @@ function select_unit_ability(unit: Unit, ability: Ability) {
 
     safely_set_panel_background_image(current_targeted_ability_ui.FindChild("image"), get_full_ability_icon_path(ability.id));
 
-    selection = {
+    set_selection({
         type: Selection_Type.ability,
         unit: unit,
         unit_entity: entity_data[0],
         ability: ability
-    };
+    });
 
     update_grid_visuals();
 }
@@ -1911,19 +1917,18 @@ function before_unit_selection_change() {
 
 
 function drop_selection() {
-    drop_card_selection();
     before_unit_selection_change();
 
     if (selection.type == Selection_Type.shop) {
-        selection = {
+        set_selection({
             type: Selection_Type.unit,
             unit: selection.unit,
             unit_entity: selection.unit_entity
-        }
+        });
     } else {
-        selection = {
+        set_selection({
             type: Selection_Type.none
-        }
+        });
     }
 }
 
@@ -1946,11 +1951,11 @@ function select_unit(new_entity_id: EntityId, full_stats = false) {
 
     if (!unit) return;
 
-    selection = {
+    set_selection({
         type: Selection_Type.unit,
         unit: unit,
         unit_entity: new_entity_id
-    };
+    });
 
     unit_data.stat_bar_panel.AddClass("show_additional_stats");
     unit_data.stat_bar_panel.SetHasClass("show_full_stats", full_stats);
@@ -1983,14 +1988,14 @@ function select_shop(new_entity_id: EntityId) {
         shop_ui.root_container.AddClass("open");
         Game.EmitSound("Shop.Available");
 
-        selection = {
+        set_selection({
             type: Selection_Type.shop,
             unit: selection.unit,
             unit_entity: selection.unit_entity,
             shop: shop,
             shop_entity: new_entity_id,
             arrow_particle: shop_particle(selection.unit_entity)
-        };
+        });
     } else {
         const ally_units_in_shop_range = battle.units
             .filter(unit =>
@@ -2014,14 +2019,14 @@ function select_shop(new_entity_id: EntityId) {
 
             Game.EmitSound("Shop.Available");
 
-            selection = {
+            set_selection({
                 type: Selection_Type.shop,
                 unit: new_customer,
                 unit_entity: new_customer_data[0],
                 shop: shop,
                 shop_entity: new_entity_id,
                 arrow_particle: shop_particle(new_customer_data[0])
-            };
+            });
         }
     }
 }
@@ -2687,12 +2692,12 @@ function update_hand() {
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
-            selection = {
+            set_selection({
                 type: Selection_Type.card,
                 previous_selection: selection,
                 card_panel: card,
                 targeting_fx: Particles.CreateParticle("particles/units/heroes/hero_puck/puck_dreamcoil_tether.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0)
-            };
+            });
 
             card.panel.SetHasClass("in_preview", true);
         }
