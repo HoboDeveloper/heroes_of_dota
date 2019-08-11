@@ -1201,6 +1201,14 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
             }
         });
 
+        item_button.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+            $.DispatchEvent("DOTAShowTextTooltip", item_button, get_item_tooltip(item));
+        });
+
+        item_button.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
+            $.DispatchEvent("DOTAHideTextTooltip");
+        });
+
         item_cost.text = item.gold_cost.toString();
 
         item_button_map[item.id] = item_button;
@@ -1582,6 +1590,18 @@ function clear_held_card() {
         selection = selection.previous_selection;
 
         update_grid_visuals();
+    }
+}
+
+function get_item_tooltip(i: Item): string {
+    switch (i.id) {
+        case Item_Id.assault_cuirass: return `+${i.armor_bonus} armor`;
+        case Item_Id.boots_of_travel: return `+${i.move_points_bonus} move points`;
+        case Item_Id.divine_rapier: return `+${i.damage_bonus} attack damage`;
+        case Item_Id.heart_of_tarrasque: return `+${i.health_bonus}, restores ${i.regeneration_per_turn} at the end of each turn`;
+        case Item_Id.refresher_shard: return `Restore charges of all abilities once`;
+        case Item_Id.satanic: return `Restore health per damage point dealt by basic attack`;
+        case Item_Id.tome_of_knowledge: return `Gain a level`;
     }
 }
 
