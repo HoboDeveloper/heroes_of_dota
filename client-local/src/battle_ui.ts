@@ -168,6 +168,8 @@ const control_panel: Control_Panel = {
 const battle_cell_size = 144;
 const hand: Card_Panel[] = [];
 
+let card_error_shown_at = 0;
+
 function set_selection(new_selection: Selection_State) {
     if (selection.type == Selection_Type.card) {
         Particles.DestroyParticleEffect(selection.targeting_fx, false);
@@ -2775,14 +2777,21 @@ function update_hand() {
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
-            set_selection({
-                type: Selection_Type.card,
-                previous_selection: selection,
-                card_panel: card,
-                targeting_fx: Particles.CreateParticle("particles/units/heroes/hero_puck/puck_dreamcoil_tether.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0)
-            });
+            if (battle.this_player.has_used_a_card_this_turn) {
+                if (card_error_shown_at < Game.Time() - 0.5) {
+                    show_generic_error("Already used a card this turn");
+                    card_error_shown_at = Game.Time();
+                }
+            } else {
+                set_selection({
+                    type: Selection_Type.card,
+                    previous_selection: selection,
+                    card_panel: card,
+                    targeting_fx: Particles.CreateParticle("particles/units/heroes/hero_puck/puck_dreamcoil_tether.vpcf", ParticleAttachment_t.PATTACH_CUSTOMORIGIN, 0)
+                });
 
-            card.panel.SetHasClass("in_preview", true);
+                card.panel.SetHasClass("in_preview", true);
+            }
         }
 
         index++;
