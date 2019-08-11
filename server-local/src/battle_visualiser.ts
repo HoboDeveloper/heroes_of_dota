@@ -35,6 +35,7 @@ type Battle_Unit_Base = Unit_Stats & {
     handle: CDOTA_BaseNPC_Hero
     position: XY;
     modifiers: Modifier_Data[]
+    dead: boolean
 }
 
 type Battle_Hero = Battle_Unit_Base & {
@@ -287,7 +288,8 @@ function unit_base(unit_id: number, dota_unit_name: string, definition: Unit_Def
         state_out_of_the_game_counter: 0,
         move_points: definition.move_points,
         max_move_points: definition.move_points,
-        modifiers: []
+        modifiers: [],
+        dead: false
     };
 }
 
@@ -1685,11 +1687,11 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
         number_particle(-value_delta, 250, 70, 70);
     }
 
-    target.health = change.new_value;
+    target.health = Math.max(0, change.new_value);
 
     update_player_state_net_table(main_player);
 
-    if (change.new_value == 0) {
+    if (target.health == 0 && !target.dead) {
         if (source.supertype != Unit_Supertype.creep) {
             // TODO only show this when killing actual enemies
             fx("particles/generic_gameplay/lasthit_coins.vpcf").to_unit_origin(1, target).release();
@@ -1705,6 +1707,7 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
             }
         }
 
+        target.dead = true;
         target.handle.ForceKill(false);
     }
 }
@@ -2285,6 +2288,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
         const stats = unit as Unit_Stats;
         const base: Battle_Unit_Base = assign(stats, {
             id: unit.id,
+            dead: unit.health <= 0,
             position: unit.position,
             handle: create_world_handle_for_battle_unit(unit_snapshot_to_dota_unit_name(unit), unit.position, unit.facing),
             modifiers: from_client_array(unit.modifiers).map(modifier => ({
