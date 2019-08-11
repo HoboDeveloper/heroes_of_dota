@@ -1743,7 +1743,7 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
     }
 
     switch (modifier_id) {
-        case Modifier_Id.item_assault_cuirass: from_item(Item_Id.assault_cuirass);
+        case Modifier_Id.item_assault_cuirass: return from_item(Item_Id.assault_cuirass);
         case Modifier_Id.item_boots_of_travel: return from_item(Item_Id.boots_of_travel);
         case Modifier_Id.item_divine_rapier: return from_item(Item_Id.divine_rapier);
         case Modifier_Id.item_heart_of_tarrasque: return from_item(Item_Id.heart_of_tarrasque);
