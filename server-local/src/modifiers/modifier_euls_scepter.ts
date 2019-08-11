@@ -1,6 +1,12 @@
 class Modifier_Euls_Scepter extends CDOTA_Modifier_Lua {
     initial_forward: Vector;
 
+    DeclareFunctions(): modifierfunction[] {
+        return [
+            modifierfunction.MODIFIER_PROPERTY_OVERRIDE_ANIMATION
+        ]
+    }
+
     OnCreated(): void {
         if (IsServer()) {
             this.initial_forward = this.GetParent().GetForwardVector();
@@ -25,6 +31,10 @@ class Modifier_Euls_Scepter extends CDOTA_Modifier_Lua {
         if (IsServer()) {
             this.GetParent().SetForwardVector(this.initial_forward);
         }
+    }
+
+    GetOverrideAnimation(): GameActivity_t {
+        return GameActivity_t.ACT_DOTA_FLAIL;
     }
 
     GetEffectName(): string {
