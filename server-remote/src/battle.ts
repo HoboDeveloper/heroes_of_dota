@@ -684,7 +684,7 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
                     type: Delta_Type.health_change,
                     source_unit_id: source.id,
                     target_unit_id: source.id,
-                    ...health_change(source, Math.max(0, -damage)) // In case we have a healing attack, I guess
+                    ...health_change(source, Math.max(0, damage)) // In case we have a healing attack, I guess
                 };
             }
         });
@@ -1578,6 +1578,17 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
 
         case "heroes": {
             submit_battle_deltas(battle, enum_values<Hero_Type>().map(type => draw_hero_card(battle, battle_player, type)));
+
+            break;
+        }
+
+        case "item": {
+            const unit = find_unit_by_id(battle, selected_unit_id);
+
+            if (!unit) break;
+            if (unit.supertype != Unit_Supertype.hero) break;
+
+            submit_battle_deltas(battle, [ equip_item(battle, unit, item_id_to_item(parseInt(parts[1]))) ]);
 
             break;
         }
