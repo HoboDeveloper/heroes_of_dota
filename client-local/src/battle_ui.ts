@@ -1599,7 +1599,7 @@ function get_item_tooltip(i: Item): string {
         case Item_Id.assault_cuirass: return `+${i.armor_bonus} armor`;
         case Item_Id.boots_of_travel: return `+${i.move_points_bonus} move points`;
         case Item_Id.divine_rapier: return `+${i.damage_bonus} attack damage`;
-        case Item_Id.heart_of_tarrasque: return `+${i.health_bonus}, restores ${i.regeneration_per_turn} at the end of each turn`;
+        case Item_Id.heart_of_tarrasque: return `+${i.health_bonus} health, restores ${i.regeneration_per_turn} health at the end of each turn`;
         case Item_Id.refresher_shard: return `Restore charges of all abilities once`;
         case Item_Id.satanic: return `Restore health per damage point dealt by basic attack`;
         case Item_Id.tome_of_knowledge: return `Gain a level`;
