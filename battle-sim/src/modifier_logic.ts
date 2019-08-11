@@ -26,6 +26,11 @@ function apply_modifier_field_change(target: Unit_Stats, change: Modifier_Change
         case Modifier_Field.health_bonus: {
             target.max_health += delta;
             target.health = Math.min(target.health, target.max_health);
+
+            if (delta > 0 && !invert) {
+                target.health = Math.min(target.health + delta, target.max_health);
+            }
+
             break;
         }
 
