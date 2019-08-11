@@ -1045,6 +1045,22 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
         }
     }
 
+    for (const tree of game.battle.trees) {
+        const image = image_from_url(`data:image/png;base64,${embed_base64("images/tree.png")}`);
+
+        if (image.loaded) {
+            ctx.drawImage(
+                image.img,
+                0, 0,
+                image.img.width, image.img.height,
+                tree.position.x * cell_size + icon_offset,
+                tree.position.y * cell_size + icon_offset,
+                icon_size,
+                icon_size
+            );
+        }
+    }
+
     ctx.translate(-grid_top_left_x, -grid_top_left_y);
 }
 
