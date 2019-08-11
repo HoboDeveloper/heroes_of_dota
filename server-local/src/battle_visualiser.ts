@@ -1279,7 +1279,7 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
 
                 if (target) {
                     change_health(main_player, unit, target, effect.change);
-                    apply_modifier(main_player, unit, effect.modifier);
+                    apply_modifier(main_player, target, effect.modifier);
                 }
             }
 
