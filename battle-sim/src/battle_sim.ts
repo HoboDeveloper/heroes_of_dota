@@ -102,6 +102,7 @@ type Hero =  Unit_Base & {
     supertype: Unit_Supertype.hero
     owner_player_id: number;
     level: number
+    items: Item[]
 }
 
 type Creep = Unit_Base & {
@@ -117,7 +118,7 @@ type Rune = {
 type Shop = {
     id: number
     position: XY
-    items: Item_Id[]
+    items: Item[]
 }
 
 type Tree = {
@@ -749,18 +750,6 @@ function change_gold(player: Battle_Player, gold_change: number) {
     player.gold += gold_change;
 }
 
-function get_item_gold_cost(item_id: Item_Id): number {
-    switch (item_id) {
-        case Item_Id.assault_cuirass: return 10;
-        case Item_Id.boots_of_travel: return 8;
-        case Item_Id.divine_rapier: return 14;
-        case Item_Id.heart_of_tarrasque: return 12;
-        case Item_Id.satanic: return 10;
-        case Item_Id.tome_of_knowledge: return 6;
-        case Item_Id.refresher_shard: return 8;
-    }
-}
-
 function occupy_cell(battle: Battle, at: XY) {
     const cell = grid_cell_at(battle, at);
 
@@ -1211,6 +1200,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 type: delta.hero_type,
                 owner_player_id: delta.owner_id,
                 level: 1,
+                items: []
             });
 
             occupy_cell(battle, delta.at_position);
@@ -1255,7 +1245,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         case Delta_Type.shop_spawn: {
             battle.shops.push({
                 id: delta.shop_id,
-                items: delta.item_pool,
+                items: delta.item_pool.map(item_id => item_id_to_item(item_id)),
                 position: delta.at
             });
 
@@ -1457,7 +1447,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             if (!player) break;
 
-            const item_index = shop.items.findIndex(item_id => item_id == delta.item_id);
+            const item_index = shop.items.findIndex(item => item.id == delta.item_id);
 
             if (item_index == -1) break;
 
@@ -1471,6 +1461,10 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             const hero = find_hero_by_id(battle, delta.unit_id);
 
             if (hero) {
+                const item = item_id_to_item(delta.item_id);
+
+                hero.items.push(item);
+
                 collapse_item_equip(battle, hero, delta);
             }
 

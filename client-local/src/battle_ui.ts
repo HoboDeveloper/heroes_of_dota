@@ -1181,19 +1181,19 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
         const item_image = $.CreatePanel("Image", item_button, "image");
         const item_cost = $.CreatePanel("Label", item_button, "cost");
 
-        item_image.SetImage(`file://{images}/items/${get_item_icon_name(item)}.png`);
+        item_image.SetImage(`file://{images}/items/${get_item_icon_name(item.id)}.png`);
 
         item_button.AddClass("item_button");
         item_button.SetPanelEvent(PanelEvent.ON_RIGHT_CLICK, () => {
             if (selection.type == Selection_Type.shop) {
-                if (battle.this_player.gold >= get_item_gold_cost(item)) {
+                if (battle.this_player.gold >= item.gold_cost) {
                     Game.EmitSound("General.Buy");
 
                     take_battle_action({
                         type: Action_Type.purchase_item,
                         unit_id: selection.unit.id,
                         shop_id: selection.shop.id,
-                        item_id: item
+                        item_id: item.id
                     }, () => {
                         item_button.AddClass("unavailable");
                     });
@@ -1201,9 +1201,9 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
             }
         });
 
-        item_cost.text = get_item_gold_cost(item).toString();
+        item_cost.text = item.gold_cost.toString();
 
-        item_button_map[item] = item_button;
+        item_button_map[item.id] = item_button;
     }
 
     return {

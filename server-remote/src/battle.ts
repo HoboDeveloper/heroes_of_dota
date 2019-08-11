@@ -582,8 +582,8 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
     }
 }
 
-function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_Equip_Item {
-    switch (item_id) {
+function equip_item(battle: Battle_Record, hero: Hero, item: Item): Delta_Equip_Item {
+    switch (item.id) {
         case Item_Id.refresher_shard: {
             const changes: {
                 ability_id: Ability_Id,
@@ -602,7 +602,7 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
+                item_id: item.id,
                 charge_changes: changes
             }
         }
@@ -611,8 +611,8 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
-                modifier: new_modifier(battle, Modifier_Id.item_boots_of_travel, [Modifier_Field.move_points_bonus, 3])
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_boots_of_travel, [Modifier_Field.move_points_bonus, item.move_points_bonus])
             }
         }
 
@@ -620,8 +620,8 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
-                modifier: new_modifier(battle, Modifier_Id.item_divine_rapier, [Modifier_Field.attack_bonus, 8])
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_divine_rapier, [Modifier_Field.attack_bonus, item.damage_bonus])
             }
         }
 
@@ -629,8 +629,8 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
-                modifier: new_modifier(battle, Modifier_Id.item_assault_cuirass, [Modifier_Field.armor_bonus, 4])
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_assault_cuirass, [Modifier_Field.armor_bonus, item.armor_bonus])
             }
         }
 
@@ -638,7 +638,7 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
+                item_id: item.id,
                 new_level: Math.min(hero.level + 1, max_unit_level)
             }
         }
@@ -647,8 +647,8 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
-                modifier: new_modifier(battle, Modifier_Id.item_heart_of_tarrasque, [Modifier_Field.health_bonus, 10])
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_heart_of_tarrasque, [Modifier_Field.health_bonus, item.health_bonus])
             }
         }
 
@@ -656,7 +656,7 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
             return {
                 type: Delta_Type.equip_item,
                 unit_id: hero.id,
-                item_id: item_id,
+                item_id: item.id,
                 modifier: new_modifier(battle, Modifier_Id.item_satanic)
             }
         }
@@ -664,13 +664,17 @@ function equip_item(battle: Battle_Record, hero: Hero, item_id: Item_Id): Delta_
 }
 
 function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, target: Unit, damage: number): void {
-    if (source.modifiers.some(modifier => modifier.id == Modifier_Id.item_satanic)) {
-        defer_delta(battle, () => ({
-            type: Delta_Type.health_change,
-            source_unit_id: source.id,
-            target_unit_id: source.id,
-            ...health_change(source, Math.max(0, -damage)) // In case we have a healing attack, I guess
-        }));
+    if (source.supertype == Unit_Supertype.hero) {
+        defer_delta(battle, () => {
+            if (source.items.some(item => item.id == Item_Id.satanic)) {
+                return {
+                    type: Delta_Type.health_change,
+                    source_unit_id: source.id,
+                    target_unit_id: source.id,
+                    ...health_change(source, Math.max(0, -damage)) // In case we have a healing attack, I guess
+                };
+            }
+        });
     }
 
     for (const ability of source.abilities) {
@@ -894,25 +898,25 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
             if (unit.supertype != Unit_Supertype.hero) break;
             if (!is_point_in_shop_range(unit.position, shop)) break;
 
-            if (shop.items.indexOf(action.item_id) == -1) break;
+            const item = shop.items.find(item => item.id == action.item_id);
 
-            const cost = get_item_gold_cost(action.item_id);
+            if (!item) break;
 
             const player = find_player_by_id(battle, unit.owner_player_id);
 
             if (!player) break;
 
-            if (player.gold < cost) break;
+            if (player.gold < item.gold_cost) break;
 
             const purchase: Delta = {
                 type: Delta_Type.purchase_item,
                 unit_id: unit.id,
                 shop_id: shop.id,
                 item_id: action.item_id,
-                gold_cost: get_item_gold_cost(action.item_id)
+                gold_cost: item.gold_cost
             };
 
-            const equip = equip_item(battle, unit, action.item_id);
+            const equip = equip_item(battle, unit, item);
 
             return [purchase, equip];
         }
@@ -1179,14 +1183,16 @@ function server_end_turn(battle: Battle_Record) {
                     modifier_handle_id: modifier.handle_id
                 }));
             }
+        }
 
-            if (!unit.dead) {
-                if (modifier.id == Modifier_Id.item_heart_of_tarrasque) {
+        if (!unit.dead && unit.supertype == Unit_Supertype.hero) {
+            for (const item of unit.items) {
+                if (item.id == Item_Id.heart_of_tarrasque) {
                     defer_delta(battle, () => ({
                         type: Delta_Type.health_change,
                         source_unit_id: unit.id,
                         target_unit_id: unit.id,
-                        ...health_change(unit, 3)
+                        ...health_change(unit, item.regeneration_per_turn)
                     }));
                 }
             }

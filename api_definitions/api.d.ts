@@ -118,16 +118,6 @@ declare const enum Modifier_Change_Type {
     ability_swap = 1
 }
 
-declare const enum Item_Id {
-    boots_of_travel = 0,
-    heart_of_tarrasque = 1,
-    assault_cuirass = 2,
-    satanic = 3,
-    divine_rapier = 4,
-    tome_of_knowledge = 5,
-    refresher_shard = 6
-}
-
 type Unit_Stats = {
     armor: number
     health: number
@@ -438,40 +428,6 @@ type Delta_Purchase_Item = {
     gold_cost: number
     item_id: Item_Id
 }
-
-type Delta_Equip_Item_Base = {
-    type: Delta_Type.equip_item
-    unit_id: number
-}
-
-type Delta_Equip_Item_With_Modifier = Delta_Equip_Item_Base & {
-    item_id:
-        Item_Id.satanic |
-        Item_Id.heart_of_tarrasque |
-        Item_Id.divine_rapier |
-        Item_Id.boots_of_travel |
-        Item_Id.assault_cuirass
-
-    modifier: Modifier_Application
-}
-
-type Delta_Equip_Tome_Of_Knowledge = Delta_Equip_Item_Base & {
-    item_id: Item_Id.tome_of_knowledge
-    new_level: number
-}
-
-type Delta_Equip_Refresher_Shard = Delta_Equip_Item_Base & {
-    item_id: Item_Id.refresher_shard
-    charge_changes: {
-        ability_id: Ability_Id
-        charges_remaining: number
-    }[]
-}
-
-type Delta_Equip_Item =
-    Delta_Equip_Item_With_Modifier |
-    Delta_Equip_Tome_Of_Knowledge |
-    Delta_Equip_Refresher_Shard
 
 type Delta_Shop_Spawn = {
     type: Delta_Type.shop_spawn
