@@ -339,6 +339,20 @@ function find_modifier_by_handle_id(battle: Battle, id: number): [ Unit, Modifie
     }
 }
 
+function try_consume_unit_action(unit: Unit, ability_id: Ability_Id) {
+    const ability = find_unit_ability(unit, ability_id);
+
+    if (ability && ability.type != Ability_Type.passive) {
+        if (!ability_has_flag(ability ,Ability_Flag.does_not_consume_action)) {
+            unit.has_taken_an_action_this_turn = true;
+        }
+    }
+}
+
+function ability_has_flag(ability: Ability_Active, flag: Ability_Flag) {
+    return ability.flags.indexOf(flag) != -1;
+}
+
 function no_source(): Source_None {
     return {
         type: Source_Type.none
@@ -1275,8 +1289,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
 
             if (!unit) break;
 
-            unit.has_taken_an_action_this_turn = true;
-
+            try_consume_unit_action(unit, delta.ability_id);
             collapse_no_target_ability_use(battle, unit, delta);
 
             break;
@@ -1289,8 +1302,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             if (!unit) break;
             if (!target) break;
 
-            unit.has_taken_an_action_this_turn = true;
-
+            try_consume_unit_action(unit, delta.ability_id);
             collapse_ground_target_ability_use(battle, unit, target, delta);
 
             break;
@@ -1303,8 +1315,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             if (!unit) break;
             if (!target) break;
 
-            unit.has_taken_an_action_this_turn = true;
-
+            try_consume_unit_action(unit, delta.ability_id);
             collapse_unit_target_ability_use(battle, unit, target, delta);
 
             break;

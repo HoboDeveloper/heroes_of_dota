@@ -44,10 +44,15 @@ declare const enum Modifier_Id {
     spell_mekansm = 201
 }
 
+declare const enum Ability_Flag {
+    does_not_consume_action = 0
+}
+
 type Ability_Definition_Active_Base = {
     available_since_level: number
     charges: number
     targeting: Ability_Targeting
+    flags: Ability_Flag[]
 }
 
 type Ability_Definition_Passive_Base = {
