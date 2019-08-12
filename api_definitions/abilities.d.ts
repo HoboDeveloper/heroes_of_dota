@@ -34,6 +34,7 @@ declare const enum Modifier_Id {
     dragon_knight_dragon_tail = 5,
     dragon_knight_elder_dragon_form = 6,
     lion_hex = 7,
+    lion_impale = 8,
     item_boots_of_travel = 100,
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,

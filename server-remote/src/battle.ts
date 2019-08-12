@@ -365,7 +365,7 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
             const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 change: health_change(target, -ability.damage),
-                modifier: new_timed_modifier(battle, Modifier_Id.tide_ravage, 1, [Modifier_Field.state_stunned_counter, 1])
+                modifier: new_timed_modifier(battle, Modifier_Id.lion_impale, 1, [Modifier_Field.state_stunned_counter, 1])
             }));
 
             return {

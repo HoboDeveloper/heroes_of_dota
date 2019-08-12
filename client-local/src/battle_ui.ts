@@ -1756,6 +1756,7 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
         case Modifier_Id.dragon_knight_dragon_tail: return from_ability(Ability_Id.dragon_knight_dragon_tail);
         case Modifier_Id.dragon_knight_elder_dragon_form: return from_ability(Ability_Id.dragon_knight_elder_dragon_form);
         case Modifier_Id.lion_hex: return from_ability(Ability_Id.lion_hex);
+        case Modifier_Id.lion_impale: return from_ability(Ability_Id.lion_impale);
         case Modifier_Id.skywrath_ancient_seal: return from_ability(Ability_Id.skywrath_ancient_seal);
         case Modifier_Id.skywrath_concussive_shot: return from_ability(Ability_Id.skywrath_concussive_shot);
         case Modifier_Id.tide_anchor_smash: return from_ability(Ability_Id.tide_anchor_smash);
