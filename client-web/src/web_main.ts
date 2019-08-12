@@ -972,7 +972,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
 
         // Level
         if (unit.supertype == Unit_Supertype.hero) {
-            for (let index = 0; index < unit.level; index++) {
+            for (let index = 0; index < Math.min(unit.level, max_unit_level); index++) {
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = "black";
                 ctx.shadowColor = "black";
