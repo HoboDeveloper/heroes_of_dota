@@ -97,6 +97,10 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     const type = resolve_alias(toSimpleType(argument, checker));
                     const enum_members: SimpleTypeEnumMember[] = resolve_enum_members(type);
 
+                    if (type.kind == SimpleTypeKind.ENUM_MEMBER) {
+                        return ts.createStringLiteral(type.name);
+                    }
+
                     const cases = enum_members.map(member => {
                         if (member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
                             return ts.createCaseClause(ts.createLiteral(member.type.value), [
