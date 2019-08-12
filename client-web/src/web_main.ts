@@ -594,6 +594,7 @@ namespace clr {
     export function card_name(card: Card) {
         switch (card.type) {
             case Card_Type.hero: return txt(enum_to_string(card.hero_type), "gray");
+            case Card_Type.spell: return txt(enum_to_string(card.spell_id), "gray");
         }
 
         return plain("Unknown");
@@ -715,6 +716,18 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             }
 
             break;
+        }
+
+        case Delta_Type.game_over: {
+            const player = find_player_by_id(game.battle, delta.winner_player_id);
+
+            if (!player) break;
+
+            return [
+                clr.plain("Game over "),
+                clr.player_name(player),
+                clr.plain(" won")
+            ];
         }
 
         /* TODO repurpose this for modifiers
