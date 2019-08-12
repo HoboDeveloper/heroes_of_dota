@@ -544,7 +544,19 @@ namespace clr {
         }
     }
 
-    export function player_color(player_id: number) {
+    export function player_color(player_id: number, alpha: number) {
+        if (game.state == Player_State.in_battle && game.spectating) {
+            const colors = [
+                `rgba(255, 180, 36, ${alpha})`,
+                `rgba(0, 124, 255, ${alpha})`,
+                `rgba(0, 255, 0, ${alpha})`
+            ];
+
+            const index = game.battle.players.findIndex(player => player.id == player_id);
+
+            return colors[index];
+        }
+
         return game.player_id == player_id ? "rgba(0, 255, 0, 0.8)" : "rgba(255, 0, 0, 0.8)";
     }
 
@@ -559,11 +571,11 @@ namespace clr {
     }
 
     export function player_name(player: Battle_Player) {
-        return txt(player.name, player_color(player.id))
+        return txt(player.name, player_color(player.id, 0.8))
     }
 
     export function hero_type_by_name(type: Hero_Type, player_id: number) {
-        return txt(enum_to_string(type), player_color(player_id))
+        return txt(enum_to_string(type), player_color(player_id, 0.8))
     }
 
     export function unit_name(unit: Unit): Colored_String {
@@ -604,6 +616,19 @@ namespace clr {
 
 function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line | undefined {
     switch (delta.type) {
+        case Delta_Type.gold_change: {
+            const player = find_player_by_id(game.battle, delta.player_id);
+
+            if (!player) break;
+
+            return [
+                clr.player_name(player),
+                clr.plain(delta.change > 0 ? " earns " : " loses "),
+                clr.txt(delta.change.toString(), "gold"),
+                clr.plain(" gold")
+            ];
+        }
+
         case Delta_Type.use_card: {
             const player = find_player_by_id(game.battle, delta.player_id);
 
@@ -674,6 +699,34 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             ]
         }
 
+        case Delta_Type.use_no_target_spell: {
+            const player = find_player_by_id(game.battle, delta.player_id);
+
+            if (!player) break;
+
+            return [
+                clr.player_name(player),
+                clr.plain(" uses "),
+                clr.txt(enum_to_string(delta.spell_id), "gray")
+            ]
+        }
+
+        case Delta_Type.use_unit_target_spell: {
+            const player = find_player_by_id(game.battle, delta.player_id);
+            const target = find_unit_by_id(game.battle, delta.target_id);
+
+            if (!player) break;
+            if (!target) break;
+
+            return [
+                clr.player_name(player),
+                clr.plain(" uses "),
+                clr.txt(enum_to_string(delta.spell_id), "gray"),
+                clr.plain(" on "),
+                clr.unit_name(target)
+            ]
+        }
+
         case Delta_Type.ability_effect_applied: {
             const id: Ability_Id = delta.effect.ability_id;
 
@@ -718,13 +771,40 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             break;
         }
 
+        case Delta_Type.purchase_item: {
+            const unit = find_unit_by_id(game.battle, delta.unit_id);
+
+            if (!unit) break;
+
+            return [
+                clr.unit_name(unit),
+                clr.plain(" purchases "),
+                clr.txt(enum_to_string(delta.item_id), "gray"),
+                clr.plain( " for "),
+                clr.txt(delta.gold_cost.toString(), "gold"),
+                clr.plain(" gold")
+            ];
+        }
+
+        case Delta_Type.equip_item: {
+            const unit = find_unit_by_id(game.battle, delta.unit_id);
+
+            if (!unit) break;
+
+            return [
+                clr.unit_name(unit),
+                clr.plain(" equips "),
+                clr.txt(enum_to_string(delta.item_id), "gray")
+            ];
+        }
+
         case Delta_Type.game_over: {
             const player = find_player_by_id(game.battle, delta.winner_player_id);
 
             if (!player) break;
 
             return [
-                clr.plain("Game over "),
+                clr.plain("Game over! "),
                 clr.player_name(player),
                 clr.plain(" won")
             ];
@@ -933,17 +1013,18 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
             }
         }
 
-        const player = find_player_by_id(game.battle, game.player_id);
-        const ally = player && player_owns_unit(player, unit);
-
-        if (ally) {
-            if (unit.has_taken_an_action_this_turn) {
-                ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+        const unit_color = (alpha: number) => {
+            if (unit.supertype == Unit_Supertype.creep) {
+                return `rgba(255, 0, 0, ${alpha})`;
             } else {
-                ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+                return clr.player_color(unit.owner_player_id, alpha);
             }
+        };
+
+        if (unit.has_taken_an_action_this_turn) {
+            ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
         } else {
-            ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+            ctx.fillStyle = unit_color(0.2);
         }
 
         ctx.fillRect(xy.x * cell_size, xy.y * cell_size, cell_size, cell_size);
@@ -965,7 +1046,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
         }
 
         const text = unit.health.toString();
-        const shadow_color = ally ? "rgb(17, 162, 0)" : "#aa0000aa";
+        const shadow_color = unit_color(1);
 
         // Health
         {
