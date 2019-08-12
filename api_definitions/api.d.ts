@@ -37,7 +37,8 @@ declare const enum Delta_Type {
 
     start_turn = 24,
     end_turn = 25,
-    game_over = 26,
+    game_start = 26,
+    game_over = 27,
 }
 
 declare const enum Action_Type {
@@ -493,6 +494,10 @@ type Delta_Gold_Change = {
     change: number
 }
 
+type Delta_Game_Start = {
+    type: Delta_Type.game_start
+}
+
 type Delta_Game_Over = {
     type: Delta_Type.game_over
     winner_player_id: number
@@ -524,6 +529,7 @@ type Delta =
     Delta_Gold_Change |
     Delta_Start_Turn |
     Delta_End_Turn |
+    Delta_Game_Start |
     Delta_Game_Over
 
 type Modifier_Change_Field_Change = {

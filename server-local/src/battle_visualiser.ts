@@ -20,6 +20,7 @@ type Battle = {
         width: number
         height: number
     };
+    has_started: boolean
     is_over: boolean
     camera_dummy: CDOTA_BaseNPC
     modifier_tied_fxs: Modifier_Tied_Fx[]
@@ -1748,7 +1749,7 @@ function change_hero_level(main_player: Main_Player, hero: Battle_Hero, new_leve
 }
 
 function change_gold(main_player: Main_Player, player: Battle_Player, change: number) {
-    if (player.id == main_player.remote_id) {
+    if (player.id == main_player.remote_id && battle.has_started) {
         battle_emit_sound("General.Coins");
     }
 
@@ -1820,7 +1821,10 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
 
             battle.units.push(unit);
 
-            unit_emit_sound(unit, hero_type_to_spawn_sound(unit.type));
+            if (battle.has_started) {
+                unit_emit_sound(unit, hero_type_to_spawn_sound(unit.type));
+            }
+
             unit_emit_sound(unit, "hero_spawn");
 
             unit.handle.AddNewModifier(unit.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
@@ -1829,7 +1833,11 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
 
             update_player_state_net_table(main_player);
 
-            wait(1.5);
+            if (battle.has_started) {
+                wait(1.5);
+            } else {
+                wait(0.25);
+            }
 
             break;
         }
@@ -2094,6 +2102,11 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
         case Delta_Type.use_card: break;
         case Delta_Type.set_ability_charges_remaining: break;
 
+        case Delta_Type.game_start: {
+            battle.has_started = true;
+            break;
+        }
+
         case Delta_Type.game_over: {
             const event: Game_Over_Event = {
                 winner_player_id: delta.winner_player_id
@@ -2271,6 +2284,7 @@ function reinitialize_battle(world_origin: Vector, camera_entity: CDOTA_BaseNPC)
             width: 0,
             height: 0
         },
+        has_started: false,
         is_over: false,
         camera_dummy: camera_entity,
         modifier_tied_fxs: []

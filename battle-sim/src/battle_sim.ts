@@ -54,6 +54,7 @@ type Ability_Authorization_Error = {
 type Ability_Authorization = Ability_Authorization_Ok | Ability_Authorization_Error;
 
 type Battle = {
+    has_started: boolean
     delta_head: number
     units: Unit[]
     runes: Rune[]
@@ -383,6 +384,7 @@ function item_source(item_id: Item_Id): Source_Item {
 
 function make_battle(participants: Battle_Participant_Info[], grid_width: number, grid_height: number): Battle {
     return {
+        has_started: false,
         delta_head: 0,
         turning_player_index: 0,
         units: [],
@@ -1158,6 +1160,11 @@ function collapse_delta(battle: Battle, delta: Delta): void {
     }
 
     switch (delta.type) {
+        case Delta_Type.game_start: {
+            battle.has_started = true;
+            break;
+        }
+
         case Delta_Type.unit_move: {
             const unit = find_unit_by_id(battle, delta.unit_id);
 

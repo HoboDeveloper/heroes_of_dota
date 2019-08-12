@@ -12,7 +12,6 @@ export type Battle_Record = Battle & {
     id: number
     entity_id_auto_increment: number
     finished: boolean
-    turn_index: number
     random_seed: number
     deferred_actions: Deferred_Action[]
     creep_targets: Map<Creep, Unit>
@@ -1008,8 +1007,6 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         }
 
         case Action_Type.end_turn: {
-            battle.turn_index++;
-
             return [{
                 type: Delta_Type.end_turn
             }];
@@ -1083,7 +1080,7 @@ function get_next_entity_id(battle: Battle_Record) {
 }
 
 function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
-    if (battle.turn_index < 5) {
+    if (!battle.has_started) {
         return undefined;
     }
 
@@ -1343,7 +1340,6 @@ export function start_battle(players: Player[], battleground: Battleground): num
     const battle: Battle_Record = {
         ...make_battle(battle_players, battleground.grid_size.x, battleground.grid_size.y),
         id: battle_id_auto_increment++,
-        turn_index: 0,
         entity_id_auto_increment: 0,
         deferred_actions: [],
         random_seed: random_int_range(0, 65536),
@@ -1441,6 +1437,8 @@ export function start_battle(players: Player[], battleground: Battleground): num
             default: unreachable(spawn);
         }
     }
+
+    defer_delta(battle, () => ({ type: Delta_Type.game_start }));
 
     submit_battle_deltas(battle, spawn_deltas);
 
