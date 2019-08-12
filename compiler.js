@@ -9,9 +9,10 @@ function compile_file(module) {
         const yellow = "\x1b[33m";
         const reset = "\x1b[0m";
 
-        const colored_module_name = `${bright}${yellow}${module}${reset}`;
+        const yellow_module_name = `${bright}${yellow}${module}${reset}`;
+        const red_module_name = `${bright}${red}${module}${reset}`;
 
-        console.log("Compiling", colored_module_name);
+        console.log("Compiling", yellow_module_name);
 
         const start_time = performance.now();
         const no_npm_update = Object.assign({ "NO_UPDATE_NOTIFIER": "1" }, process.env);
@@ -21,10 +22,10 @@ function compile_file(module) {
         emitter.stderr.on("data", data => process.stderr.write(data.toString()));
 
         emitter.on("exit", function (code) {
-            resolve(`${colored_module_name}: ${Number((performance.now() - start_time) / 1000).toFixed(2)}s`);
+            resolve(`${code === 0 ? yellow_module_name : red_module_name}: ${Number((performance.now() - start_time) / 1000).toFixed(2)}s`);
 
             if (code !== 0) {
-                console.error(`${bright}${red}Error${reset} when compiling module ${colored_module_name}`);
+                console.error(`${bright}${red}Error${reset} when compiling module ${yellow_module_name}`);
             }
         });
     });

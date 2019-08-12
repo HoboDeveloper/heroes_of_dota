@@ -1057,10 +1057,13 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.item_mask_of_madness: return simple(target =>
             fx_follow_unit("particles/items2_fx/mask_of_madness.vpcf", target)
         );
+        case Modifier_Id.item_armlet: return simple(target =>
+            fx_follow_unit("particles/items_fx/armlet.vpcf", target)
+        );
         case Modifier_Id.spell_euls_scepter: return complex("Modifier_Euls_Scepter");
         case Modifier_Id.spell_mekansm: return simple(target =>
             fx_follow_unit("particles/items_fx/buckler.vpcf", target)
-        )
+        );
     }
 }
 
@@ -1605,6 +1608,13 @@ function play_item_equip_delta(main_player: Main_Player, hero: Battle_Hero, delt
         case Item_Id.mask_of_madness: {
             apply_modifier(main_player, hero, delta.modifier);
             unit_emit_sound(hero, "DOTA_Item.MaskOfMadness.Activate");
+
+            break;
+        }
+
+        case Item_Id.armlet: {
+            apply_modifier(main_player, hero, delta.modifier);
+            unit_emit_sound(hero, "DOTA_Item.Armlet.Activate");
 
             break;
         }

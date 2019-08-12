@@ -200,7 +200,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                     active_ability<Ability_Skywrath_Concussive_Shot>({
                         available_since_level: 1,
                         targeting: target_rect_area_around_caster(3),
-                        flags: [ Ability_Flag.does_not_consume_action ],
+                        flags: [],
                         charges: 1,
                         move_points_reduction: 2,
                         damage: 4,

@@ -673,6 +673,15 @@ function equip_item(battle: Battle_Record, hero: Hero, item: Item): Delta_Equip_
                 )
             }
         }
+
+        case Item_Id.armlet: {
+            return {
+                type: Delta_Type.equip_item,
+                unit_id: hero.id,
+                item_id: item.id,
+                modifier: new_modifier(battle, Modifier_Id.item_armlet, [Modifier_Field.health_bonus, item.health_bonus])
+            }
+        }
     }
 }
 
@@ -1200,13 +1209,26 @@ function server_end_turn(battle: Battle_Record) {
 
         if (!unit.dead && unit.supertype == Unit_Supertype.hero) {
             for (const item of unit.items) {
-                if (item.id == Item_Id.heart_of_tarrasque) {
-                    defer_delta(battle, () => ({
-                        type: Delta_Type.health_change,
-                        source_unit_id: unit.id,
-                        target_unit_id: unit.id,
-                        ...health_change(unit, item.regeneration_per_turn)
-                    }));
+                switch (item.id) {
+                    case Item_Id.heart_of_tarrasque: {
+                        defer_delta(battle, () => ({
+                            type: Delta_Type.health_change,
+                            source_unit_id: unit.id,
+                            target_unit_id: unit.id,
+                            ...health_change(unit, item.regeneration_per_turn)
+                        }));
+
+                        break;
+                    }
+
+                    case Item_Id.armlet: {
+                        defer_delta(battle, () => ({
+                            type: Delta_Type.health_change,
+                            source_unit_id: unit.id,
+                            target_unit_id: unit.id,
+                            ...health_change(unit, -Math.min(item.health_loss_per_turn, unit.health - 1))
+                        }));
+                    }
                 }
             }
         }

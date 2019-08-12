@@ -45,5 +45,12 @@ function item_id_to_item(item_id: Item_Id): Item {
             damage_bonus: 4,
             gold_cost: 6
         };
+
+        case Item_Id.armlet: return {
+            id: item_id,
+            health_bonus: 10,
+            health_loss_per_turn: 1,
+            gold_cost: 8
+        };
     }
 }

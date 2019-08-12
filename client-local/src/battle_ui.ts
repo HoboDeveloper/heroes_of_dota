@@ -1174,6 +1174,7 @@ function get_item_icon_name(id: Item_Id): string {
         case Item_Id.boots_of_travel: return "travel_boots";
         case Item_Id.refresher_shard: return "refresher_shard";
         case Item_Id.mask_of_madness: return "mask_of_madness";
+        case Item_Id.armlet: return "armlet_active";
     }
 }
 
@@ -1679,6 +1680,7 @@ function get_item_tooltip(i: Item): string {
         case Item_Id.satanic: return `Restore health per damage point dealt by basic attack`;
         case Item_Id.tome_of_knowledge: return `Gain a level`;
         case Item_Id.mask_of_madness: return `+${i.damage_bonus} damage, but silence yourself`;
+        case Item_Id.armlet: return `+${i.health_bonus} health, lose ${i.health_loss_per_turn} health per turn`;
     }
 }
 
@@ -1749,6 +1751,7 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
         case Modifier_Id.item_heart_of_tarrasque: return from_item(Item_Id.heart_of_tarrasque);
         case Modifier_Id.item_mask_of_madness: return from_item(Item_Id.mask_of_madness);
         case Modifier_Id.item_satanic: return from_item(Item_Id.satanic);
+        case Modifier_Id.item_armlet: return from_item(Item_Id.armlet);
 
         case Modifier_Id.dragon_knight_dragon_tail: return from_ability(Ability_Id.dragon_knight_dragon_tail);
         case Modifier_Id.dragon_knight_elder_dragon_form: return from_ability(Ability_Id.dragon_knight_elder_dragon_form);

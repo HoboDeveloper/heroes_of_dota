@@ -40,6 +40,7 @@ declare const enum Modifier_Id {
     item_satanic = 103,
     item_divine_rapier = 104,
     item_mask_of_madness = 105,
+    item_armlet = 106,
     spell_euls_scepter = 200,
     spell_mekansm = 201
 }
