@@ -1353,7 +1353,7 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
             return {
                 ...game_base,
                 state: player_state.state,
-                requested_battle_deltas_at: 0,
+                requested_battle_deltas_at: Number.MIN_SAFE_INTEGER,
                 battle: battle,
                 battle_id: player_state.battle_id,
                 selection: { type: Selection_Type.none },
@@ -1368,8 +1368,8 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                 state: player_state.state,
                 nearby_players: [],
                 battles: [],
-                refreshed_nearby_players_at: 0,
-                refreshed_battles_at: 0
+                refreshed_nearby_players_at: Number.MIN_SAFE_INTEGER,
+                refreshed_battles_at: Number.MIN_SAFE_INTEGER
             };
         }
 
