@@ -1079,24 +1079,30 @@ function get_next_entity_id(battle: Battle_Record) {
     return battle.entity_id_auto_increment++;
 }
 
-function try_compute_battle_winner_player_id(battle: Battle_Record): number | undefined {
+function try_compute_battle_winner(battle: Battle_Record): Battle_Player | undefined {
     if (!battle.has_started) {
         return undefined;
     }
 
-    let last_alive_unit_player_id: number | undefined = undefined;
+    let last_alive_unit_owner: number | undefined = undefined;
 
     for (const unit of battle.units) {
         if (!unit.dead && unit.supertype != Unit_Supertype.creep) {
-            if (last_alive_unit_player_id == undefined) {
-                last_alive_unit_player_id = unit.owner_player_id;
-            } else if (last_alive_unit_player_id != unit.owner_player_id) {
+            if (last_alive_unit_owner == undefined) {
+                last_alive_unit_owner = unit.owner_player_id;
+            } else if (last_alive_unit_owner != unit.owner_player_id) {
                 return undefined;
             }
         }
     }
 
-    return last_alive_unit_player_id;
+    if (last_alive_unit_owner != undefined) {
+        const player = find_player_by_id(battle, last_alive_unit_owner);
+
+        if (player) {
+            return player;
+        }
+    }
 }
 
 function get_gold_for_killing(target: Unit): number {
@@ -1251,18 +1257,22 @@ function server_end_turn(battle: Battle_Record) {
     }
 }
 
+function finish_battle(battle: Battle_Record, winner: Battle_Player) {
+    defer_delta(battle, () => ({
+        type: Delta_Type.game_over,
+        winner_player_id: winner.id
+    }));
+
+    battle.finished = true;
+
+    report_battle_over(battle, winner.id);
+}
+
 function check_battle_over(battle: Battle_Record) {
-    const possible_winner = try_compute_battle_winner_player_id(battle);
+    const possible_winner = try_compute_battle_winner(battle);
 
     if (possible_winner != undefined) {
-        defer_delta(battle, () => ({
-            type: Delta_Type.game_over,
-            winner_player_id: possible_winner
-        }));
-
-        battle.finished = true;
-
-        report_battle_over(battle, possible_winner);
+        finish_battle(battle, possible_winner);
     }
 }
 
@@ -1609,6 +1619,13 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             if (unit.supertype != Unit_Supertype.hero) break;
 
             submit_battle_deltas(battle, [ equip_item(battle, unit, item_id_to_item(parseInt(parts[1]))) ]);
+
+            break;
+        }
+
+        case "win": {
+            finish_battle(battle, battle_player);
+            submit_battle_deltas(battle, []);
 
             break;
         }
