@@ -1028,25 +1028,19 @@ function try_compute_battle_winner(battle: Battle_Record): Battle_Player | undef
         return undefined;
     }
 
-    let last_alive_unit_owner: number | undefined = undefined;
+    let last_alive_unit_owner: Battle_Player | undefined = undefined;
 
     for (const unit of battle.units) {
         if (!unit.dead && unit.supertype != Unit_Supertype.creep) {
             if (last_alive_unit_owner == undefined) {
-                last_alive_unit_owner = unit.owner_player_id;
-            } else if (last_alive_unit_owner != unit.owner_player_id) {
+                last_alive_unit_owner = unit.owner;
+            } else if (last_alive_unit_owner != unit.owner) {
                 return undefined;
             }
         }
     }
 
-    if (last_alive_unit_owner != undefined) {
-        const player = find_player_by_id(battle, last_alive_unit_owner);
-
-        if (player) {
-            return player;
-        }
-    }
+    return last_alive_unit_owner;
 }
 
 function get_gold_for_killing(target: Unit): number {
@@ -1145,7 +1139,7 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
 
                 defer_delta(battle, () => ({
                     type: Delta_Type.gold_change,
-                    player_id: attacker.owner_player_id,
+                    player_id: attacker.owner.id,
                     change: bounty
                 }));
 

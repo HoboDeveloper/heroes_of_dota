@@ -87,6 +87,17 @@ if (!Array.prototype.findIndex) {
     };
 }
 
+if (Game.IsInToolsMode()) {
+    Error.prototype.toString = function (this: Error) {
+        this.stack = this.stack!.replace(/\.vjs_c/g, '.js');
+
+        // toString is called by panorama with empty call stack
+        if (new Error().stack!.match(/\n/g)!.length !== 1) return this.stack;
+
+        return this.stack;
+    };
+}
+
 function from_server_array<T>(array: Array<T>): Array<T> {
     const result: Array<T> = [];
 

@@ -1541,7 +1541,7 @@ function make_battle_snapshot(): Battle_Snapshot {
                             supertype: Unit_Supertype.hero,
                             type: unit.type,
                             level: unit.level,
-                            owner_id: unit.owner_player_id
+                            owner_id: unit.owner.id
                         };
 
                         return hero;
@@ -2647,7 +2647,7 @@ function try_select_unit_ability(unit: Unit, ability: Ability) {
         return;
     }
 
-    $.Msg("clicked ", get_ability_icon(ability.id), " ", ability_use);
+    $.Msg("clicked ", get_ability_icon(ability.id));
 
     if (ability.type == Ability_Type.no_target) {
         take_battle_action({

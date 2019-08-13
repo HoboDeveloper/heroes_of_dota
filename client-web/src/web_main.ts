@@ -585,7 +585,7 @@ namespace clr {
             }
 
             case Unit_Supertype.hero: {
-                return hero_type_by_name(unit.type, unit.owner_player_id);
+                return hero_type_by_name(unit.type, unit.owner.id);
             }
         }
     }
@@ -1017,7 +1017,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
             if (unit.supertype == Unit_Supertype.creep) {
                 return `rgba(255, 0, 0, ${alpha})`;
             } else {
-                return clr.player_color(unit.owner_player_id, alpha);
+                return clr.player_color(unit.owner.id, alpha);
             }
         };
 

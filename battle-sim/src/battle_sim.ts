@@ -75,7 +75,7 @@ type Unit = Hero | Creep
 type Hero =  Unit_Base & {
     type: Hero_Type;
     supertype: Unit_Supertype.hero
-    owner_player_id: number;
+    owner: Battle_Player;
     level: number
     items: Item[]
 }
@@ -230,7 +230,7 @@ function are_units_allies(a: Unit, b: Unit): boolean {
     }
 
     if (a.supertype != Unit_Supertype.creep && b.supertype != Unit_Supertype.creep) {
-        return a.owner_player_id == b.owner_player_id;
+        return a.owner == b.owner;
     }
 
     return false;
@@ -241,7 +241,7 @@ function player_owns_unit(player: Battle_Player, unit: Unit) {
         return false;
     }
 
-    return unit.owner_player_id == player.id;
+    return unit.owner == player;
 }
 
 function rune_at(battle: Battle, at: XY) : Rune | undefined {
@@ -681,7 +681,7 @@ function end_turn_default(battle: Battle) {
     }
 
     for (const unit of battle.units) {
-        if (unit.supertype == Unit_Supertype.creep || unit.owner_player_id == turn_passed_from_player_id) {
+        if (unit.supertype == Unit_Supertype.creep || unit.owner.id == turn_passed_from_player_id) {
             for (const modifier of unit.modifiers) {
                 if (!modifier.permanent) {
                     if (modifier.duration_remaining > 0) {
@@ -1146,11 +1146,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                 }
 
                 case Rune_Type.bounty: {
-                    const player = find_player_by_id(battle, unit.owner_player_id);
-
-                    if (player) {
-                        change_gold(player, delta.gold_gained);
-                    }
+                    change_gold(unit.owner, delta.gold_gained);
 
                     break;
                 }
@@ -1164,11 +1160,15 @@ function collapse_delta(battle: Battle, delta: Delta): void {
         }
 
         case Delta_Type.hero_spawn: {
+            const owner = find_player_by_id(battle, delta.owner_id);
+
+            if (!owner) break;
+
             battle.units.push({
                 ...unit_base(delta.unit_id, unit_definition_by_type(delta.hero_type), delta.at_position),
                 supertype: Unit_Supertype.hero,
                 type: delta.hero_type,
-                owner_player_id: delta.owner_id,
+                owner: owner,
                 level: 1,
                 items: []
             });
@@ -1410,16 +1410,12 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             if (!unit) break;
             if (!shop) break;
 
-            const player = find_player_by_id(battle, unit.owner_player_id);
-
-            if (!player) break;
-
             const item_index = shop.items.findIndex(item => item.id == delta.item_id);
 
             if (item_index == -1) break;
 
             shop.items.splice(item_index, 1);
-            player.gold -= delta.gold_cost;
+            unit.owner.gold -= delta.gold_cost;
 
             break;
         }
