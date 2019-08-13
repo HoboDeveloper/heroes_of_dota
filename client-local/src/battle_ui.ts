@@ -2491,6 +2491,7 @@ function update_hand() {
 
                         hand.splice(index, 1);
 
+                        card_panel.panel.AddClass("override");
                         card_panel.panel.AddClass("disappearing_transition");
                         card_panel.panel.AddClass("disappearing");
                         card_panel.panel.DeleteAsync(0.4);
@@ -2505,6 +2506,16 @@ function update_hand() {
     }
 
     for (const card of hand) {
+        const can_use_card = (() => {
+            const action_permission = authorize_action_by_player(battle, battle.this_player);
+            if (!action_permission.ok) return false;
+
+            const card_use_permission = authorize_card_use(action_permission, card.card.id);
+            return card_use_permission.ok;
+        });
+
+        card.panel.SetHasClass("can_use", can_use_card());
+
         if (selection.type == Selection_Type.card && card == selection.card_panel) {
             index++;
             continue;

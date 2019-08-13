@@ -108,17 +108,22 @@
 
     &.targeting_something {
       transform: translateY(-30px);
+      border: 2px solid #76eedd;
     }
 
     &.disappearing {
-      transform: scaleX(1.5) scaleY(1.5);
+      transform: scaleX(1.5) scaleY(1.5) translateY(-200px);
       opacity: 0;
     }
 
-    &.disappearing_transition {
+    &.disappearing_transition.override {
       transition-property: transform, opacity;
-      transition-duration: 0.15s;
+      transition-duration: 0.2s;
       transition-timing-function: ease-out;
+    }
+
+    &.can_use {
+      box-shadow: #76eedd 0 0 8px 0;
     }
 
     width: 150px;
@@ -137,8 +142,6 @@
     }
 
     &:hover, &.in_preview {
-      box-shadow: #76eedd 0 0 8px 0;
-      border: 1px solid #76eedd;
       width: 200px;
       height: 300px;
       z-index: 10;
