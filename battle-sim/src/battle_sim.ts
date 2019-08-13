@@ -298,6 +298,7 @@ function is_point_in_shop_range(xy: XY, shop: Shop) {
     return rectangular(xy, shop.position) <= shop_range;
 }
 
+// TODO deprecate this, use validation framework?
 function is_unit_a_valid_target(unit: Unit) {
     return !unit.dead && !is_unit_out_of_the_game(unit);
 }

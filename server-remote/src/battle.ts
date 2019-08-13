@@ -726,13 +726,13 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
     }
 }
 
-function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
+function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Player_Action_Permission, action: Turn_Action): Delta[] | undefined {
     function find_valid_unit_for_action(id: number): Unit | undefined {
         const unit = find_valid_target_unit(id);
 
         if (!unit) return;
         if (unit.has_taken_an_action_this_turn) return;
-        if (!player_owns_unit(player, unit)) return;
+        if (!player_owns_unit(action_permission.player, unit)) return;
         if (is_unit_stunned(unit)) return;
 
         return unit;
@@ -852,24 +852,15 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         }
 
         case Action_Type.use_hero_card: {
-            const card = find_player_card_by_id(player, action.card_id);
+            const card_use_permission = authorize_card_use(action_permission, action.card_id);
 
-            if (!card) return;
-            if (card.type != Card_Type.hero) return;
-            if (player.has_used_a_card_this_turn) return;
+            if (!card_use_permission.ok) return;
 
-            const cell = grid_cell_at(battle, action.at);
+            const hero_card_use_permission = authorize_hero_card_use(battle, card_use_permission, action.at);
 
-            if (!cell || cell.occupied) return;
+            if (!hero_card_use_permission.ok) return;
 
-            const zone = player.deployment_zone;
-            const is_in_zone =
-                action.at.x >= zone.min_x &&
-                action.at.y >= zone.min_y &&
-                action.at.x <  zone.max_x &&
-                action.at.y <  zone.max_y;
-
-            if (!is_in_zone) return;
+            const { player, card } = hero_card_use_permission;
 
             return [
                 use_card(player, card),
@@ -878,34 +869,41 @@ function turn_action_to_new_deltas(battle: Battle_Record, player: Battle_Player,
         }
 
         case Action_Type.use_unit_target_spell_card: {
-            const card = find_player_card_by_id(player, action.card_id);
+            const card_use_permission = authorize_card_use(action_permission, action.card_id);
 
-            if (!card) return;
-            if (card.type != Card_Type.spell) return;
-            if (card.spell_type != Spell_Type.unit_target) return;
-            if (player.has_used_a_card_this_turn) return;
+            if (!card_use_permission.ok) return;
 
-            const target = find_valid_target_unit(action.unit_id);
+            const act_on_unit_permission = authorize_act_on_unit(battle, action.unit_id);
 
-            if (!target) return;
+            if (!act_on_unit_permission.ok) return;
+
+            const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, act_on_unit_permission);
+
+            if (!spell_use_permission.ok) return;
+
+            const { player, card, spell } = spell_use_permission;
+            const target = spell_use_permission.unit;
 
             return [
                 use_card(player, card),
-                perform_spell_cast_unit_target(battle, player, target, card)
+                perform_spell_cast_unit_target(battle, player, target, spell)
             ]
         }
 
         case Action_Type.use_no_target_spell_card: {
-            const card = find_player_card_by_id(player, action.card_id);
+            const card_use_auth = authorize_card_use(action_permission, action.card_id);
 
-            if (!card) return;
-            if (card.type != Card_Type.spell) return;
-            if (card.spell_type != Spell_Type.no_target) return;
-            if (player.has_used_a_card_this_turn) return;
+            if (!card_use_auth.ok) return;
+
+            const spell_use_auth = authorize_no_target_card_spell_use(card_use_auth);
+
+            if (!spell_use_auth.ok) return;
+
+            const { player, card, spell } = spell_use_auth;
 
             return [
                 use_card(player, card),
-                perform_spell_cast_no_target(battle, player, card)
+                perform_spell_cast_no_target(battle, player, spell)
             ]
         }
 
@@ -1277,16 +1275,17 @@ function check_battle_over(battle: Battle_Record) {
 }
 
 export function try_take_turn_action(battle: Battle_Record, player: Battle_Player, action: Turn_Action): Delta[] | undefined {
+    // TODO move battle.finished to battle_sim and use Game_Over delta to set it
     if (battle.finished) {
         return;
     }
 
-    if (get_turning_player(battle).id != player.id) {
-        return;
-    }
+    const action_ok = authorize_action_by_player(battle, player);
+
+    if (!action_ok.ok) return;
 
     const initial_head = battle.delta_head;
-    const new_deltas = turn_action_to_new_deltas(battle, player, action);
+    const new_deltas = turn_action_to_new_deltas(battle, action_ok, action);
 
     if (new_deltas) {
         submit_battle_deltas(battle, new_deltas);
