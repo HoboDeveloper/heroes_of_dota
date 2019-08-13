@@ -19,12 +19,6 @@ export type Battle_Record = Battle & {
 
 const battles: Battle_Record[] = [];
 
-const enum Creep_Retaliation_Result {
-    ok,
-    target_lost,
-    cant_act
-}
-
 type Deferred_Action = () => void
 
 export function random_int_range(lower_bound: number, upper_bound: number) {
@@ -684,6 +678,53 @@ function equip_item(battle: Battle_Record, hero: Hero, item: Item): Delta_Equip_
     }
 }
 
+function pick_up_rune(battle: Battle_Record, hero: Hero, rune: Rune, move_cost: number): Delta_Rune_Pick_Up {
+    const base = {
+        unit_id: hero.id,
+        rune_id: rune.id,
+        at: rune.position,
+        move_cost: move_cost
+    };
+
+    switch (rune.type) {
+        case Rune_Type.bounty: {
+            return {
+                ...base,
+                type: Delta_Type.rune_pick_up,
+                rune_type: rune.type,
+                gold_gained: 10
+            };
+        }
+
+        case Rune_Type.regeneration: {
+            return {
+                ...base,
+                type: Delta_Type.rune_pick_up,
+                rune_type: rune.type,
+                heal: health_change(hero, hero.max_health - hero.health)
+            };
+        }
+
+        case Rune_Type.haste: {
+            return {
+                ...base,
+                type: Delta_Type.rune_pick_up,
+                rune_type: rune.type,
+                modifier: new_timed_modifier(battle, Modifier_Id.rune_haste, 3, [Modifier_Field.move_points_bonus, 3])
+            };
+        }
+
+        case Rune_Type.double_damage: {
+            return {
+                ...base,
+                type: Delta_Type.rune_pick_up,
+                rune_type: rune.type,
+                modifier: new_timed_modifier(battle, Modifier_Id.rune_double_damage, 3, [Modifier_Field.attack_bonus, hero.attack_damage])
+            };
+        }
+    }
+}
+
 function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, target: Unit, damage: number): void {
     if (source.supertype == Unit_Supertype.hero) {
         defer_delta(battle, () => {
@@ -727,137 +768,103 @@ function on_target_dealt_damage_by_attack(battle: Battle_Record, source: Unit, t
 }
 
 function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Player_Action_Permission, action: Turn_Action): Delta[] | undefined {
-    function find_valid_unit_for_action(id: number): Unit | undefined {
-        const unit = find_valid_target_unit(id);
+    function authorize_unit_for_order(unit_id: number): Order_Unit_Auth {
+        const act_on_unit_permission = authorize_act_on_unit(battle, unit_id);
+        if (!act_on_unit_permission.ok) return { ok: false, kind: Order_Unit_Error.other };
 
-        if (!unit) return;
-        if (unit.has_taken_an_action_this_turn) return;
-        if (!player_owns_unit(action_permission.player, unit)) return;
-        if (is_unit_stunned(unit)) return;
+        const act_on_owned_unit_permission = authorize_owned_action_on_unit(action_permission, act_on_unit_permission);
+        if (!act_on_owned_unit_permission.ok) return { ok: false, kind: Order_Unit_Error.other };
 
-        return unit;
+        return authorize_order_unit(act_on_owned_unit_permission);
     }
 
-    function find_valid_target_unit(id: number): Unit | undefined {
-        const unit = find_unit_by_id(battle, id);
+    function authorize_unit_for_ability(unit_id: number, ability_id: Ability_Id): Ability_Use_Permission | undefined {
+        const order_unit_permission = authorize_unit_for_order(unit_id);
+        if (!order_unit_permission.ok) return;
 
-        if (!unit) return;
-        if (!is_unit_a_valid_target(unit)) return;
+        const ability_use_permission = authorize_ability_use(order_unit_permission, ability_id);
+        if (!ability_use_permission.ok) return;
 
-        return unit;
+        return ability_use_permission;
     }
 
-    function find_valid_unit_and_authorize_ability(unit_id: number, ability_id: Ability_Id): { unit: Unit, ability: Ability_Active } | undefined {
-        const unit = find_valid_unit_for_action(unit_id);
-
-        if (!unit) return;
-
-        const ability_use = authorize_ability_use_by_unit(unit, ability_id);
-
-        if (!ability_use.success) return;
-
-        const ability = ability_use.ability;
-
-        if (ability.type == Ability_Type.passive) return;
-
-        return { unit: unit, ability: ability };
-    }
-
-    function decrement_charges(actors: { unit: Unit, ability: Ability_Active }): Delta_Set_Ability_Charges_Remaining {
+    function decrement_charges(unit: Unit, ability: Ability_Active): Delta_Set_Ability_Charges_Remaining {
         return {
             type: Delta_Type.set_ability_charges_remaining,
-            unit_id: actors.unit.id,
-            ability_id: actors.ability.id,
-            charges_remaining: actors.ability.charges_remaining - 1
+            unit_id: unit.id,
+            ability_id: ability.id,
+            charges_remaining: ability.charges_remaining - 1
         }
     }
 
     switch (action.type) {
         case Action_Type.move: {
-            const unit = find_valid_unit_for_action(action.unit_id);
+            const order_unit_permission = authorize_unit_for_order(action.unit_id);
+            if (!order_unit_permission.ok) return;
 
-            if (!unit) return;
-            if (xy_equal(unit.position, action.to)) return;
-
-            const [could_find_path, cost] = can_find_path(battle, unit.position, action.to, unit.move_points);
-
-            if (!could_find_path) {
-                return;
-            }
+            const move_order_permission = authorize_move_order(order_unit_permission, action.to, false);
+            if (!move_order_permission.ok) return;
 
             return [{
                 type: Delta_Type.unit_move,
-                move_cost: cost,
-                unit_id: unit.id,
+                move_cost: move_order_permission.cost,
+                unit_id: move_order_permission.unit.id,
                 to_position: action.to
             }];
         }
 
         case Action_Type.use_no_target_ability: {
-            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
+            const ability_use_permission = authorize_unit_for_ability(action.unit_id, action.ability_id);
+            if (!ability_use_permission) return;
 
-            if (!actors) return;
-            if (actors.ability.type != Ability_Type.no_target) return;
+            const { unit, ability } = ability_use_permission;
 
-            const cast = perform_ability_cast_no_target(battle, actors.unit, actors.ability);
-
-            if (!cast) return;
+            if (ability.type != Ability_Type.no_target) return;
 
             return [
-                decrement_charges(actors),
-                cast
+                decrement_charges(unit, ability),
+                perform_ability_cast_no_target(battle, unit, ability)
             ]
         }
 
         case Action_Type.unit_target_ability: {
-            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
+            const ability_use_permission = authorize_unit_for_ability(action.unit_id, action.ability_id);
+            if (!ability_use_permission) return;
 
-            if (!actors) return;
-            if (actors.ability.type != Ability_Type.target_unit) return;
+            const act_on_target_permission = authorize_act_on_unit(battle, action.target_id);
+            if (!act_on_target_permission.ok) return;
 
-            const target = find_valid_target_unit(action.target_id);
+            const use_ability_on_target_permission = authorize_unit_target_ability_use(ability_use_permission, act_on_target_permission);
+            if (!use_ability_on_target_permission.ok) return;
 
-            if (!target) return;
-            if (!ability_targeting_fits(actors.ability.targeting, actors.unit.position, target.position)) return;
-
-            const cast = perform_ability_cast_unit_target(battle, actors.unit, actors.ability, target);
-
-            if (!cast) return;
+            const { unit, ability, target } = use_ability_on_target_permission;
 
             return [
-                decrement_charges(actors),
-                cast
+                decrement_charges(unit, ability),
+                perform_ability_cast_unit_target(battle, unit, ability, target)
             ]
         }
 
         case Action_Type.ground_target_ability: {
-            const actors = find_valid_unit_and_authorize_ability(action.unit_id, action.ability_id);
+            const ability_use_permission = authorize_unit_for_ability(action.unit_id, action.ability_id);
+            if (!ability_use_permission) return;
 
-            if (!actors) return;
-            if (actors.ability.type != Ability_Type.target_ground) return;
+            const ground_ability_use_permission = authorize_ground_target_ability_use(ability_use_permission, action.to);
+            if (!ground_ability_use_permission.ok) return;
 
-            const cell = grid_cell_at(battle, action.to);
-
-            if (!cell) return;
-            if (!ability_targeting_fits(actors.ability.targeting, actors.unit.position, action.to)) return;
-
-            const cast = perform_ability_cast_ground(battle, actors.unit, actors.ability, action.to);
-
-            if (!cast) return;
+            const { unit, ability, target } = ground_ability_use_permission;
 
             return [
-                decrement_charges(actors),
-                cast
+                decrement_charges(unit, ability),
+                perform_ability_cast_ground(battle, unit, ability, target.position)
             ];
         }
 
         case Action_Type.use_hero_card: {
             const card_use_permission = authorize_card_use(action_permission, action.card_id);
-
             if (!card_use_permission.ok) return;
 
-            const hero_card_use_permission = authorize_hero_card_use(battle, card_use_permission, action.at);
-
+            const hero_card_use_permission = authorize_hero_card_use(card_use_permission, action.at);
             if (!hero_card_use_permission.ok) return;
 
             const { player, card } = hero_card_use_permission;
@@ -870,33 +877,27 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
 
         case Action_Type.use_unit_target_spell_card: {
             const card_use_permission = authorize_card_use(action_permission, action.card_id);
-
-            if (!card_use_permission.ok) return;
-
             const act_on_unit_permission = authorize_act_on_unit(battle, action.unit_id);
 
+            if (!card_use_permission.ok) return;
             if (!act_on_unit_permission.ok) return;
 
             const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, act_on_unit_permission);
-
             if (!spell_use_permission.ok) return;
 
-            const { player, card, spell } = spell_use_permission;
-            const target = spell_use_permission.unit;
+            const { player, card, spell, unit } = spell_use_permission;
 
             return [
                 use_card(player, card),
-                perform_spell_cast_unit_target(battle, player, target, spell)
+                perform_spell_cast_unit_target(battle, player, unit, spell)
             ]
         }
 
         case Action_Type.use_no_target_spell_card: {
             const card_use_auth = authorize_card_use(action_permission, action.card_id);
-
             if (!card_use_auth.ok) return;
 
             const spell_use_auth = authorize_no_target_card_spell_use(card_use_auth);
-
             if (!spell_use_auth.ok) return;
 
             const { player, card, spell } = spell_use_auth;
@@ -908,100 +909,45 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
         }
 
         case Action_Type.purchase_item: {
-            // TODO stunned units can't buy items, decide if this is ok
-            const unit = find_valid_unit_for_action(action.unit_id);
-            const shop = find_shop_by_id(battle, action.shop_id);
+            const act_on_unit_permission = authorize_act_on_unit(battle, action.unit_id);
+            if (!act_on_unit_permission.ok) return;
 
-            if (!unit) break;
-            if (!shop) break;
-            if (unit.supertype != Unit_Supertype.hero) break;
-            if (!is_point_in_shop_range(unit.position, shop)) break;
+            const act_on_owned_unit_permission = authorize_owned_action_on_unit(action_permission, act_on_unit_permission);
+            if (!act_on_owned_unit_permission.ok) return;
 
-            const item = shop.items.find(item => item.id == action.item_id);
+            const purchase_permission = authorize_item_purchase(act_on_owned_unit_permission, action.shop_id, action.item_id);
+            if (!purchase_permission.ok) return;
 
-            if (!item) break;
-
-            const player = find_player_by_id(battle, unit.owner_player_id);
-
-            if (!player) break;
-
-            if (player.gold < item.gold_cost) break;
+            const { hero, shop, item } = purchase_permission;
 
             const purchase: Delta = {
                 type: Delta_Type.purchase_item,
-                unit_id: unit.id,
+                unit_id: hero.id,
                 shop_id: shop.id,
-                item_id: action.item_id,
+                item_id: item.id,
                 gold_cost: item.gold_cost
             };
 
-            const equip = equip_item(battle, unit, item);
+            const equip = equip_item(battle, hero, item);
 
             return [purchase, equip];
         }
 
         case Action_Type.pick_up_rune: {
-            const unit = find_valid_unit_for_action(action.unit_id);
-            const rune = battle.runes.find(rune => rune.id == action.rune_id);
+            const order_unit_permission = authorize_unit_for_order(action.unit_id);
+            if (!order_unit_permission.ok) return;
 
-            if (!unit) break;
-            if (!rune) break;
-            if (unit.supertype != Unit_Supertype.hero) break;
+            const rune_pickup_permission = authorize_rune_pickup_order(order_unit_permission, action.rune_id);
+            if (!rune_pickup_permission.ok) return;
 
-            const [could_find_path, cost] = can_find_path(battle, unit.position, rune.position, unit.move_points, true);
+            const { hero, rune } = rune_pickup_permission;
 
-            if (!could_find_path) {
-                return;
-            }
+            const move_order_permission = authorize_move_order(order_unit_permission, rune.position, true);
+            if (!move_order_permission.ok) return;
 
-            const base = {
-                unit_id: unit.id,
-                rune_id: rune.id,
-                at: rune.position,
-                move_cost: cost
-            };
-
-            switch (rune.type) {
-                case Rune_Type.bounty: {
-                    return [{
-                        ...base,
-                        type: Delta_Type.rune_pick_up,
-                        rune_type: rune.type,
-                        gold_gained: 10
-                    }];
-                }
-
-                case Rune_Type.regeneration: {
-                    return [{
-                        ...base,
-                        type: Delta_Type.rune_pick_up,
-                        rune_type: rune.type,
-                        heal: health_change(unit, unit.max_health - unit.health)
-                    }];
-                }
-
-                case Rune_Type.haste: {
-                    return [{
-                        ...base,
-                        type: Delta_Type.rune_pick_up,
-                        rune_type: rune.type,
-                        modifier: new_timed_modifier(battle, Modifier_Id.rune_haste, 3, [Modifier_Field.move_points_bonus, 3])
-                    }];
-                }
-
-                case Rune_Type.double_damage: {
-                    return [{
-                        ...base,
-                        type: Delta_Type.rune_pick_up,
-                        rune_type: rune.type,
-                        modifier: new_timed_modifier(battle, Modifier_Id.rune_double_damage, 3, [Modifier_Field.attack_bonus, unit.attack_damage])
-                    }];
-                }
-
-                default: unreachable(rune.type);
-            }
-
-            break;
+            return [
+                pick_up_rune(battle, hero, rune, move_order_permission.cost)
+            ];
         }
 
         case Action_Type.end_turn: {
@@ -1115,44 +1061,72 @@ function get_gold_for_killing(target: Unit): number {
     }
 }
 
-function creep_try_retaliate(battle: Battle_Record, creep: Creep, target: Unit): Creep_Retaliation_Result {
-    const attack = creep.attack;
+function defer_creep_try_retaliate(battle: Battle_Record, creep: Creep, target: Unit) {
+    const authorize_attack_intent = () => {
+        const act_on_unit_permission = authorize_act_on_known_unit(battle, creep);
+        if (!act_on_unit_permission.ok) return;
 
-    // TODO use action authorization functions
-    if (!is_unit_a_valid_target(creep)) return Creep_Retaliation_Result.cant_act;
-    if (is_unit_stunned(creep)) return Creep_Retaliation_Result.cant_act;
-    if (is_unit_disarmed(creep)) return Creep_Retaliation_Result.cant_act;
-    if (creep.has_taken_an_action_this_turn) return Creep_Retaliation_Result.cant_act;
-    if (attack.type == Ability_Type.passive) return Creep_Retaliation_Result.cant_act;
-    if (!is_unit_a_valid_target(target)) return Creep_Retaliation_Result.target_lost;
+        const order_unit_permission = authorize_order_unit(act_on_unit_permission);
+        if (!order_unit_permission.ok) return;
 
-    const costs = populate_path_costs(battle, creep.position)!;
+        const act_on_target_permission = authorize_act_on_known_unit(battle, target);
+        if (!act_on_target_permission.ok) return;
 
-    for (const cell of battle.cells) {
-        const index = grid_cell_index(battle, cell.position);
-        const move_cost = costs.cell_index_to_cost[index];
+        const ability_use_permission = authorize_ability_use(order_unit_permission, creep.attack.id);
+        if (!ability_use_permission.ok) return;
 
-        if (move_cost <= creep.move_points) {
-            if (ability_targeting_fits(attack.targeting, cell.position, target.position)) {
-                defer_delta(battle, () => ({
-                    type: Delta_Type.unit_move,
-                    to_position: cell.position,
-                    unit_id: creep.id,
-                    move_cost: move_cost
-                }));
+        return ability_use_permission;
+    };
 
-                if (attack.type == Ability_Type.target_ground) {
-                    defer_delta(battle, () => perform_ability_cast_ground(battle, creep, attack, target.position));
+    const defer_attack = () => defer_delta(battle, () => {
+        const attack_intent = authorize_attack_intent();
 
-                    battle.creep_targets.set(creep, target);
+        if (!attack_intent) {
+            battle.creep_targets.delete(creep);
+            return;
+        }
 
-                    return Creep_Retaliation_Result.ok;
+        const attack = attack_intent.ability;
+
+        if (attack.type == Ability_Type.target_ground) {
+            battle.creep_targets.set(creep, target);
+
+            return perform_ability_cast_ground(battle, creep, attack, target.position);
+        }
+    });
+
+    const defer_move = () => defer(battle, () => {
+        const attack_intent = authorize_attack_intent();
+
+        if (!attack_intent) {
+            battle.creep_targets.delete(creep);
+            return;
+        }
+
+        const costs = populate_path_costs(battle, creep.position)!;
+
+        for (const cell of battle.cells) {
+            const index = grid_cell_index(battle, cell.position);
+            const move_cost = costs.cell_index_to_cost[index];
+
+            if (move_cost <= creep.move_points) {
+                if (ability_targeting_fits(attack_intent.ability.targeting, cell.position, target.position)) {
+                    defer_delta(battle, () => ({
+                        type: Delta_Type.unit_move,
+                        to_position: cell.position,
+                        unit_id: creep.id,
+                        move_cost: move_cost
+                    }));
+
+                    defer_attack();
+
+                    break;
                 }
             }
         }
-    }
+    });
 
-    return Creep_Retaliation_Result.target_lost;
+    defer_move();
 }
 
 function server_change_health(battle: Battle_Record, source: Source, target: Unit, change: Health_Change) {
@@ -1187,7 +1161,7 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
             }
         } else {
             if (target.supertype == Unit_Supertype.creep) {
-                defer(battle, () => creep_try_retaliate(battle, target, attacker));
+                defer_creep_try_retaliate(battle, target, attacker);
             }
         }
     }
@@ -1242,15 +1216,11 @@ function server_end_turn(battle: Battle_Record) {
 
     for (const creep of battle.units) {
         if (creep.supertype == Unit_Supertype.creep) {
-            defer(battle, () => {
-                const target = battle.creep_targets.get(creep);
+            const target = battle.creep_targets.get(creep);
 
-                if (target) {
-                    if (creep_try_retaliate(battle, creep, target) == Creep_Retaliation_Result.target_lost) {
-                        battle.creep_targets.delete(creep);
-                    }
-                }
-            });
+            if (target) {
+                defer_creep_try_retaliate(battle, creep, target);
+            }
         }
     }
 }

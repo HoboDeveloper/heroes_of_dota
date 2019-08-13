@@ -135,7 +135,7 @@ function rune_image(type: Rune_Type): Image_Resource {
 }
 
 async function api_request<Request, Response>(path: string, data: Request): Promise<Response> {
-    const response = await fetch("http://cia-is.moe:3638" + path, {
+    const response = await fetch("http://127.0.0.1:3638" + path, {
         method: "POST",
         mode: "cors",
         cache: "no-cache",

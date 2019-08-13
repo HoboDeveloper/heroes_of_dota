@@ -1,17 +1,3 @@
-declare const enum Ability_Error {
-    other = 0,
-    dead = 1,
-    no_charges = 2,
-    invalid_target = 4,
-    already_acted_this_turn = 5,
-    not_learned_yet = 6,
-    stunned = 7,
-    silenced = 8,
-    disarmed = 9,
-    unusable = 10,
-    out_of_the_game = 11
-}
-
 declare const enum Source_Type {
     none = 0,
     unit = 1,
@@ -40,18 +26,6 @@ type Source_Item = {
 }
 
 type Source = Source_None | Source_Unit | Source_Item | Source_Player
-
-type Ability_Authorization_Ok = {
-    success: true;
-    ability: Ability;
-}
-
-type Ability_Authorization_Error = {
-    success: false;
-    error: Ability_Error;
-}
-
-type Ability_Authorization = Ability_Authorization_Ok | Ability_Authorization_Error;
 
 type Battle = {
     has_started: boolean
@@ -681,42 +655,6 @@ function replace_ability(unit: Unit, ability_id_to_bench: Ability_Id, currently_
         unit.abilities[ability_to_bench_index] = unit.ability_bench[benched_ability_index];
         unit.ability_bench[benched_ability_index] = ability_to_bench;
     }
-}
-
-function authorize_ability_use_by_unit(unit: Unit, ability_id: Ability_Id): Ability_Authorization {
-    function error(err: Ability_Error): Ability_Authorization_Error {
-        return {
-            success: false,
-            error: err
-        }
-    }
-
-    const ability = find_unit_ability(unit, ability_id);
-
-    if (!ability) return error(Ability_Error.other);
-    if (ability.type == Ability_Type.passive) return error(Ability_Error.unusable);
-
-    if (unit.dead) return error(Ability_Error.dead);
-    if (unit.has_taken_an_action_this_turn) return error(Ability_Error.already_acted_this_turn);
-    if (is_unit_stunned(unit)) return error(Ability_Error.stunned);
-    if (is_unit_out_of_the_game(unit)) return error(Ability_Error.out_of_the_game);
-
-    if (ability == unit.attack) {
-        if (is_unit_disarmed(unit)) return error(Ability_Error.disarmed);
-    } else {
-        if (is_unit_silenced(unit)) return error(Ability_Error.silenced);
-    }
-
-    if (unit.supertype == Unit_Supertype.hero) {
-        if (unit.level < ability.available_since_level) return error(Ability_Error.not_learned_yet);
-    }
-
-    if (ability.charges_remaining < 1) return error(Ability_Error.no_charges);
-
-    return {
-        success: true,
-        ability: ability
-    };
 }
 
 function change_health_default(battle: Battle, source: Source, target: Unit, change: Health_Change): boolean {
