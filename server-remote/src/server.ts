@@ -706,7 +706,11 @@ export function start_server(with_test_player: boolean) {
         console.log("Test player enabled");
     }
 
-    createServer((req, res) => {
+    const game_html = readFileSync("dist/game.html", "utf8");
+    const battle_sim = readFileSync("dist/battle_sim.js", "utf8");
+    const web_main = readFileSync("dist/web_main.js", "utf8");
+
+    const server = createServer((req, res) => {
         const url = req.url;
         const time_start = performance.now();
 
@@ -731,6 +735,36 @@ export function start_server(with_test_player: boolean) {
             const headers: Record<string, string> = {
                 "Access-Control-Allow-Origin": "*"
             };
+
+            if (req.method == "GET") {
+                switch (url) {
+                    case "/": {
+                        res.writeHead(200);
+                        res.end(game_html);
+                        break;
+                    }
+
+                    case "/battle_sim.js": {
+                        res.writeHead(200);
+                        res.end(battle_sim);
+
+                        break;
+                    }
+
+                    case "/web_main.js": {
+                        res.writeHead(200);
+                        res.end(web_main);
+                        break;
+                    }
+
+                    default: {
+                        res.writeHead(404);
+                        res.end("Not found");
+                    }
+                }
+
+                return;
+            }
 
             if (req.method == "OPTIONS") {
                 res.writeHead(200, headers);
@@ -761,5 +795,13 @@ export function start_server(with_test_player: boolean) {
             const time = performance.now() - time_start;
             console.log(`${url} -> ${result.type == Result_Type.ok ? 'ok' : result.code}, took ${time.toFixed(2)}ms total, handle: ${handle_time.toFixed(2)}ms`)
         });
-    }).listen(3638);
+    }).listen(3638, "127.0.0.1");
+
+    server.on("listening", () => {
+        const address = server.address();
+
+        if (typeof address == "object") {
+            console.log(`Started at http://${address.address}:${address.port}`)
+        }
+    });
 }

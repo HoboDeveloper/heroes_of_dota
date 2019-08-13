@@ -11,9 +11,11 @@ type Game_Base = {
     canvas_height: number
     access_token: string
     requested_player_state_at: number
+    requested_chat_at: number
     mouse: Mouse_State
     player_id: number
     any_button_clicked_this_frame: boolean
+    chat_messages: string[]
 }
 
 type Game_Not_Logged_In = Game_Base & {
@@ -135,7 +137,7 @@ function rune_image(type: Rune_Type): Image_Resource {
 }
 
 async function api_request<Request, Response>(path: string, data: Request): Promise<Response> {
-    const response = await fetch("http://127.0.0.1:3638" + path, {
+    const response = await fetch(path, {
         method: "POST",
         mode: "cors",
         cache: "no-cache",
@@ -299,6 +301,20 @@ async function check_and_try_request_player_state(state: Game, time: number) {
 
         game = game_from_state(player_data, game);
     }
+}
+
+async function check_and_try_request_chat(state: Game, time: number) {
+    if (time - state.requested_chat_at < 1000) {
+        return
+    }
+
+    state.requested_chat_at = time;
+
+    const messages = await api_request<Pull_Pending_Chat_Messages_Request, Pull_Pending_Chat_Messages_Response>("/pull_chat_messages", {
+        access_token: state.access_token
+    });
+
+    state.chat_messages.push(...messages.messages.map(message => `${message.from_player_name}: ${message.message}`));
 }
 
 async function check_and_try_request_battle_deltas(game: Game_In_Battle, time: number) {
@@ -1241,6 +1257,31 @@ function draw_battle_list(global_map: Game_On_Global_Map) {
     }
 }
 
+function draw_chat(game: Game) {
+    const font_size_px = 16;
+    const ctx = game.ctx;
+    const lines = game.chat_messages;
+
+    const how_many_lines_to_show = 20;
+    const starting_index = Math.max(lines.length - how_many_lines_to_show, 0);
+
+    const font_height = 16;
+
+    const cursor_x = 1200;
+    let cursor_y = grid_top_left_y;
+
+    ctx.font = `${font_height}px Open Sans`;
+    ctx.fillStyle = "black";
+
+    for (let index = 0; index < how_many_lines_to_show && index < lines.length; index++) {
+        const line = lines[starting_index + index];
+
+        ctx.fillText(line, cursor_x, cursor_y);
+
+        cursor_y += font_height + 4;
+    }
+}
+
 function draw_ability_list(game: Game_In_Battle, unit: Unit): boolean {
     const top_left_x = 120 + game.battle.grid_size.x * cell_size + 30;
 
@@ -1302,6 +1343,7 @@ function do_one_frame(time: number) {
     ctx.textBaseline = "middle";
 
     draw_header(game);
+    draw_chat(game);
 
     switch (game.state) {
         case Player_State.on_global_map: {
@@ -1360,6 +1402,7 @@ function do_one_frame(time: number) {
     }
 
     check_and_try_request_player_state(game, time);
+    check_and_try_request_chat(game, time);
 
     game.mouse.clicked = false;
     game.any_button_clicked_this_frame = false;
@@ -1538,8 +1581,10 @@ async function start_game() {
         canvas_height: canvas.height,
         ctx: context,
         access_token: auth.token,
-        requested_player_state_at: 0,
+        requested_player_state_at: Number.MIN_SAFE_INTEGER,
+        requested_chat_at: Number.MIN_SAFE_INTEGER,
         any_button_clicked_this_frame: false,
+        chat_messages: [],
         mouse: {
             x: 0,
             y: 0,

@@ -1,6 +1,17 @@
 const exec = require("child_process").exec;
-const copy = require("fs").copyFileSync;
+const fs = require("fs");
+const path = require("path");
 const performance = require('perf_hooks').performance;
+
+function copy(from, to) {
+    const dir_name = path.dirname(to);
+
+    if (!fs.existsSync(dir_name)) {
+        fs.mkdirSync(dir_name, {recursive: true});
+    }
+
+    fs.copyFileSync(from, to);
+}
 
 function compile_file(module) {
     return new Promise(resolve => {
@@ -41,6 +52,11 @@ exports.compile = function(...modules) {
 
 exports.copy_sim = function(to) {
     copy("battle-sim/dist/battle_sim.js", to);
+};
+
+exports.deploy_web_version = function() {
+    copy("client-web/src/game.html", "server-remote/dist/game.html");
+    copy("client-web/dist/web_main.js", "server-remote/dist/web_main.js")
 };
 
 exports.copy_code_shared_with_lua = function() {
