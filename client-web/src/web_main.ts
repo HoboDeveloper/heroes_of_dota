@@ -737,6 +737,21 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
             ]
         }
 
+        case Delta_Type.rune_pick_up: {
+            const unit = find_unit_by_id(game.battle, delta.unit_id);
+            const rune = find_rune_by_id(game.battle, delta.rune_id);
+
+            if (!unit) break;
+            if (!rune) break;
+
+            return [
+                clr.unit_name(unit),
+                clr.plain(" picks up "),
+                clr.txt(enum_to_string(rune.type), "gray"),
+                clr.plain(" rune")
+            ]
+        }
+
         case Delta_Type.ability_effect_applied: {
             const id: Ability_Id = delta.effect.ability_id;
 
