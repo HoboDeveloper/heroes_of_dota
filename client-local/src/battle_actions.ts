@@ -99,6 +99,33 @@ function move_order_error_reason(error: Action_Error<Move_Order_Error>): Error_R
     }
 }
 
+function card_use_error_reason(error: Action_Error<Card_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Card_Use_Error.other: return custom_error("Error");
+        case Card_Use_Error.has_used_a_card_this_turn: return custom_error("Already used a card this turn");
+    }
+}
+
+function hero_card_use_error_reason(error: Action_Error<Hero_Card_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Hero_Card_Use_Error.other: return custom_error("Error");
+        case Hero_Card_Use_Error.cell_occupied: return custom_error("Occupied");
+        case Hero_Card_Use_Error.not_in_deployment_zone: return custom_error("Not in deployment zone");
+    }
+}
+
+function unit_target_spell_use_error_reason(error: Action_Error<Unit_Target_Spell_Card_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Unit_Target_Spell_Card_Use_Error.other: return custom_error("Error");
+    }
+}
+
+function no_target_spell_use_error_reason(error: Action_Error<No_Target_Spell_Card_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case No_Target_Spell_Card_Use_Error.other: return custom_error("Error");
+    }
+}
+
 // Return type is for 'return show_action_error_ui' syntax sugar
 function show_action_error_ui<T>(error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason): undefined {
     show_error_ui(supplier(error));
@@ -249,58 +276,82 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
     highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
 }
 
-function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void) {
-    function card_to_action(): Turn_Action | undefined {
-        switch (card.type) {
-            case Card_Type.spell: {
-                switch (card.spell_type) {
-                    case Spell_Type.unit_target: {
-                        const target = unit_at(battle, hovered_cell);
+type Use_Spell_Action = Action_Use_Unit_Target_Spell | Action_Use_Ground_Target_Spell_Card;
 
-                        if (target) {
-                            return {
-                                type: Action_Type.use_unit_target_spell_card,
-                                card_id: card.id,
-                                unit_id: target.id,
-                            }
-                        }
+function try_use_card_spell(spell: Card_Spell, hovered_cell: XY, card_use_permission: Card_Use_Permission): Use_Spell_Action | undefined {
+    switch (spell.spell_type) {
+        case Spell_Type.unit_target: {
+            const target = unit_at(battle, hovered_cell);
 
-                        break;
-                    }
-
-                    case Spell_Type.no_target: {
-                        return {
-                            type: Action_Type.use_no_target_spell_card,
-                            card_id: card.id
-                        }
-                    }
-
-                    // TODO Spell_Type.ground_target + unreachable
-                }
-
-                break;
-            }
-
-            case Card_Type.hero: {
-                return {
-                    type: Action_Type.use_hero_card,
-                    card_id: card.id,
-                    at: hovered_cell
-                }
-            }
-
-            case Card_Type.unknown: {
+            if (!target) {
+                show_error_ui(custom_error("Select a target"));
                 return;
             }
 
-            default: unreachable(card);
+            const act_on_unit = authorize_act_on_known_unit(battle, target);
+            if (!act_on_unit.ok) return show_action_error_ui(act_on_unit, act_on_unit_error_reason);
+
+            const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, act_on_unit);
+            if (!spell_use_permission.ok) return show_action_error_ui(spell_use_permission, unit_target_spell_use_error_reason);
+
+            if (target) {
+                return {
+                    type: Action_Type.use_unit_target_spell_card,
+                    card_id: spell.id,
+                    unit_id: target.id,
+                }
+            }
+
+            break;
         }
+
+        case Spell_Type.no_target: {
+            const spell_use_permission = authorize_no_target_card_spell_use(card_use_permission);
+            if (!spell_use_permission.ok) return show_action_error_ui(spell_use_permission, no_target_spell_use_error_reason);
+
+            return {
+                type: Action_Type.use_no_target_spell_card,
+                card_id: spell.id
+            }
+        }
+
+        // TODO Spell_Type.ground_target + unreachable
     }
+}
 
-    const action = card_to_action();
+function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void) {
+    const action_permission = authorize_action_by_player(battle, battle.this_player);
+    if (!action_permission.ok) return show_action_error_ui(action_permission, player_act_error_reason);
 
-    // TODO :Authorization
-    if (action) {
-        take_battle_action(action, () => success_callback);
+    const card_use_permission = authorize_card_use(action_permission, card.id);
+    if (!card_use_permission.ok) return show_action_error_ui(card_use_permission, card_use_error_reason);
+
+    switch (card.type) {
+        case Card_Type.hero: {
+            const hero_card_use_permission = authorize_hero_card_use(card_use_permission, hovered_cell);
+            if (!hero_card_use_permission.ok) return show_action_error_ui(hero_card_use_permission, hero_card_use_error_reason);
+
+            take_battle_action({
+                type: Action_Type.use_hero_card,
+                card_id: card.id,
+                at: hovered_cell
+            }, success_callback);
+
+            break;
+        }
+
+        case Card_Type.spell: {
+            const action = try_use_card_spell(card, hovered_cell, card_use_permission);
+
+            if (action) {
+                take_battle_action(action, success_callback);
+            }
+
+            break;
+        }
+
+        case Card_Type.unknown: {
+            return;
+        }
     }
 }

@@ -28,6 +28,10 @@ declare const enum No_Target_Spell_Card_Use_Error {
     other = 0
 }
 
+declare const enum Unit_Target_Spell_Card_Use_Error {
+    other = 0
+}
+
 declare const enum Purchase_Item_Error {
     other = 0,
     not_enough_gold = 1,
@@ -155,7 +159,7 @@ type Player_Action_Auth = Auth<Player_Action_Permission, Player_Action_Error>
 type Card_Use_Auth = Auth<Card_Use_Permission, Card_Use_Error>
 type Hero_Card_Use_Auth = Auth<Hero_Card_Use_Permission, Hero_Card_Use_Error>
 type No_Target_Spell_Card_Use_Auth = Auth<No_Target_Spell_Card_Use_Permission, No_Target_Spell_Card_Use_Error>
-type Unit_Target_Spell_Card_Use_Auth = Auth<Unit_Target_Spell_Card_Use_Permission, No_Target_Spell_Card_Use_Error>
+type Unit_Target_Spell_Card_Use_Auth = Auth<Unit_Target_Spell_Card_Use_Permission, Unit_Target_Spell_Card_Use_Error>
 type Act_On_Unit_Auth = Auth<Act_On_Unit_Permission, Act_On_Unit_Error>
 type Purchase_Item_Auth = Auth<Purchase_Item_Permission, Purchase_Item_Error>
 type Order_Unit_Auth = Auth<Order_Unit_Permission, Order_Unit_Error>
@@ -226,8 +230,8 @@ function authorize_no_target_card_spell_use(use: Card_Use_Permission): No_Target
 }
 
 function authorize_unit_target_card_spell_use(use: Card_Use_Permission, act_on_unit: Act_On_Unit_Permission): Unit_Target_Spell_Card_Use_Auth {
-    if (use.card.type != Card_Type.spell) return { ok: false, kind: No_Target_Spell_Card_Use_Error.other };
-    if (use.card.spell_type != Spell_Type.unit_target) return { ok: false, kind: No_Target_Spell_Card_Use_Error.other };
+    if (use.card.type != Card_Type.spell) return { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
+    if (use.card.spell_type != Spell_Type.unit_target) return { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
 
     return {
         ok: true,

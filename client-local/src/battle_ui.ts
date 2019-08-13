@@ -2526,13 +2526,13 @@ function update_hand() {
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
-            // TODO :Authorization
-            if (battle.this_player.has_used_a_card_this_turn) {
-                if (card_error_shown_at < Game.Time() - 0.5) {
-                    show_generic_error("Already used a card this turn");
-                    card_error_shown_at = Game.Time();
-                }
-            } else {
+            (() => {
+                const action_permission = authorize_action_by_player(battle, battle.this_player);
+                if (!action_permission.ok) return show_action_error_ui(action_permission, player_act_error_reason);
+
+                const card_use_permission = authorize_card_use(action_permission, card.card.id);
+                if (!card_use_permission.ok) return show_action_error_ui(card_use_permission, card_use_error_reason);
+
                 set_selection({
                     type: Selection_Type.card,
                     previous_selection: selection,
@@ -2541,7 +2541,7 @@ function update_hand() {
                 });
 
                 card.panel.SetHasClass("in_preview", true);
-            }
+            })();
         }
 
         index++;
