@@ -853,9 +853,9 @@ function compute_unit_path_cell_color(unit: Unit, path: Cost_Population_Result, 
     }
 
     if (rune_in_cell) {
-        const [can_go] = can_find_path(battle, unit.position, rune_in_cell.position, unit.move_points, true);
+        const [can_go, cost] = can_find_path(battle, unit.position, rune_in_cell.position, true);
 
-        if (can_go) {
+        if (can_go && cost <= unit.move_points) {
             return [color_green, 35];
         }
     }
@@ -1191,19 +1191,7 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
         item_button.AddClass("item_button");
         item_button.SetPanelEvent(PanelEvent.ON_RIGHT_CLICK, () => {
             if (selection.type == Selection_Type.shop) {
-                if (battle.this_player.gold >= item.gold_cost) {
-                    Game.EmitSound("General.Buy");
-
-                    // TODO :Authorization
-                    take_battle_action({
-                        type: Action_Type.purchase_item,
-                        unit_id: selection.unit.id,
-                        shop_id: selection.shop.id,
-                        item_id: item.id
-                    }, () => {
-                        item_button.AddClass("unavailable");
-                    });
-                }
+                try_purchase_item(selection.unit, selection.shop, item.id, () => item_button.AddClass("unavailable"));
             }
         });
 
@@ -2015,12 +2003,6 @@ function select_shop(new_entity_id: EntityId) {
 
     // TODO :Authorization
     if (is_unit_selection(selection)) {
-        if (!is_point_in_shop_range(selection.unit.position, shop)) {
-            show_generic_error("Not in shop range");
-
-            return;
-        }
-
         shop_ui.root_container.AddClass("open");
         Game.EmitSound("Shop.Available");
 
@@ -2034,10 +2016,22 @@ function select_shop(new_entity_id: EntityId) {
         });
     } else {
         const ally_units_in_shop_range = battle.units
-            .filter(unit =>
-                player_owns_unit(battle.this_player, unit) &&
-                is_point_in_shop_range(unit.position, shop) &&
-                is_unit_a_valid_target(unit)
+            .filter(unit => {
+                    const player_act_permission: Player_Action_Permission = {
+                        ok: true,
+                        battle: battle,
+                        player: battle.this_player
+                    };
+
+                    const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
+                    if (!act_on_unit_permission.ok) return false;
+
+                    const act_on_owned_unit_permission = authorize_act_on_owned_unit(player_act_permission, act_on_unit_permission);
+                    if (!act_on_owned_unit_permission.ok) return false;
+
+                    const use_shop_permission = authorize_shop_use(act_on_owned_unit_permission, shop.id);
+                    return use_shop_permission.ok;
+                }
             );
 
         if (ally_units_in_shop_range.length == 0) {
@@ -2045,7 +2039,6 @@ function select_shop(new_entity_id: EntityId) {
 
             return;
         }
-
 
         const new_customer = ally_units_in_shop_range[0];
         const new_customer_data = find_unit_entity_data_by_unit_id(battle, new_customer.id);
@@ -2522,11 +2515,20 @@ function update_hand() {
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             (() => {
+                const try_show_rate_limited_error = <T> (error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason) => {
+                    if (card_error_shown_at < Game.Time() - 0.5) {
+                        show_action_error_ui(error, supplier);
+                        card_error_shown_at = Game.Time();
+                    }
+
+                    return;
+                };
+
                 const action_permission = authorize_action_by_player(battle, battle.this_player);
-                if (!action_permission.ok) return show_action_error_ui(action_permission, player_act_error_reason);
+                if (!action_permission.ok) return try_show_rate_limited_error(action_permission, player_act_error_reason);
 
                 const card_use_permission = authorize_card_use(action_permission, card.card.id);
-                if (!card_use_permission.ok) return show_action_error_ui(card_use_permission, card_use_error_reason);
+                if (!card_use_permission.ok) return try_show_rate_limited_error(card_use_permission, card_use_error_reason);
 
                 set_selection({
                     type: Selection_Type.card,
@@ -2608,32 +2610,6 @@ function show_start_turn_ui() {
         root.RemoveClass("visible");
         root.RemoveClass("animate_your_turn");
     });
-}
-
-function authorize_unit_order_with_error_ui(unit: Unit): Order_Unit_Permission | undefined {
-    const player_act_permission = authorize_action_by_player(battle, battle.this_player);
-    if (!player_act_permission.ok) return show_action_error_ui(player_act_permission, player_act_error_reason);
-
-    const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
-    if (!act_on_unit_permission.ok) return show_action_error_ui(act_on_unit_permission, act_on_unit_error_reason);
-
-    const act_on_owned_unit_permission = authorize_owned_action_on_unit(player_act_permission, act_on_unit_permission);
-    if (!act_on_owned_unit_permission.ok) return show_action_error_ui(act_on_owned_unit_permission, act_on_owned_unit_error_reason);
-
-    const order_permission = authorize_order_unit(act_on_unit_permission);
-    if (!order_permission.ok) return show_action_error_ui(order_permission, order_unit_error_reason);
-
-    return order_permission;
-}
-
-function authorize_ability_use_with_error_ui(unit: Unit, ability: Ability): Ability_Use_Permission | undefined {
-    const order_permission = authorize_unit_order_with_error_ui(unit);
-    if (!order_permission) return;
-
-    const ability_use = authorize_ability_use(order_permission, ability.id);
-    if (!ability_use.ok) return show_ability_use_error_ui(order_permission.unit, ability.id, ability_use);
-
-    return ability_use;
 }
 
 function try_select_unit_ability(unit: Unit, ability: Ability) {

@@ -22,6 +22,18 @@ type Error_Reason = {
     message?: string
 };
 
+// 24 - silenced
+// 25 - can't move
+// 30 - can't be attacked
+// 41 - can't attack
+// 46 - target out of range
+// 48 - can't target that
+// 62 - secret shop not in range
+// 63 - not enough gold
+// 74 - can't act
+// 75 - muted
+// 77 - target immune to magic
+// 80 - custom "message" argument
 function native_error(reason: number): Error_Reason {
     return { reason: reason };
 }
@@ -95,6 +107,7 @@ function unit_target_ability_use_error_reason(error: Action_Error<Unit_Target_Ab
 function move_order_error_reason(error: Action_Error<Move_Order_Error>): Error_Reason {
     switch (error.kind) {
         case Move_Order_Error.not_enough_move_points: return custom_error("Not enough move points");
+        case Move_Order_Error.path_not_found: return custom_error("Can't move here");
         case Move_Order_Error.other: return custom_error("Error");
     }
 }
@@ -133,6 +146,21 @@ function rune_pickup_error_reason(error: Action_Error<Rune_Pickup_Order_Error>):
     }
 }
 
+function use_shop_error_reason(error: Action_Error<Use_Shop_Error>): Error_Reason {
+    switch (error.kind) {
+        case Use_Shop_Error.other: return custom_error("Error");
+        case Use_Shop_Error.not_a_hero: return custom_error("Only heroes can buy items");
+        case Use_Shop_Error.not_in_shop_range: return custom_error("Not in shop range");
+    }
+}
+
+function purchase_item_error_reason(error: Action_Error<Purchase_Item_Error>): Error_Reason {
+    switch (error.kind) {
+        case Purchase_Item_Error.other: return custom_error("Error");
+        case Purchase_Item_Error.not_enough_gold: return custom_error("Not enough gold");
+    }
+}
+
 // Return type is for 'return show_action_error_ui' syntax sugar
 function show_action_error_ui<T>(error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason): undefined {
     show_error_ui(supplier(error));
@@ -154,6 +182,39 @@ function show_ability_use_error_ui(caster: Unit, ability_id: Ability_Id, error: 
         button.overlay.RemoveClass("animate_silence_try");
         button.overlay.AddClass("animate_silence_try");
     }
+}
+
+function authorized_act_on_owned_unit_with_error_ui(unit: Unit): Act_On_Owned_Unit_Permission | undefined {
+    const player_act_permission = authorize_action_by_player(battle, battle.this_player);
+    if (!player_act_permission.ok) return show_action_error_ui(player_act_permission, player_act_error_reason);
+
+    const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
+    if (!act_on_unit_permission.ok) return show_action_error_ui(act_on_unit_permission, act_on_unit_error_reason);
+
+    const act_on_owned_unit_permission = authorize_act_on_owned_unit(player_act_permission, act_on_unit_permission);
+    if (!act_on_owned_unit_permission.ok) return show_action_error_ui(act_on_owned_unit_permission, act_on_owned_unit_error_reason);
+
+    return act_on_owned_unit_permission;
+}
+
+function authorize_unit_order_with_error_ui(unit: Unit): Order_Unit_Permission | undefined {
+    const act_on_owned_unit_permission = authorized_act_on_owned_unit_with_error_ui(unit);
+    if (!act_on_owned_unit_permission) return;
+
+    const order_permission = authorize_order_unit(act_on_owned_unit_permission);
+    if (!order_permission.ok) return show_action_error_ui(order_permission, order_unit_error_reason);
+
+    return order_permission;
+}
+
+function authorize_ability_use_with_error_ui(unit: Unit, ability: Ability): Ability_Use_Permission | undefined {
+    const order_permission = authorize_unit_order_with_error_ui(unit);
+    if (!order_permission) return;
+
+    const ability_use = authorize_ability_use(order_permission, ability.id);
+    if (!ability_use.ok) return show_ability_use_error_ui(order_permission.unit, ability.id, ability_use);
+
+    return ability_use;
 }
 
 
@@ -278,8 +339,10 @@ function try_order_unit_to_pick_up_rune(unit: Unit, rune: Rune) {
     const rune_pickup_permission = authorize_rune_pickup_order(order_permission, rune.id);
     if (!rune_pickup_permission.ok) return show_action_error_ui(rune_pickup_permission, rune_pickup_error_reason);
 
-    const move_permission = authorize_move_order(order_permission, rune.position, false);
+    const move_permission = authorize_move_order(order_permission, rune.position, true);
     if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
+
+    // TODO highlight move area
 
     highlight_move_path(unit, rune.position);
 
@@ -384,4 +447,24 @@ function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void
             return;
         }
     }
+}
+
+function try_purchase_item(unit: Unit, shop: Shop, item_id: Item_Id, success_callback: () => void) {
+    const act_on_owned_unit_permission = authorized_act_on_owned_unit_with_error_ui(unit);
+    if (!act_on_owned_unit_permission) return;
+
+    const use_shop_permission = authorize_shop_use(act_on_owned_unit_permission, shop.id);
+    if (!use_shop_permission.ok) return show_action_error_ui(use_shop_permission, use_shop_error_reason);
+
+    const purchase_permission = authorize_item_purchase(use_shop_permission, item_id);
+    if (!purchase_permission.ok) return show_action_error_ui(purchase_permission, purchase_item_error_reason);
+
+    Game.EmitSound("General.Buy");
+
+    take_battle_action({
+        type: Action_Type.purchase_item,
+        unit_id: unit.id,
+        shop_id: shop.id,
+        item_id: item_id
+    }, success_callback);
 }

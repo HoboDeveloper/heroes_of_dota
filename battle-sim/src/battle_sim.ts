@@ -384,7 +384,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
 }
 
 // TODO replace with a more efficient A* implementation
-function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: number, ignore_runes = false): [boolean, number] {
+function can_find_path(battle: Battle, from: XY, to: XY, ignore_runes = false): [boolean, number] {
     const indices_already_checked: boolean[] = [];
     const from_index = grid_cell_index(battle, from);
 
@@ -393,7 +393,7 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
     indices_not_checked.push(from_index);
     indices_already_checked[from_index] = true;
 
-    for (let current_cost = 0; indices_not_checked.length > 0 && current_cost <= maximum_distance; current_cost++) {
+    for (let current_cost = 0; indices_not_checked.length > 0; current_cost++) {
         const new_indices: number[] = [];
 
         for (const index of indices_not_checked) {
@@ -435,7 +435,7 @@ function can_find_path(battle: Battle, from: XY, to: XY, maximum_distance: numbe
         indices_not_checked = new_indices;
     }
 
-    return [false, 0];
+    return [false, Number.MAX_SAFE_INTEGER];
 }
 
 // TODO the relation between to == undefined and Cost_Population_Result == undefined produces too many non-null asserts

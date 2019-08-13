@@ -32,11 +32,15 @@ declare const enum Unit_Target_Spell_Card_Use_Error {
     other = 0
 }
 
+declare const enum Use_Shop_Error {
+    other = 0,
+    not_in_shop_range = 1,
+    not_a_hero = 2,
+}
+
 declare const enum Purchase_Item_Error {
     other = 0,
-    not_enough_gold = 1,
-    not_in_shop_range = 2,
-    not_a_hero = 3,
+    not_enough_gold = 1
 }
 
 declare const enum Order_Unit_Error {
@@ -56,7 +60,8 @@ declare const enum Ability_Use_Error {
 
 declare const enum Move_Order_Error {
     other = 0,
-    not_enough_move_points = 1
+    not_enough_move_points = 1,
+    path_not_found = 2
 }
 
 declare const enum Rune_Pickup_Order_Error {
@@ -116,6 +121,12 @@ type Unit_Target_Spell_Card_Use_Permission = Spell_Card_Use_Permission<Card_Spel
     unit: Unit
 }
 
+type Use_Shop_Permission = {
+    ok: true
+    hero: Hero
+    shop: Shop
+}
+
 type Purchase_Item_Permission = {
     ok: true
     hero: Hero
@@ -161,6 +172,7 @@ type Hero_Card_Use_Auth = Auth<Hero_Card_Use_Permission, Hero_Card_Use_Error>
 type No_Target_Spell_Card_Use_Auth = Auth<No_Target_Spell_Card_Use_Permission, No_Target_Spell_Card_Use_Error>
 type Unit_Target_Spell_Card_Use_Auth = Auth<Unit_Target_Spell_Card_Use_Permission, Unit_Target_Spell_Card_Use_Error>
 type Act_On_Unit_Auth = Auth<Act_On_Unit_Permission, Act_On_Unit_Error>
+type Use_Shop_Auth = Auth<Use_Shop_Permission, Use_Shop_Error>
 type Purchase_Item_Auth = Auth<Purchase_Item_Permission, Purchase_Item_Error>
 type Order_Unit_Auth = Auth<Order_Unit_Permission, Order_Unit_Error>
 type Move_Order_Auth = Auth<Move_Order_Permission, Move_Order_Error>
@@ -261,7 +273,7 @@ function authorize_act_on_unit(battle: Battle, unit_id: number): Act_On_Unit_Aut
     return authorize_act_on_known_unit(battle, unit);
 }
 
-function authorize_owned_action_on_unit(player_action: Player_Action_Permission, act_on_unit: Act_On_Unit_Permission): Act_On_Owned_Unit_Auth {
+function authorize_act_on_owned_unit(player_action: Player_Action_Permission, act_on_unit: Act_On_Unit_Permission): Act_On_Owned_Unit_Auth {
     if (!player_owns_unit(player_action.player, act_on_unit.unit)) return { ok: false, kind: Act_On_Owned_Unit_Error.not_owned };
 
     return {
@@ -270,28 +282,41 @@ function authorize_owned_action_on_unit(player_action: Player_Action_Permission,
     }
 }
 
-function authorize_item_purchase(act_on_unit: Act_On_Owned_Unit_Permission, shop_id: number, item_id: Item_Id): Purchase_Item_Auth {
-    function error(error: Purchase_Item_Error): Action_Error<Purchase_Item_Error> {
+function authorize_shop_use(act_on_unit: Act_On_Owned_Unit_Permission, shop_id: number): Use_Shop_Auth {
+    function error(error: Use_Shop_Error): Action_Error<Use_Shop_Error> {
         return { ok: false, kind: error };
     }
 
-    const { unit, player, battle } = act_on_unit;
+    const { unit, battle } = act_on_unit;
 
     const shop = find_shop_by_id(battle, shop_id);
 
-    if (!shop) return error(Purchase_Item_Error.other);
-    if (unit.supertype != Unit_Supertype.hero) return error(Purchase_Item_Error.not_a_hero);
-    if (!is_point_in_shop_range(unit.position, shop)) return error(Purchase_Item_Error.not_in_shop_range);
-
-    const item = shop.items.find(item => item.id == item_id);
-
-    if (!item) return error(Purchase_Item_Error.other);
-
-    if (player.gold < item.gold_cost) error(Purchase_Item_Error.not_enough_gold);
+    if (!shop) return error(Use_Shop_Error.other);
+    if (unit.supertype != Unit_Supertype.hero) return error(Use_Shop_Error.not_a_hero);
+    if (!is_point_in_shop_range(unit.position, shop)) return error(Use_Shop_Error.not_in_shop_range);
 
     return {
         ok: true,
         hero: unit,
+        shop: shop
+    }
+}
+
+function authorize_item_purchase(use_shop: Use_Shop_Permission, item_id: Item_Id): Purchase_Item_Auth {
+    function error(error: Purchase_Item_Error): Action_Error<Purchase_Item_Error> {
+        return { ok: false, kind: error };
+    }
+
+    const { hero, shop } = use_shop;
+
+    const item = shop.items.find(item => item.id == item_id);
+
+    if (!item) return error(Purchase_Item_Error.other);
+    if (hero.owner.gold < item.gold_cost) return error(Purchase_Item_Error.not_enough_gold);
+
+    return {
+        ok: true,
+        hero: hero,
         shop: shop,
         item: item
     }
@@ -314,10 +339,11 @@ function authorize_order_unit(act_on_unit: Act_On_Unit_Permission): Order_Unit_A
 
 function authorize_move_order(order_unit: Order_Unit_Permission, to: XY, ignore_runes: boolean): Move_Order_Auth {
     const { battle, unit } = order_unit;
-    const [could_find_path, cost] = can_find_path(battle, unit.position, to, unit.move_points, ignore_runes);
+    const [could_find_path, cost] = can_find_path(battle, unit.position, to, ignore_runes);
 
+    if (!could_find_path) return { ok: false, kind: Move_Order_Error.path_not_found };
+    if (cost > unit.move_points)  return { ok: false, kind: Move_Order_Error.not_enough_move_points };
     if (xy_equal(unit.position, to)) return { ok: false, kind: Move_Order_Error.other };
-    if (!could_find_path) return { ok: false, kind: Move_Order_Error.not_enough_move_points };
 
     return {
         ...order_unit,

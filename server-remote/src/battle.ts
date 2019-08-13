@@ -772,7 +772,7 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
         const act_on_unit_permission = authorize_act_on_unit(battle, unit_id);
         if (!act_on_unit_permission.ok) return { ok: false, kind: Order_Unit_Error.other };
 
-        const act_on_owned_unit_permission = authorize_owned_action_on_unit(action_permission, act_on_unit_permission);
+        const act_on_owned_unit_permission = authorize_act_on_owned_unit(action_permission, act_on_unit_permission);
         if (!act_on_owned_unit_permission.ok) return { ok: false, kind: Order_Unit_Error.other };
 
         return authorize_order_unit(act_on_owned_unit_permission);
@@ -912,10 +912,13 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
             const act_on_unit_permission = authorize_act_on_unit(battle, action.unit_id);
             if (!act_on_unit_permission.ok) return;
 
-            const act_on_owned_unit_permission = authorize_owned_action_on_unit(action_permission, act_on_unit_permission);
+            const act_on_owned_unit_permission = authorize_act_on_owned_unit(action_permission, act_on_unit_permission);
             if (!act_on_owned_unit_permission.ok) return;
 
-            const purchase_permission = authorize_item_purchase(act_on_owned_unit_permission, action.shop_id, action.item_id);
+            const use_shop_permission = authorize_shop_use(act_on_owned_unit_permission, action.shop_id);
+            if (!use_shop_permission.ok) return;
+
+            const purchase_permission = authorize_item_purchase(use_shop_permission, action.item_id);
             if (!purchase_permission.ok) return;
 
             const { hero, shop, item } = purchase_permission;
