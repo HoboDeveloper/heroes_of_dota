@@ -30,7 +30,7 @@ function item_id_to_item(item_id: Item_Id): Item {
         case Item_Id.heart_of_tarrasque: return {
             id: item_id,
             health_bonus: 10,
-            regeneration_per_turn: 3,
+            regeneration_per_turn: 1,
             gold_cost: 12
         };
 
