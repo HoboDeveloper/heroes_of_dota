@@ -15,7 +15,7 @@ npx ttsc -p ../client-web/tsconfig.json
 npx ttsc -p ../server-remote/tsconfig.json
 popd
 
-cp client-web/dist/game.html server-remote/dist/game.html
+cp client-web/src/game.html server-remote/dist/game.html
 cp client-web/dist/web_main.js server-remote/dist/web_main.js
 cp battle-sim/dist/battle_sim.js server-remote/dist/battle_sim.js
 
