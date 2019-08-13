@@ -1211,6 +1211,7 @@ function create_ui_shop_data(shop: Shop): UI_Shop_Data {
                 if (battle.this_player.gold >= item.gold_cost) {
                     Game.EmitSound("General.Buy");
 
+                    // TODO :Authorization
                     take_battle_action({
                         type: Action_Type.purchase_item,
                         unit_id: selection.unit.id,
@@ -1530,40 +1531,29 @@ function move_order_particle(world_position: XYZ) {
 }
 
 function try_order_unit_to_move(unit: Unit, move_where: XY) {
-    if (is_unit_stunned(unit)) {
-        show_error_ui(ability_error_to_reason(Ability_Error.stunned));
-        return;
-    }
+    const order_permission = authorize_unit_order_with_error_ui(unit);
+    if (!order_permission) return;
 
-    if (unit.has_taken_an_action_this_turn) {
-        show_generic_error("Already acted this turn");
-        return;
-    }
+    const move_permission = authorize_move_order(order_permission, move_where, false);
+    if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
 
+    // TODO should be able to extract the path from move_permission
     const path = find_grid_path(unit.position, move_where);
+    if (!path) return;
 
-    if (!path) {
-        show_generic_error("Can't move there");
-        return;
+    take_battle_action({
+        type: Action_Type.move,
+        to: move_where,
+        unit_id: unit.id
+    });
+
+    const cell_index_to_highlight: boolean[] = [];
+
+    for (const point of path) {
+        cell_index_to_highlight[grid_cell_index(battle, point)] = true;
     }
 
-    if (path.length <= unit.move_points) {
-        take_battle_action({
-            type: Action_Type.move,
-            to: move_where,
-            unit_id: unit.id
-        });
-
-        const cell_index_to_highlight: boolean[] = [];
-
-        for (const point of path) {
-            cell_index_to_highlight[grid_cell_index(battle, point)] = true;
-        }
-
-        highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
-    } else {
-        show_generic_error("Not enough move points");
-    }
+    highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
 }
 
 function make_battle_snapshot(): Battle_Snapshot {
@@ -2066,6 +2056,7 @@ function select_shop(new_entity_id: EntityId) {
 
     if (!shop) return;
 
+    // TODO :Authorization
     if (is_unit_selection(selection)) {
         if (!is_point_in_shop_range(selection.unit.position, shop)) {
             show_generic_error("Not in shop range");
@@ -2278,11 +2269,24 @@ function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefin
 }
 
 function try_attack_target(source: Unit, target: XY, flash_ground_on_error: boolean) {
-    if (source.attack.type == Ability_Type.target_ground) {
-        if (!ability_targeting_fits(source.attack.targeting, source.position, target)) {
-            show_ability_error(source, source.attack.id, Ability_Error.invalid_target);
+    const ability_use_permission = authorize_ability_use_with_error_ui(source, source.attack);
 
-            if (flash_ground_on_error) {
+    if (!ability_use_permission) return;
+
+    if (source.attack.type == Ability_Type.target_ground) {
+        const attack_use_permission = authorize_ground_target_ability_use(ability_use_permission, target);
+
+        if (attack_use_permission.ok) {
+            take_battle_action({
+                type: Action_Type.ground_target_ability,
+                ability_id: source.attack.id,
+                unit_id: source.id,
+                to: target
+            })
+        } else {
+            show_action_error_ui(attack_use_permission, ground_target_ability_use_error_reason);
+
+            if (flash_ground_on_error && attack_use_permission.kind == Ground_Target_Ability_Use_Error.not_in_range) {
                 const cell_index_to_highlight: boolean[] = [];
 
                 for (const cell of battle.cells) {
@@ -2295,29 +2299,20 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
 
                 highlight_outline_temporarily(cell_index_to_highlight, color_red, 0.2);
             }
-
-            return;
-        } else {
-            const auth = authorize_ability_use_by_unit(source, source.attack.id);
-
-            if (!auth.success) {
-                show_ability_error(source, source.attack.id, auth.error);
-            }
         }
     }
-
-    take_battle_action({
-        type: Action_Type.ground_target_ability,
-        ability_id: source.attack.id,
-        unit_id: source.id,
-        to: target
-    })
 }
 
 function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY, cursor_entity_unit?: Unit): boolean {
+    const ability_select_permission = authorize_ability_use_with_error_ui(unit, ability);
+
+    if (!ability_select_permission) return false;
+
     switch (ability.type) {
         case Ability_Type.target_ground: {
-            if (ability_targeting_fits(ability.targeting, unit.position, at_position)) {
+            const ability_use_permission = authorize_ground_target_ability_use(ability_select_permission, at_position);
+
+            if (ability_use_permission.ok) {
                 take_battle_action({
                     type: Action_Type.ground_target_ability,
                     unit_id: unit.id,
@@ -2325,7 +2320,7 @@ function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY,
                     to: at_position
                 });
             } else {
-                show_ability_error(unit, ability.id, Ability_Error.invalid_target);
+                show_action_error_ui(ability_use_permission, ground_target_ability_use_error_reason);
 
                 return false;
             }
@@ -2334,7 +2329,21 @@ function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY,
         }
 
         case Ability_Type.target_unit: {
-            if (ability_targeting_fits(ability.targeting, unit.position, at_position) && cursor_entity_unit) {
+            if (!cursor_entity_unit) {
+                show_error_ui(custom_error("Select a target"));
+                return false;
+            }
+
+            const act_on_target_permission = authorize_act_on_known_unit(battle, cursor_entity_unit);
+
+            if (!act_on_target_permission.ok) {
+                show_action_error_ui(act_on_target_permission, act_on_unit_error_reason);
+                return false;
+            }
+
+            const ability_use_permission = authorize_unit_target_ability_use(ability_select_permission, act_on_target_permission);
+
+            if (ability_use_permission.ok) {
                 take_battle_action({
                     type: Action_Type.unit_target_ability,
                     unit_id: unit.id,
@@ -2342,7 +2351,7 @@ function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY,
                     target_id: cursor_entity_unit.id
                 });
             } else {
-                show_ability_error(unit, ability.id, Ability_Error.invalid_target);
+                show_action_error_ui(ability_use_permission, unit_target_ability_use_error_reason);
 
                 return false;
             }
@@ -2465,13 +2474,13 @@ function setup_mouse_filter() {
                     button == MouseButton.LEFT &&
                     click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
 
-                // TODO before taking an action we should first check if we can perform it and display an error if not
                 if (wants_to_perform_automatic_action) {
                     if (cursor_entity_unit) {
                         if (cursor_entity != selection.unit_entity) {
                             try_attack_target(selection.unit, cursor_entity_unit.position, true);
                         }
                     } else if (cursor_entity_rune) {
+                        // TODO :Authorization
                         take_battle_action({
                             type: Action_Type.pick_up_rune,
                             unit_id: selection.unit.id,
@@ -2494,73 +2503,109 @@ function setup_mouse_filter() {
     });
 }
 
-
-type Ability_Error_Reason = {
+type Error_Reason = {
     reason: number,
     message?: string
 };
 
-function ability_error_to_reason(error: Ability_Error): Ability_Error_Reason {
-    // 24 - silenced
-    // 25 - can't move
-    // 30 - can't be attacked
-    // 41 - can't attack
-    // 46 - target out of range
-    // 48 - can't target that
-    // 62 - secret shop not in range
-    // 63 - not enough gold
-    // 74 - can't act
-    // 75 - muted
-    // 77 - target immune to magic
-    // 80 - custom "message" argument
-    function native(reason: number, message?: string): Ability_Error_Reason {
-        return { reason: reason, message: message };
-    }
-
-    function custom(message: string) {
-        return { reason: 80, message: message };
-    }
-
-    switch (error) {
-        case Ability_Error.other: return native(0); // TODO
-        case Ability_Error.dead: return native(20);
-        case Ability_Error.no_charges: return custom("Ability has no more charges");
-        case Ability_Error.invalid_target: return custom("Invalid target");
-        case Ability_Error.not_learned_yet: return native(16);
-        case Ability_Error.already_acted_this_turn: return custom("Already acted this turn");
-        case Ability_Error.stunned: return custom("Stunned");
-        case Ability_Error.silenced: return native(24);
-        case Ability_Error.unusable: return custom("Can't be used");
-        case Ability_Error.disarmed: return custom("Disarmed");
-        case Ability_Error.out_of_the_game: return custom("Can't act right now");
-
-        default: return unreachable(error);
-    }
+function native_error(reason: number): Error_Reason {
+    return { reason: reason };
 }
 
-function show_error_ui(reason: Ability_Error_Reason) {
+function custom_error(message: string) {
+    return { reason: 80, message: message };
+}
+
+function show_error_ui(reason: Error_Reason) {
     GameEvents.SendEventClientSide("dota_hud_error_message", reason);
 }
 
-function show_ability_error(unit: Unit, ability: Ability_Id, error: Ability_Error) {
-    show_error_ui(ability_error_to_reason(error));
+function show_generic_error(error: string) {
+    GameEvents.SendEventClientSide("dota_hud_error_message", { reason: 80, message: error });
+}
 
-    if (error == Ability_Error.silenced) {
-        const row = control_panel.hero_rows.find(row => row.unit_id == unit.id);
+function player_act_error_reason(error: Action_Error<Player_Action_Error>): Error_Reason {
+    switch (error.kind) {
+        case Player_Action_Error.not_your_turn: return custom_error("It's not your turn just yet");
+        case Player_Action_Error.other: return custom_error("Error");
+    }
+}
+
+function act_on_unit_error_reason(error: Action_Error<Act_On_Unit_Error>): Error_Reason {
+    switch (error.kind) {
+        case Act_On_Unit_Error.out_of_the_game: return custom_error("This unit is not targetable");
+        case Act_On_Unit_Error.dead: return native_error(20);
+        case Act_On_Unit_Error.other: return custom_error("Error");
+    }
+}
+
+function act_on_owned_unit_error_reason(error: Action_Error<Act_On_Owned_Unit_Error>): Error_Reason {
+    switch (error.kind) {
+        case Act_On_Owned_Unit_Error.not_owned: return custom_error("Unit not owned");
+    }
+}
+
+function order_unit_error_reason(error: Action_Error<Order_Unit_Error>): Error_Reason {
+    switch (error.kind) {
+        case Order_Unit_Error.other: return custom_error("Error");
+        case Order_Unit_Error.unit_has_already_acted_this_turn: return custom_error("Unit has already acted this turn");
+        case Order_Unit_Error.stunned: return custom_error("Stunned");
+    }
+}
+
+function ability_use_error_reason(error: Action_Error<Ability_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Ability_Use_Error.other: return custom_error("Error");
+        case Ability_Use_Error.no_charges: return custom_error("Ability has no more charges");
+        case Ability_Use_Error.not_learned_yet: return native_error(16);
+        case Ability_Use_Error.silenced: return native_error(24);
+        case Ability_Use_Error.disarmed: return custom_error("Disarmed");
+        case Ability_Use_Error.unusable: return custom_error("Ability not usable");
+    }
+}
+
+function ground_target_ability_use_error_reason(error: Action_Error<Ground_Target_Ability_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Ground_Target_Ability_Use_Error.other: return custom_error("Error");
+        case Ground_Target_Ability_Use_Error.not_in_range: return custom_error("Target out of range");
+    }
+}
+
+function unit_target_ability_use_error_reason(error: Action_Error<Unit_Target_Ability_Use_Error>): Error_Reason {
+    switch (error.kind) {
+        case Unit_Target_Ability_Use_Error.other: return custom_error("Error");
+        case Unit_Target_Ability_Use_Error.not_in_range: return custom_error("Target out of range");
+    }
+}
+
+function move_order_error_reason(error: Action_Error<Move_Order_Error>): Error_Reason {
+    switch (error.kind) {
+        case Move_Order_Error.not_enough_move_points: return custom_error("Not enough move points");
+        case Move_Order_Error.other: return custom_error("Error");
+    }
+}
+
+// Return type is for 'return show_action_error_ui' syntax sugar
+function show_action_error_ui<T>(error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason): undefined {
+    show_error_ui(supplier(error));
+    return;
+}
+
+function show_ability_use_error_ui(caster: Unit, ability_id: Ability_Id, error: Action_Error<Ability_Use_Error>): undefined {
+    show_action_error_ui(error, ability_use_error_reason);
+
+    if (error.kind == Ability_Use_Error.silenced) {
+        const row = control_panel.hero_rows.find(row => row.unit_id == caster.id);
 
         if (!row) return;
 
-        const button = row.ability_buttons.find(button => button.ability == ability);
+        const button = row.ability_buttons.find(button => button.ability == ability_id);
 
         if (!button) return;
 
         button.overlay.RemoveClass("animate_silence_try");
         button.overlay.AddClass("animate_silence_try");
     }
-}
-
-function show_generic_error(error: string) {
-    GameEvents.SendEventClientSide("dota_hud_error_message", { reason: 80, message: error });
 }
 
 function create_card_ui(root: Panel, card: Card) {
@@ -2743,6 +2788,7 @@ function update_hand() {
             const card = selection.card_panel.card;
             const action = card_to_action(card, hovered_cell);
 
+            // TODO :Authorization
             if (action) {
                 take_battle_action(action, () => {
                     for (let index = 0; index < hand.length; index++) {
@@ -2781,6 +2827,7 @@ function update_hand() {
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
+            // TODO :Authorization
             if (battle.this_player.has_used_a_card_this_turn) {
                 if (card_error_shown_at < Game.Time() - 0.5) {
                     show_generic_error("Already used a card this turn");
@@ -2869,23 +2916,48 @@ function show_start_turn_ui() {
     });
 }
 
+function authorize_unit_order_with_error_ui(unit: Unit): Order_Unit_Permission | undefined {
+    const player_act_permission = authorize_action_by_player(battle, battle.this_player);
+    if (!player_act_permission.ok) return show_action_error_ui(player_act_permission, player_act_error_reason);
+
+    const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
+    if (!act_on_unit_permission.ok) return show_action_error_ui(act_on_unit_permission, act_on_unit_error_reason);
+
+    const act_on_owned_unit_permission = authorize_owned_action_on_unit(player_act_permission, act_on_unit_permission);
+    if (!act_on_owned_unit_permission.ok) return show_action_error_ui(act_on_owned_unit_permission, act_on_owned_unit_error_reason);
+
+    const order_permission = authorize_order_unit(act_on_unit_permission);
+    if (!order_permission.ok) return show_action_error_ui(order_permission, order_unit_error_reason);
+
+    return order_permission;
+}
+
+function authorize_ability_use_with_error_ui(unit: Unit, ability: Ability): Ability_Use_Permission | undefined {
+    const order_permission = authorize_unit_order_with_error_ui(unit);
+    if (!order_permission) return;
+
+    const ability_use = authorize_ability_use(order_permission, ability.id);
+    if (!ability_use.ok) return show_ability_use_error_ui(order_permission.unit, ability.id, ability_use);
+
+    return ability_use;
+}
+
 function try_select_unit_ability(unit: Unit, ability: Ability) {
-    const ability_use = authorize_ability_use_by_unit(unit, ability.id);
+    const ability_use = authorize_ability_use_with_error_ui(unit, ability);
+    if (!ability_use) {
+        return;
+    }
 
     $.Msg("clicked ", get_ability_icon(ability.id), " ", ability_use);
 
-    if (ability_use.success) {
-        if (ability.type == Ability_Type.no_target) {
-            take_battle_action({
-                type: Action_Type.use_no_target_ability,
-                unit_id: unit.id,
-                ability_id: ability.id
-            })
-        } else {
-            select_unit_ability(unit, ability);
-        }
+    if (ability.type == Ability_Type.no_target) {
+        take_battle_action({
+            type: Action_Type.use_no_target_ability,
+            unit_id: unit.id,
+            ability_id: ability.id
+        })
     } else {
-        show_ability_error(unit, ability.id, ability_use.error);
+        select_unit_ability(unit, ability);
     }
 }
 

@@ -20,6 +20,10 @@ declare const enum Act_On_Unit_Error {
     out_of_the_game = 2
 }
 
+declare const enum Act_On_Owned_Unit_Error {
+    not_owned = 0
+}
+
 declare const enum No_Target_Spell_Card_Use_Error {
     other = 0
 }
@@ -33,9 +37,8 @@ declare const enum Purchase_Item_Error {
 
 declare const enum Order_Unit_Error {
     other = 0,
-    unit_not_owned = 1,
-    unit_has_already_acted_this_turn = 2,
-    stunned = 3,
+    unit_has_already_acted_this_turn = 1,
+    stunned = 2,
 }
 
 declare const enum Ability_Use_Error {
@@ -161,7 +164,7 @@ type Rune_Pickup_Order_Auth = Auth<Rune_Pickup_Order_Permission, Rune_Pickup_Ord
 type Ability_Use_Auth = Auth<Ability_Use_Permission, Ability_Use_Error>
 type Unit_Target_Ability_Use_Auth = Auth<Unit_Target_Ability_Use_Permission, Unit_Target_Ability_Use_Error>
 type Ground_Target_Ability_Use_Auth = Auth<Ground_Target_Ability_Use_Permission, Ground_Target_Ability_Use_Error>
-type Act_On_Owned_Unit_Auth = Act_On_Owned_Unit_Permission | { ok: false };
+type Act_On_Owned_Unit_Auth = Auth<Act_On_Owned_Unit_Permission, Act_On_Owned_Unit_Error>;
 
 function authorize_action_by_player(battle: Battle, player: Battle_Player): Player_Action_Auth {
     if (get_turning_player(battle).id != player.id) return { ok: false, kind: Player_Action_Error.not_your_turn };
@@ -255,7 +258,7 @@ function authorize_act_on_unit(battle: Battle, unit_id: number): Act_On_Unit_Aut
 }
 
 function authorize_owned_action_on_unit(player_action: Player_Action_Permission, act_on_unit: Act_On_Unit_Permission): Act_On_Owned_Unit_Auth {
-    if (!player_owns_unit(player_action.player, act_on_unit.unit)) return { ok: false };
+    if (!player_owns_unit(player_action.player, act_on_unit.unit)) return { ok: false, kind: Act_On_Owned_Unit_Error.not_owned };
 
     return {
         ...player_action,
