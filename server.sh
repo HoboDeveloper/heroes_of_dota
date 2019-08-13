@@ -21,6 +21,6 @@ cp battle-sim/dist/battle_sim.js server-remote/dist/battle_sim.js
 
 pushd server-remote
 kill -9 $(cat run.pid)
-node dist/main.js > server-log.txt&
+node dist/main.js host:cia-is.moe > server-log.txt&
 echo $! > run.pid
 popd

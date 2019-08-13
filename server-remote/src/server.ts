@@ -690,7 +690,7 @@ function handle_request(url: string, data: string): Request_Result {
     }
 }
 
-export function start_server(with_test_player: boolean) {
+export function start_server(host: string, with_test_player: boolean) {
     if (with_test_player) {
         test_player = make_new_player("Test guy");
         test_player.state = Player_State.on_global_map;
@@ -795,7 +795,7 @@ export function start_server(with_test_player: boolean) {
             const time = performance.now() - time_start;
             console.log(`${url} -> ${result.type == Result_Type.ok ? 'ok' : result.code}, took ${time.toFixed(2)}ms total, handle: ${handle_time.toFixed(2)}ms`)
         });
-    }).listen(3638, "127.0.0.1");
+    }).listen(3638, host);
 
     server.on("listening", () => {
         const address = server.address();
