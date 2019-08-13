@@ -2337,12 +2337,7 @@ function setup_mouse_filter() {
                             try_attack_target(selection.unit, cursor_entity_unit.position, true);
                         }
                     } else if (cursor_entity_rune) {
-                        // TODO :Authorization
-                        take_battle_action({
-                            type: Action_Type.pick_up_rune,
-                            unit_id: selection.unit.id,
-                            rune_id: cursor_entity_rune.id
-                        })
+                        try_order_unit_to_pick_up_rune(selection.unit, cursor_entity_rune);
                     } else {
                         try_order_unit_to_move(selection.unit, battle_position);
                         move_order_particle(world_position);

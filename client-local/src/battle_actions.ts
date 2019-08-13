@@ -126,6 +126,13 @@ function no_target_spell_use_error_reason(error: Action_Error<No_Target_Spell_Ca
     }
 }
 
+function rune_pickup_error_reason(error: Action_Error<Rune_Pickup_Order_Error>): Error_Reason {
+    switch (error.kind) {
+        case Rune_Pickup_Order_Error.other: return custom_error("Error");
+        case Rune_Pickup_Order_Error.not_a_hero: return custom_error("Only heroes can pick up runes");
+    }
+}
+
 // Return type is for 'return show_action_error_ui' syntax sugar
 function show_action_error_ui<T>(error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason): undefined {
     show_error_ui(supplier(error));
@@ -250,22 +257,10 @@ function try_use_targeted_ability(unit: Unit, ability: Ability, at_position: XY,
     return true;
 }
 
-function try_order_unit_to_move(unit: Unit, move_where: XY) {
-    const order_permission = authorize_unit_order_with_error_ui(unit);
-    if (!order_permission) return;
-
-    const move_permission = authorize_move_order(order_permission, move_where, false);
-    if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
-
+function highlight_move_path(unit: Unit, to: XY) {
     // TODO should be able to extract the path from move_permission
-    const path = find_grid_path(unit.position, move_where);
+    const path = find_grid_path(unit.position, to);
     if (!path) return;
-
-    take_battle_action({
-        type: Action_Type.move,
-        to: move_where,
-        unit_id: unit.id
-    });
 
     const cell_index_to_highlight: boolean[] = [];
 
@@ -274,6 +269,41 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
     }
 
     highlight_outline_temporarily(cell_index_to_highlight, color_green, 0.5);
+}
+
+function try_order_unit_to_pick_up_rune(unit: Unit, rune: Rune) {
+    const order_permission = authorize_unit_order_with_error_ui(unit);
+    if (!order_permission) return;
+
+    const rune_pickup_permission = authorize_rune_pickup_order(order_permission, rune.id);
+    if (!rune_pickup_permission.ok) return show_action_error_ui(rune_pickup_permission, rune_pickup_error_reason);
+
+    const move_permission = authorize_move_order(order_permission, rune.position, false);
+    if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
+
+    highlight_move_path(unit, rune.position);
+
+    take_battle_action({
+        type: Action_Type.pick_up_rune,
+        rune_id: rune.id,
+        unit_id: unit.id
+    });
+}
+
+function try_order_unit_to_move(unit: Unit, move_where: XY) {
+    const order_permission = authorize_unit_order_with_error_ui(unit);
+    if (!order_permission) return;
+
+    const move_permission = authorize_move_order(order_permission, move_where, false);
+    if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
+
+    highlight_move_path(unit, move_where);
+
+    take_battle_action({
+        type: Action_Type.move,
+        to: move_where,
+        unit_id: unit.id
+    });
 }
 
 type Use_Spell_Action = Action_Use_Unit_Target_Spell | Action_Use_Ground_Target_Spell_Card;
