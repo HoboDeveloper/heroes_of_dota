@@ -196,9 +196,27 @@ function show_ability_use_error_ui(caster: Unit, ability_id: Ability_Id, error: 
     }
 }
 
+function show_player_action_error_ui(error: Action_Error<Player_Action_Error>): undefined {
+    if (error.kind == Player_Action_Error.not_your_turn && is_unit_selection(selection)) {
+        (() => {
+            const act_on_unit_permission = authorize_act_on_known_unit(battle, selection.unit);
+            if (!act_on_unit_permission.ok) return;
+
+            const act_on_owned_unit_permission = authorize_act_on_owned_unit({ ok: true, battle: battle, player: battle.this_player }, act_on_unit_permission);
+            if (!act_on_owned_unit_permission.ok) return;
+
+            try_emit_random_hero_sound(selection.unit, sounds => sounds.not_yet);
+        })();
+    }
+
+    show_action_error_ui(error, player_act_error_reason);
+
+    return;
+}
+
 function authorized_act_on_owned_unit_with_error_ui(unit: Unit): Act_On_Owned_Unit_Permission | undefined {
     const player_act_permission = authorize_action_by_player(battle, battle.this_player);
-    if (!player_act_permission.ok) return show_action_error_ui(player_act_permission, player_act_error_reason);
+    if (!player_act_permission.ok) return show_player_action_error_ui(player_act_permission);
 
     const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
     if (!act_on_unit_permission.ok) return show_action_error_ui(act_on_unit_permission, act_on_unit_error_reason);
@@ -429,7 +447,7 @@ function try_use_card_spell(spell: Card_Spell, hovered_cell: XY, card_use_permis
 
 function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void) {
     const action_permission = authorize_action_by_player(battle, battle.this_player);
-    if (!action_permission.ok) return show_action_error_ui(action_permission, player_act_error_reason);
+    if (!action_permission.ok) return show_player_action_error_ui(action_permission);
 
     const card_use_permission = authorize_card_use(action_permission, card.id);
     if (!card_use_permission.ok) return show_action_error_ui(card_use_permission, card_use_error_reason);

@@ -2540,20 +2540,18 @@ function update_hand() {
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             (() => {
-                const try_show_rate_limited_error = <T> (error: Action_Error<T>, supplier: (error: Action_Error<T>) => Error_Reason) => {
+                const rate_limit = (action: () => void) => {
                     if (card_error_shown_at < Game.Time() - 0.5) {
-                        show_action_error_ui(error, supplier);
+                        action();
                         card_error_shown_at = Game.Time();
                     }
-
-                    return;
                 };
 
                 const action_permission = authorize_action_by_player(battle, battle.this_player);
-                if (!action_permission.ok) return try_show_rate_limited_error(action_permission, player_act_error_reason);
+                if (!action_permission.ok) return rate_limit(() => show_player_action_error_ui(action_permission));
 
                 const card_use_permission = authorize_card_use(action_permission, card.card.id);
-                if (!card_use_permission.ok) return try_show_rate_limited_error(card_use_permission, card_use_error_reason);
+                if (!card_use_permission.ok) return rate_limit(() => show_action_error_ui(card_use_permission, card_use_error_reason));
 
                 set_selection({
                     type: Selection_Type.card,
