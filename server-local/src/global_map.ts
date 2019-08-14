@@ -185,9 +185,7 @@ function attack_player(main_player: Main_Player, target_player_id: number) {
         target_player_id: target_player_id
     });
 
-    if (!new_player_state) {
-        throw "Failed to perform attack";
+    if (new_player_state) {
+        try_submit_state_transition(main_player, new_player_state);
     }
-
-    try_submit_state_transition(main_player, new_player_state);
 }
