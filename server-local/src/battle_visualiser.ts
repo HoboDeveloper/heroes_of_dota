@@ -1687,7 +1687,7 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
         number_particle(-value_delta, 250, 70, 70);
     }
 
-    target.health = Math.max(0, change.new_value);
+    target.health = Math.max(0, Math.min(target.max_health, change.new_value));
 
     update_player_state_net_table(main_player);
 
