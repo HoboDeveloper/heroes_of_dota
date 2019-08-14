@@ -1283,16 +1283,23 @@ function submit_battle_deltas(battle: Battle_Record, battle_deltas: Delta[]) {
     }
 }
 
-// Hacky, can cause problems
-export function random_unoccupied_point_in_deployment_zone(battle: Battle_Record, zone: Deployment_Zone): XY {
-    while (true) {
-        const x = random_int_range(zone.min_x, zone.max_x);
-        const y = random_int_range(zone.min_y, zone.max_y);
-        const cell = grid_cell_at_raw(battle, x, y);
+export function random_unoccupied_point_in_deployment_zone(battle: Battle_Record, zone: Deployment_Zone): XY | undefined {
+    const free_cells: Cell[] = [];
 
-        if (cell && !cell.occupied) {
-            return cell.position;
+    for (let x = zone.min_x; x < zone.max_x; x++) {
+        for (let y = zone.min_y; y < zone.max_y; y++) {
+            const cell = grid_cell_at_raw(battle, x, y);
+
+            if (cell && !cell.occupied) {
+                free_cells.push(cell);
+            }
         }
+    }
+
+    const free_cell = random_in_array(free_cells);
+
+    if (free_cell) {
+        return free_cell.position;
     }
 }
 
@@ -1360,7 +1367,9 @@ export function start_battle(players: Player[], battleground: Battleground): num
             defer_delta(battle, () => {
                 const spawn_at = random_unoccupied_point_in_deployment_zone(battle, player.deployment_zone);
 
-                return spawn_hero(battle, player, spawn_at, hero_type);
+                if (spawn_at) {
+                    return spawn_hero(battle, player, spawn_at, hero_type);
+                }
             });
         }
     }

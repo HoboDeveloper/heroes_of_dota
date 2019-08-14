@@ -346,13 +346,15 @@ function take_ai_action(battle: Battle_Record, ai: Battle_Player) {
         const random_hero_card = random_in_array(ai.hand.filter(card => card.type == Card_Type.hero));
 
         if (random_hero_card) {
-            const random_unoccupied_position: XY = random_unoccupied_point_in_deployment_zone(battle, ai.deployment_zone);
+            const random_unoccupied_position = random_unoccupied_point_in_deployment_zone(battle, ai.deployment_zone);
 
-            act({
-                type: Action_Type.use_hero_card,
-                card_id: random_hero_card.id,
-                at: random_unoccupied_position
-            })
+            if (random_unoccupied_position) {
+                act({
+                    type: Action_Type.use_hero_card,
+                    card_id: random_hero_card.id,
+                    at: random_unoccupied_position
+                });
+            }
         }
     }
 

@@ -583,7 +583,7 @@ namespace clr {
             return colors[index];
         }
 
-        return game.player_id == player_id ? "rgba(0, 255, 0, 0.8)" : "rgba(255, 0, 0, 0.8)";
+        return game.player_id == player_id ? `rgba(0, 255, 0, ${alpha})` : `rgba(255, 0, 0, ${alpha})`;
     }
 
     export function player_name_by_id(battle: Battle, player_id: number) {
