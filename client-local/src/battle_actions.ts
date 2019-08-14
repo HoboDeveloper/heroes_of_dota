@@ -1,4 +1,3 @@
-
 function take_battle_action(action: Turn_Action, success_callback?: () => void) {
     // $.Msg("Take action ", action);
 
@@ -16,6 +15,19 @@ function take_battle_action(action: Turn_Action, success_callback?: () => void) 
     });
 }
 
+function random_int_up_to(upper_bound: number) {
+    return Math.floor(Math.random() * upper_bound);
+}
+
+function emit_random_sound(sounds: string[]) {
+    Game.EmitSound(sounds[random_int_up_to(sounds.length)]);
+}
+
+function try_emit_random_hero_sound(unit: Unit, supplier: (sounds: Hero_Sounds) => string[]) {
+    if (unit.supertype == Unit_Supertype.hero) {
+        emit_random_sound(supplier(hero_sounds_by_hero_type(unit.type)));
+    }
+}
 
 type Error_Reason = {
     reason: number,
@@ -227,6 +239,8 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
         const attack_use_permission = authorize_ground_target_ability_use(ability_use_permission, target);
 
         if (attack_use_permission.ok) {
+            try_emit_random_hero_sound(source, sounds => sounds.attack);
+
             take_battle_action({
                 type: Action_Type.ground_target_ability,
                 ability_id: source.attack.id,
@@ -342,8 +356,8 @@ function try_order_unit_to_pick_up_rune(unit: Unit, rune: Rune) {
     const move_permission = authorize_move_order(order_permission, rune.position, true);
     if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
 
-    // TODO highlight move area
-
+    // TODO highlight move area on error
+    try_emit_random_hero_sound(unit, sounds => sounds.move);
     highlight_move_path(unit, rune.position);
 
     take_battle_action({
@@ -360,6 +374,7 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
     const move_permission = authorize_move_order(order_permission, move_where, false);
     if (!move_permission.ok) return show_action_error_ui(move_permission, move_order_error_reason);
 
+    try_emit_random_hero_sound(unit, sounds => sounds.move);
     highlight_move_path(unit, move_where);
 
     take_battle_action({

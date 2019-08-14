@@ -62,4 +62,5 @@ exports.deploy_web_version = function() {
 exports.copy_code_shared_with_lua = function() {
     copy("battle-sim/src/modifier_logic.ts", "server-local/src/modifier_logic.ts");
     copy("battle-sim/src/unit_defs.ts", "server-local/src/unit_defs.ts");
+    copy("client-local/src/hero_sounds.ts", "server-local/src/hero_sounds.ts");
 };

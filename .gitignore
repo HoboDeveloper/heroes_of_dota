@@ -11,6 +11,7 @@ dist/game/materials
 dist/game/panorama
 server-local/src/unit_defs.ts
 server-local/src/modifier_logic.ts
+server-local/src/hero_sounds.ts
 
 panorama_debugger.cfg
 run.pid

@@ -441,7 +441,9 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                 }
             }
 
-            const effects = targets.map(target => unit_health_change(target.unit, -target.beams_applied));
+            const effects = targets
+                .filter(target => target.beams_applied > 0)
+                .map(target => unit_health_change(target.unit, -target.beams_applied));
 
             return {
                 ...base,

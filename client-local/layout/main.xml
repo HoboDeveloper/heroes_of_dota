@@ -6,6 +6,7 @@
         <include src="file://{resources}/scripts/custom_game/battle_ui.js" />
         <include src="file://{resources}/scripts/custom_game/battle_actions.js" />
         <include src="file://{resources}/scripts/custom_game/unit_defs.js" />
+        <include src="file://{resources}/scripts/custom_game/hero_sounds.js" />
     </scripts>
     <styles>
         <include src="file://{resources}/styles/custom_game/battle.css" />

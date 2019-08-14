@@ -599,17 +599,16 @@ function get_ranged_attack_spec(unit: Battle_Unit): Ranged_Attack_Spec | undefin
     }
 }
 
-function get_unit_deny_voice_line(type: Hero_Type): string {
-    switch (type) {
-        case Hero_Type.pudge: return "vo_pudge_deny";
-        case Hero_Type.tidehunter: return "vo_tidehunter_deny";
-        case Hero_Type.luna: return "vo_luna_deny";
-        case Hero_Type.sniper: return "vo_sniper_deny";
-        case Hero_Type.skywrath_mage: return "vo_skywrath_mage_deny";
-        case Hero_Type.ursa: return "vo_ursa_deny";
-        case Hero_Type.dragon_knight: return "vo_dragon_knight_deny";
-        case Hero_Type.lion: return "vo_lion_deny";
+function try_play_random_sound_for_hero(unit: Battle_Unit, supplier: (sounds: Hero_Sounds) => string[], target: Battle_Unit = unit) {
+    if (unit.supertype != Unit_Supertype.hero) {
+        return;
     }
+
+    // TODO use pseudo random
+    const sounds = supplier(hero_sounds_by_hero_type(unit.type));
+    const random_sound = sounds[RandomInt(0, sounds.length - 1)];
+
+    unit_emit_sound(target, random_sound);
 }
 
 function try_play_sound_for_hero(unit: Battle_Unit, supplier: (type: Hero_Type) => string | undefined, target: Battle_Unit = unit) {
@@ -680,19 +679,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
         }
     }
 
-    function get_unit_attack_vo(type: Hero_Type): string {
-        switch (type) {
-            case Hero_Type.sniper: return "vo_sniper_attack";
-            case Hero_Type.luna: return "vo_luna_attack";
-            case Hero_Type.pudge: return "vo_pudge_attack";
-            case Hero_Type.tidehunter: return "vo_tide_attack";
-            case Hero_Type.ursa: return "vo_ursa_attack";
-            case Hero_Type.skywrath_mage: return "vo_skywrath_mage_attack";
-            case Hero_Type.dragon_knight: return "vo_dragon_knight_attack";
-            case Hero_Type.lion: return "vo_lion_attack";
-        }
-    }
-
     const ranged_attack_spec = get_ranged_attack_spec(unit);
 
     function is_attack_hit(cast: Basic_Attack_Hit | Line_Ability_Miss): cast is Basic_Attack_Hit {
@@ -700,7 +686,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
     }
 
     if (ranged_attack_spec) {
-        try_play_sound_for_hero(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
         try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
@@ -730,7 +715,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
-        try_play_sound_for_hero(unit, get_unit_attack_vo);
         turn_unit_towards_target(unit, target);
         wait(0.2);
         try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
@@ -894,7 +878,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form_attack: {
-            unit_emit_sound(unit, "vo_dragon_knight_dragon_attack");
             turn_unit_towards_target(unit, cast.target_position);
             wait(0.2);
             unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonShoot3.Attack");
@@ -1318,15 +1301,18 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 .to_unit_origin(2, unit)
                 .to_unit_origin(3, unit);
 
-            const beam_targets = from_client_array(cast.targets).map(delta => ({
-                delta: delta,
-                beams_remaining: -delta.change.value_delta
-            }));
+            const beam_targets = from_client_array(cast.targets)
+                .filter(delta => delta.change.value_delta > 0)
+                .map(delta => ({
+                    delta: delta,
+                    beams_remaining: -delta.change.value_delta
+                }));
 
             while (beam_targets.length > 0) {
                 const random_index = RandomInt(0, beam_targets.length - 1);
                 const random_target = beam_targets[random_index];
                 const target_unit = find_unit_by_id(random_target.delta.target_unit_id);
+
 
                 random_target.beams_remaining--;
 
@@ -1566,6 +1552,7 @@ function play_item_equip_delta(main_player: Main_Player, hero: Battle_Hero, delt
     wait(0.3);
 
     unit_emit_sound(hero, "Item.PickUpShop");
+    try_play_random_sound_for_hero(hero, sounds => sounds.purchase);
 
     switch (delta.item_id) {
         case Item_Id.assault_cuirass: {
@@ -1695,6 +1682,8 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
     } else if (value_delta < 0) {
         target.handle.AddNewModifier(target.handle, undefined, "Modifier_Damage_Effect", { duration: 0.2 });
 
+        try_play_random_sound_for_hero(target, sounds => sounds.pain);
+
         number_particle(-value_delta, 250, 70, 70);
     }
 
@@ -1714,9 +1703,11 @@ function change_health(main_player: Main_Player, source: Battle_Unit, target: Ba
 
         if (source.supertype != Unit_Supertype.creep && target.supertype != Unit_Supertype.creep) {
             if (source.owner_remote_id == target.owner_remote_id) {
-                unit_emit_sound(source, get_unit_deny_voice_line(source.type));
+                try_play_random_sound_for_hero(source, sounds => sounds.deny);
             }
         }
+
+        try_play_random_sound_for_hero(source, sounds => sounds.kill);
 
         target.dead = true;
         target.handle.ForceKill(false);
@@ -1744,6 +1735,7 @@ function change_hero_level(main_player: Main_Player, hero: Battle_Hero, new_leve
 
     unit_emit_sound(hero, "hero_level_up");
     fx_by_unit("particles/generic_hero_status/hero_levelup.vpcf", hero).release();
+    try_play_random_sound_for_hero(hero, sounds => sounds.level_up);
 
     update_player_state_net_table(main_player);
 }
@@ -1794,19 +1786,6 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
 function play_delta(main_player: Main_Player, delta: Delta, head: number) {
     switch (delta.type) {
         case Delta_Type.hero_spawn: {
-            function hero_type_to_spawn_sound(type: Hero_Type): string {
-                switch (type) {
-                    case Hero_Type.pudge: return "vo_pudge_spawn";
-                    case Hero_Type.sniper: return "vo_sniper_spawn";
-                    case Hero_Type.luna: return "vo_luna_spawn";
-                    case Hero_Type.skywrath_mage: return "vo_skywrath_mage_spawn";
-                    case Hero_Type.tidehunter: return "vo_tide_spawn";
-                    case Hero_Type.ursa: return "vo_ursa_spawn";
-                    case Hero_Type.dragon_knight: return "vo_dragon_knight_spawn";
-                    case Hero_Type.lion: return "vo_lion_spawn";
-                }
-            }
-
             fx("particles/hero_spawn.vpcf")
                 .to_location(0, delta.at_position)
                 .release();
@@ -1822,7 +1801,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
             battle.units.push(unit);
 
             if (battle.has_started) {
-                unit_emit_sound(unit, hero_type_to_spawn_sound(unit.type));
+                try_play_random_sound_for_hero(unit, sounds => sounds.spawn);
             }
 
             unit_emit_sound(unit, "hero_spawn");
