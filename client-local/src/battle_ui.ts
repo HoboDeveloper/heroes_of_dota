@@ -2231,7 +2231,6 @@ function setup_mouse_filter() {
             const battle_position = world_position_to_battle_position(world_position);
             const cursor_entity = get_entity_under_cursor(cursor);
             const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
-            const cursor_entity_rune = find_rune_by_entity_id(battle, cursor_entity);
             const cursor_entity_shop = find_shop_by_entity_id(battle, cursor_entity);
 
             if (button == MouseButton.LEFT && selection.type == Selection_Type.none && cursor_entity == null) {
@@ -2325,12 +2324,16 @@ function setup_mouse_filter() {
                     click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
 
                 if (wants_to_perform_automatic_action) {
-                    if (cursor_entity_unit) {
+                    const unit_at_cursor_position = unit_at(battle, battle_position);
+                    const rune_at_cursor_position = rune_at(battle, battle_position);
+
+                    if (unit_at_cursor_position) {
                         if (cursor_entity != selection.unit_entity) {
-                            try_attack_target(selection.unit, cursor_entity_unit.position, true);
+                            try_attack_target(selection.unit, battle_position, true);
                         }
-                    } else if (cursor_entity_rune) {
-                        try_order_unit_to_pick_up_rune(selection.unit, cursor_entity_rune);
+                    } else if (rune_at_cursor_position) {
+                        try_order_unit_to_pick_up_rune(selection.unit, rune_at_cursor_position);
+                        move_order_particle(world_position);
                     } else {
                         try_order_unit_to_move(selection.unit, battle_position);
                         move_order_particle(world_position);
@@ -2441,8 +2444,19 @@ function get_hovered_battle_position(): XY | undefined {
         }
     }
 
-    const world_position = GameUI.GetScreenWorldPosition(GameUI.GetCursorPosition());
+    const cursor = GameUI.GetCursorPosition();
+    const world_position = GameUI.GetScreenWorldPosition(cursor);
     const battle_position = world_position_to_battle_position(world_position);
+
+    if (!is_unit_selection(selection)) {
+        const cursor_entity = get_entity_under_cursor(cursor);
+        const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
+
+        if (cursor_entity_unit) {
+            return cursor_entity_unit.position;
+        }
+    }
+
     const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
 
     if (!is_position_valid) {
