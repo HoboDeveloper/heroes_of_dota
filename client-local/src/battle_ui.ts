@@ -2328,7 +2328,7 @@ function setup_mouse_filter() {
                     const rune_at_cursor_position = rune_at(battle, battle_position);
 
                     if (unit_at_cursor_position) {
-                        if (cursor_entity != selection.unit_entity) {
+                        if (unit_at_cursor_position != selection.unit) {
                             try_attack_target(selection.unit, battle_position, true);
                         }
                     } else if (rune_at_cursor_position) {
