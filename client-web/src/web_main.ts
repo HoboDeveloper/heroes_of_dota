@@ -1258,7 +1258,6 @@ function draw_battle_list(global_map: Game_On_Global_Map) {
 }
 
 function draw_chat(game: Game) {
-    const font_size_px = 16;
     const ctx = game.ctx;
     const lines = game.chat_messages;
 
@@ -1556,25 +1555,6 @@ async function start_game() {
     const player_state = await api_request<Get_Player_State_Request, Player_State_Data>("/get_player_state", {
         access_token: auth.token
     });
-
-    if (player_state.state == Player_State.not_logged_in) {
-        const characters = await api_request<Get_Player_Characters_Request, Get_Player_Characters_Response>("/get_player_characters", {
-            access_token: auth.token
-        });
-
-        let selected_character = characters[0];
-
-        if (!selected_character) {
-            selected_character = await api_request<Create_New_Character_Request, Create_New_Character_Response>("/create_new_character", {
-                access_token: auth.token
-            });
-        }
-
-        await api_request<Login_With_Character_Request, Login_With_Character_Response>("/login_with_character", {
-            access_token: auth.token,
-            character_id: selected_character.id
-        });
-    }
 
     game = game_from_state(player_state, {
         canvas_width: canvas.width,

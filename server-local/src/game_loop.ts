@@ -210,21 +210,6 @@ function on_custom_event_async<T>(event_name: string, callback: (data: T) => voi
     CustomGameEventManager.RegisterListener(event_name, (user_id, event) => fork(() => callback(event as T)));
 }
 
-function select_or_create_character_and_log_in(main_player: Main_Player) {
-    const characters = try_with_delays_until_success(3, () => try_query_characters(main_player));
-    let selected_character: number;
-
-    if (characters.length == 0) {
-        const new_character = try_with_delays_until_success(3, () => try_create_new_character(main_player));
-
-        selected_character = new_character.id;
-    } else {
-        selected_character = characters[0].id;
-    }
-
-    try_with_delays_until_success(3, () => try_log_in_with_character(main_player, selected_character));
-}
-
 function process_state_transition(main_player: Main_Player, current_state: Player_State, next_state: Player_State_Data) {
     if (next_state.state == Player_State.on_global_map) {
         FindClearSpaceForUnit(main_player.hero_unit, Vector(next_state.player_position.x, next_state.player_position.y), true);
@@ -272,8 +257,9 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
 }
 
 function try_submit_state_transition(main_player: Main_Player, new_state: Player_State_Data) {
+    print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
+
     if (new_state.state != main_player.state) {
-        print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
 
         state_transition = new_state;
     }
@@ -365,10 +351,6 @@ function game_loop() {
     const player_state = try_with_delays_until_success(1, () => try_get_player_state(main_player));
 
     print(`State received`);
-
-    if (player_state.state == Player_State.not_logged_in) {
-        select_or_create_character_and_log_in(main_player);
-    }
 
     process_state_transition(main_player, Player_State.not_logged_in, player_state);
 

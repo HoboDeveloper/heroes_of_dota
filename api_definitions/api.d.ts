@@ -624,28 +624,6 @@ type Player_Movement_Data = {
 
 type Query_Players_Movement_Response = Player_Movement_Data[]
 
-type Get_Player_Characters_Request = {
-    access_token: string
-}
-
-type Create_New_Character_Response = Character_Data
-type Get_Player_Characters_Response = Character_Data[]
-
-type Character_Data = {
-    id: number
-}
-
-type Create_New_Character_Request = {
-    access_token: string
-}
-
-type Login_With_Character_Request = {
-    access_token: string
-    character_id: number
-}
-
-type Login_With_Character_Response = {}
-
 type Player_State_Not_Logged_In_Data = {
     state: Player_State.not_logged_in
 }
@@ -698,6 +676,7 @@ type Chat_Message = {
     from_player_id: number
     from_player_name: string
     message: string
+    timestamp: number
 }
 
 type Battle_Cheat_Command_Request = {

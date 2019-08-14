@@ -35,30 +35,24 @@ const enum Right {
 export interface Player {
     id: number;
     name: string;
-    characters: Character[];
-    current_character: Character | undefined;
     current_location: XY;
     movement_history: Movement_History_Entry[];
     state: Player_State;
     current_battle_id: number; // TODO maybe we don't want to have current_battle_id in other states, but a union for 1 value? ehh
 }
 
-interface Character {
-    id: number;
+export interface Player_Login {
+    player: Player
+    chat_timestamp: number
 }
 
 const players: Player[] = [];
-const token_to_player = new Map<string, Player>();
+const token_to_player_login = new Map<string, Player_Login>();
 const steam_id_to_player = new Map<string, Player>();
 
 let player_id_auto_increment = 0;
-let character_id_auto_increment = 0;
 
 let test_player: Player | undefined = undefined;
-
-export function get_all_authorized_players() {
-    return players;
-}
 
 function generate_access_token() {
     return randomBytes(32).toString("hex");
@@ -68,18 +62,10 @@ function make_new_player(name: string): Player {
     return {
         id: player_id_auto_increment++,
         name: name,
-        state: Player_State.not_logged_in,
-        characters: [],
-        current_character: undefined,
+        state: Player_State.on_global_map,
         current_location: xy(0, 0),
         movement_history: [],
         current_battle_id: 0
-    }
-}
-
-function make_character(): Character {
-    return {
-        id: character_id_auto_increment++
     }
 }
 
@@ -104,14 +90,14 @@ type Do_With_Player_Error = {
 
 type Do_With_Player_Result<T> = Do_With_Player_Ok<T> | Do_With_Player_Error | Do_With_Player_Unauthorized;
 
-function try_do_with_player<T>(access_token: string, do_what: (player: Player) => T | undefined): Do_With_Player_Result<T> {
-    const player = token_to_player.get(access_token);
+function try_do_with_player<T>(access_token: string, do_what: (player: Player, login: Player_Login) => T | undefined): Do_With_Player_Result<T> {
+    const player_login = token_to_player_login.get(access_token);
 
-    if (!player) {
+    if (!player_login) {
         return { type: Do_With_Player_Result_Type.unauthorized };
     }
 
-    const data = do_what(player);
+    const data = do_what(player_login.player, player_login);
 
     if (data) {
         return { type: Do_With_Player_Result_Type.ok, data: data };
@@ -144,14 +130,6 @@ function player_by_id(player_id: number) {
     return players.find(player => player.id == player_id);
 }
 
-function create_new_character_for_player(player: Player): Character {
-    const new_character = make_character();
-
-    player.characters.push(new_character);
-
-    return new_character;
-}
-
 function try_authorize_steam_player_from_dedicated_server(steam_id: string, steam_name: string): [number, string] {
     let player = steam_id_to_player.get(steam_id);
 
@@ -161,27 +139,15 @@ function try_authorize_steam_player_from_dedicated_server(steam_id: string, stea
        players.push(player)
     }
 
+    const player_login = {
+        player: player,
+        chat_timestamp: -1
+    };
+
     const token = generate_access_token();
-    token_to_player.set(token, player);
+    token_to_player_login.set(token, player_login);
 
     return [player.id, token];
-}
-
-function get_player_characters(player: Player) {
-    return player.characters;
-}
-
-function login_with_character(player: Player, character_id: number) {
-    const character = player.characters.find(character => character.id == character_id);
-
-    if (!character) {
-        return undefined;
-    }
-
-    player.current_character = character;
-    player.state = Player_State.on_global_map;
-
-    return character;
 }
 
 interface Result_Ok {
@@ -195,12 +161,6 @@ interface Result_Error {
 }
 
 const handlers = new Map<string, Request_Handler>();
-
-function character_to_json_object(character: Character): Character_Data {
-    return {
-        id: character.id
-    };
-}
 
 function player_to_player_state_object(player: Player): Player_State_Data {
     switch (player.state) {
@@ -368,42 +328,6 @@ handlers.set("/get_player_state", body => {
     const player_state = try_do_with_player(request.access_token, player_to_player_state_object);
 
     return action_on_player_to_result(player_state);
-});
-
-handlers.set("/get_player_characters", body => {
-    const request = JSON.parse(body) as Get_Player_Characters_Request;
-    const characters = try_do_with_player(request.access_token, get_player_characters);
-
-    return action_on_player_to_result<Character[], Get_Player_Characters_Response>(characters, characters => characters.map(character_to_json_object));
-});
-
-handlers.set("/create_new_character", body => {
-    const request = JSON.parse(body) as Create_New_Character_Request;
-    const character = try_do_with_player(request.access_token, create_new_character_for_player);
-
-    return action_on_player_to_result<Character, Create_New_Character_Response>(character, character_to_json_object);
-});
-
-handlers.set("/login_with_character", body => {
-    type Player_With_Character = { player: Player, character: Character };
-
-    const request = JSON.parse(body) as Login_With_Character_Request;
-    const result = try_do_with_player<Player_With_Character>(request.access_token, player => {
-        if (!can_player(player, Right.log_in_with_character)) {
-            return undefined;
-        }
-
-        const character = login_with_character(player, request.character_id);
-
-        if (character) {
-            return {
-                player: player,
-                character: character
-            }
-        }
-    });
-
-    return action_on_player_to_result<Player_With_Character, Player_State_Data>(result, result => player_to_player_state_object(result.player));
 });
 
 handlers.set("/trusted/submit_player_movement", body => {
@@ -621,7 +545,7 @@ handlers.set("/battle_cheat", body => {
 
 handlers.set("/submit_chat_message", body => {
     const request = JSON.parse(body) as Submit_Chat_Message_Request;
-    const result = try_do_with_player<Submit_Chat_Message_Response>(request.access_token, player => {
+    const result = try_do_with_player<Submit_Chat_Message_Response>(request.access_token, (player, login) => {
         if (!can_player(player, Right.submit_chat_messages)) {
             return;
         }
@@ -631,7 +555,7 @@ handlers.set("/submit_chat_message", body => {
         submit_chat_message(player, request.message);
 
         return {
-            messages: pull_pending_chat_messages_for_player(player)
+            messages: pull_pending_chat_messages_for_player(login)
         }
     });
 
@@ -640,9 +564,9 @@ handlers.set("/submit_chat_message", body => {
 
 handlers.set("/pull_chat_messages", body => {
     const request = JSON.parse(body) as Pull_Pending_Chat_Messages_Request;
-    const result = try_do_with_player<Pull_Pending_Chat_Messages_Response>(request.access_token, player => {
+    const result = try_do_with_player<Pull_Pending_Chat_Messages_Response>(request.access_token, (player, login) => {
         return {
-            messages: pull_pending_chat_messages_for_player(player)
+            messages: pull_pending_chat_messages_for_player(login)
         };
     });
 
