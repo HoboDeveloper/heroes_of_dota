@@ -92,12 +92,12 @@ function hero_sounds_by_hero_type(hero_type: Hero_Type): Hero_Sounds {
             file: "soundevents/voscripts/game_sounds_vo_dragon_knight.vsndevts",
             spawn: range("dragon_knight_drag_spawn", 4),
             move: range("dragon_knight_drag_move", 13),
-            attack: range("dragon_knight_dragon_attack", 10),
-            level_up: range("dragon_knight_dragon_level", 7),
+            attack: range("dragon_knight_drag_attack", 10),
+            level_up: range("dragon_knight_drag_level", 7),
             kill: range("dragon_knight_drag_kill", 13),
             deny: range("dragon_knight_drag_deny", 9),
             not_yet: range("dragon_knight_drag_notyet", 9),
-            pain: range("dragon_knight_dragon_pain", 8),
+            pain: range("dragon_knight_drag_pain", 8),
             purchase: range("dragon_knight_drag_purch", 3)
         };
 
