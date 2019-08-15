@@ -887,6 +887,23 @@ function collapse_unit_target_ability_use(battle: Battle, caster: Unit, target: 
             break;
         }
 
+        case Ability_Id.venge_magic_missile: {
+            change_health(battle, source, target, cast.damage_dealt);
+            apply_modifier(battle, source, target, cast.modifier);
+
+            break;
+        }
+
+        case Ability_Id.venge_nether_swap: {
+            const caster_position = caster.position;
+            const target_position = target.position;
+
+            move_unit(battle, caster, target_position);
+            move_unit(battle, target, caster_position);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -1011,6 +1028,12 @@ function collapse_ground_target_ability_use(battle: Battle, caster: Unit, at: Ce
 
         case Ability_Id.mirana_leap: {
             move_unit(battle, caster, cast.target_position);
+            break;
+        }
+
+        case Ability_Id.venge_wave_of_terror: {
+            change_health_and_apply_modifier_multiple(battle, source, cast.targets);
+
             break;
         }
 

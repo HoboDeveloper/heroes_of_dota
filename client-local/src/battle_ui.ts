@@ -1644,6 +1644,9 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.mirana_starfall: return `Deal ${a.damage} damage to targets. One target takes additional ${a.damage} damage`;
         case Ability_Id.mirana_arrow: return `Stun target`;
         case Ability_Id.mirana_leap: return `Leap to a point`;
+        case Ability_Id.venge_magic_missile: return `Deal ${a.damage} to a target and stun it`;
+        case Ability_Id.venge_wave_of_terror: return `Deal ${a.damage} to all targets and reduce their armor by ${a.armor_reduction}`;
+        case Ability_Id.venge_nether_swap: return `Swap places with target`;
     }
 }
 
@@ -1673,6 +1676,9 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.mirana_starfall: return "mirana_starfall";
         case Ability_Id.mirana_arrow: return "mirana_arrow";
         case Ability_Id.mirana_leap: return "mirana_leap";
+        case Ability_Id.venge_magic_missile: return "vengefulspirit_magic_missile";
+        case Ability_Id.venge_wave_of_terror: return "vengefulspirit_wave_of_terror";
+        case Ability_Id.venge_nether_swap: return "vengefulspirit_nether_swap";
     }
 }
 
@@ -1704,6 +1710,8 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
         case Modifier_Id.tide_gush: return from_ability(Ability_Id.tide_gush);
         case Modifier_Id.tide_ravage: return from_ability(Ability_Id.tide_ravage);
         case Modifier_Id.mirana_arrow: return from_ability(Ability_Id.mirana_arrow);
+        case Modifier_Id.venge_magic_missile: return from_ability(Ability_Id.venge_magic_missile);
+        case Modifier_Id.venge_wave_of_terror: return from_ability(Ability_Id.venge_wave_of_terror);
 
         case Modifier_Id.spell_euls_scepter: return "items/cyclone";
         case Modifier_Id.spell_mekansm: return "items/mekansm";

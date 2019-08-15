@@ -22,6 +22,9 @@ declare const enum Ability_Id {
     mirana_starfall = 22,
     mirana_arrow = 23,
     mirana_leap = 24,
+    venge_magic_missile = 25,
+    venge_wave_of_terror = 26,
+    venge_nether_swap = 27,
 
     sniper_shrapnel = 99
 }
@@ -39,6 +42,8 @@ declare const enum Modifier_Id {
     lion_hex = 7,
     lion_impale = 8,
     mirana_arrow = 9,
+    venge_magic_missile = 10,
+    venge_wave_of_terror = 11,
     item_boots_of_travel = 100,
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,
@@ -206,6 +211,24 @@ type Ability_Mirana_Leap = Ability_Definition_Active_Base & {
     type: Ability_Type.target_ground
 }
 
+type Ability_Venge_Magic_Missile = Ability_Definition_Active_Base & {
+    id: Ability_Id.venge_magic_missile
+    type: Ability_Type.target_unit
+    damage: number
+}
+
+type Ability_Venge_Wave_Of_Terror = Ability_Definition_Active_Base & {
+    id: Ability_Id.venge_wave_of_terror
+    type: Ability_Type.target_ground
+    damage: number
+    armor_reduction: number
+}
+
+type Ability_Venge_Nether_Swap = Ability_Definition_Active_Base & {
+    id: Ability_Id.venge_nether_swap
+    type: Ability_Type.target_unit
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -219,7 +242,8 @@ type Ability_Ground_Target =
     Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
     Ability_Lion_Impale |
     Ability_Mirana_Arrow |
-    Ability_Mirana_Leap
+    Ability_Mirana_Leap |
+    Ability_Venge_Wave_Of_Terror
 
 type Ability_Unit_Target =
     Ability_Pudge_Dismember |
@@ -228,7 +252,9 @@ type Ability_Unit_Target =
     Ability_Skywrath_Ancient_Seal |
     Ability_Dragon_Knight_Dragon_Tail |
     Ability_Lion_Hex |
-    Ability_Lion_Finger_Of_Death
+    Ability_Lion_Finger_Of_Death |
+    Ability_Venge_Magic_Missile |
+    Ability_Venge_Nether_Swap
 
 type Ability_No_Target =
     Ability_Pudge_Rot |
@@ -258,7 +284,8 @@ type Delta_Ground_Target_Ability =
     Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
     Delta_Ability_Lion_Impale |
     Delta_Ability_Mirana_Arrow |
-    Delta_Ability_Mirana_Leap
+    Delta_Ability_Mirana_Leap |
+    Delta_Ability_Venge_Wave_Of_Terror
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -267,7 +294,9 @@ type Delta_Unit_Target_Ability =
     Delta_Ability_Skywrath_Ancient_Seal |
     Delta_Ability_Dragon_Knight_Dragon_Tail |
     Delta_Ability_Lion_Hex |
-    Delta_Ability_Lion_Finger_Of_Death
+    Delta_Ability_Lion_Finger_Of_Death |
+    Delta_Ability_Venge_Magic_Missile |
+    Delta_Ability_Venge_Nether_Swap
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
@@ -461,4 +490,19 @@ type Delta_Ability_Mirana_Arrow = Delta_Ground_Target_Ability_Base & {
 
 type Delta_Ability_Mirana_Leap = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.mirana_leap
+}
+
+type Delta_Ability_Venge_Magic_Missile = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.venge_magic_missile
+    damage_dealt: Health_Change
+    modifier: Modifier_Application
+}
+
+type Delta_Ability_Venge_Wave_Of_Terror = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.venge_wave_of_terror
+    targets: (Unit_Health_Change & Unit_Modifier_Application)[]
+}
+
+type Delta_Ability_Venge_Nether_Swap = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.venge_nether_swap
 }
