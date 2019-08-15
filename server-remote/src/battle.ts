@@ -1408,6 +1408,26 @@ export function get_all_battles(): Battle_Record[] {
     return battles;
 }
 
+export function surrender_player_forces(battle: Battle_Record, player: Player) {
+    const battle_player = battle.players.find(battle_player => battle_player.id == player.id);
+
+    if (battle_player) {
+        const player_units = battle.units.filter(unit => unit.supertype != Unit_Supertype.creep && unit.owner == battle_player);
+
+        submit_battle_deltas(battle, player_units.map(unit => {
+            const delta: Delta = {
+                type: Delta_Type.health_change,
+                source_unit_id: unit.id,
+                target_unit_id: unit.id,
+                new_value: 0,
+                value_delta: 0
+            };
+
+            return delta;
+        }));
+    }
+}
+
 export function start_battle(players: Player[], battleground: Battleground): number {
     const battle_players: Battle_Participant_Info[] = players.map(player => ({
         id: player.id,

@@ -135,8 +135,16 @@ function query_other_players_movement(main_player: Main_Player, players: Player_
         return;
     }
 
+    const received_movement_history_this_frame: Record<number, boolean> = {};
+
+    for (const id in players) {
+        received_movement_history_this_frame[id] = false;
+    }
+
     response.forEach(player_data => {
-        const player = players[player_data.id] as Player | undefined;
+        const player = players[player_data.id];
+
+        received_movement_history_this_frame[player_data.id] = true;
 
         if (player) {
             player.movement_history = player_data.movement_history;
@@ -149,7 +157,18 @@ function query_other_players_movement(main_player: Main_Player, players: Player_
 
             update_player_from_movement_history(new_player);
         }
-    })
+    });
+
+    for (const id in players) {
+        const player = players[id];
+        const should_be_kept = received_movement_history_this_frame[id];
+
+        if (!should_be_kept) {
+            delete players[id];
+
+            player.hero_unit.RemoveSelf();
+        }
+    }
 }
 
 function update_main_player_movement_history(main_player: Main_Player) {

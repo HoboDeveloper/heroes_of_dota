@@ -4,7 +4,7 @@ import {
     Battle_Record, cheat,
     find_battle_by_id, get_all_battles,
     get_battle_deltas_after, random_in_array, random_unoccupied_point_in_deployment_zone,
-    start_battle,
+    start_battle, surrender_player_forces,
     try_take_turn_action
 } from "./battle";
 import {unreachable, XY, xy} from "./common";
@@ -33,17 +33,21 @@ const enum Right {
 }
 
 export interface Player {
+    steam_id: string
     id: number;
     name: string;
     current_location: XY;
     movement_history: Movement_History_Entry[];
     state: Player_State;
     current_battle_id: number; // TODO maybe we don't want to have current_battle_id in other states, but a union for 1 value? ehh
+    active_logins: number
 }
 
 export interface Player_Login {
     player: Player
     chat_timestamp: number
+    token: string
+    last_used_at: number
 }
 
 const players: Player[] = [];
@@ -58,14 +62,16 @@ function generate_access_token() {
     return randomBytes(32).toString("hex");
 }
 
-function make_new_player(name: string): Player {
+function make_new_player(steam_id: string, name: string): Player {
     return {
+        steam_id: steam_id,
         id: player_id_auto_increment++,
         name: name,
         state: Player_State.on_global_map,
         current_location: xy(0, 0),
         movement_history: [],
-        current_battle_id: 0
+        current_battle_id: 0,
+        active_logins: 0
     }
 }
 
@@ -96,6 +102,9 @@ function try_do_with_player<T>(access_token: string, do_what: (player: Player, l
     if (!player_login) {
         return { type: Do_With_Player_Result_Type.unauthorized };
     }
+
+    // TODO might want to move this logic into a separate ping request
+    player_login.last_used_at = Date.now();
 
     const data = do_what(player_login.player, player_login);
 
@@ -134,17 +143,22 @@ function try_authorize_steam_player_from_dedicated_server(steam_id: string, stea
     let player = steam_id_to_player.get(steam_id);
 
     if (!player) {
-       player = make_new_player(steam_name);
+       player = make_new_player(steam_id, steam_name);
        steam_id_to_player.set(steam_id, player);
        players.push(player)
     }
 
-    const player_login = {
+    const token = generate_access_token();
+
+    const player_login: Player_Login = {
         player: player,
-        chat_timestamp: -1
+        token: token,
+        chat_timestamp: -1,
+        last_used_at: Date.now()
     };
 
-    const token = generate_access_token();
+    player.active_logins++;
+
     token_to_player_login.set(token, player_login);
 
     return [player.id, token];
@@ -264,6 +278,37 @@ function initiate_battle_between_players(player_one: Player, player_two: Player)
 
     player_one.current_battle_id = battle_id;
     player_two.current_battle_id = battle_id;
+}
+
+function check_and_disconnect_offline_players() {
+    const now = Date.now();
+    const disconnect_time = 20_000;
+
+    for (const [token, login] of token_to_player_login) {
+        if (now - login.last_used_at > disconnect_time) {
+            token_to_player_login.delete(token);
+
+            const player = login.player;
+            player.active_logins--;
+
+            if (player.active_logins == 0) {
+                if (player.state == Player_State.in_battle) {
+                    const battle = find_battle_by_id(player.current_battle_id);
+
+                    if (battle) {
+                        surrender_player_forces(battle, player);
+                    }
+                }
+
+                steam_id_to_player.delete(player.steam_id);
+
+                const player_index = players.indexOf(player);
+
+                players[player_index] = players[players.length - 1];
+                players.length = players.length - 1;
+            }
+        }
+    }
 }
 
 // TODO automatically validate dedicated key on /trusted path
@@ -618,7 +663,7 @@ function handle_request(url: string, data: string): Request_Result {
 
 export function start_server(with_test_player: boolean) {
     if (with_test_player) {
-        test_player = make_new_player("Test guy");
+        test_player = make_new_player("whatever", "Test guy");
         test_player.state = Player_State.on_global_map;
         test_player.movement_history = [{
             location_x: 0,
@@ -635,6 +680,8 @@ export function start_server(with_test_player: boolean) {
     const game_html = readFileSync("dist/game.html", "utf8");
     const battle_sim = readFileSync("dist/battle_sim.js", "utf8");
     const web_main = readFileSync("dist/web_main.js", "utf8");
+
+    setInterval(check_and_disconnect_offline_players, 1000);
 
     const server = createServer((req, res) => {
         const url = req.url;
