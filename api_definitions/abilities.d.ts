@@ -19,6 +19,9 @@ declare const enum Ability_Id {
     lion_hex = 19,
     lion_impale = 20,
     lion_finger_of_death = 21,
+    mirana_starfall = 22,
+    mirana_arrow = 23,
+    mirana_leap = 24,
 
     sniper_shrapnel = 99
 }
@@ -35,6 +38,7 @@ declare const enum Modifier_Id {
     dragon_knight_elder_dragon_form = 6,
     lion_hex = 7,
     lion_impale = 8,
+    mirana_arrow = 9,
     item_boots_of_travel = 100,
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,
@@ -185,6 +189,23 @@ type Ability_Lion_Finger_Of_Death = Ability_Definition_Active_Base & {
     damage: number
 }
 
+type Ability_Mirana_Starfall = Ability_Definition_Active_Base & {
+    id: Ability_Id.mirana_starfall
+    type: Ability_Type.no_target
+    damage: number
+}
+
+type Ability_Mirana_Arrow = Ability_Definition_Active_Base & {
+    id: Ability_Id.mirana_arrow
+    type: Ability_Type.target_ground
+    targeting: Ability_Targeting_Line
+}
+
+type Ability_Mirana_Leap = Ability_Definition_Active_Base & {
+    id: Ability_Id.mirana_leap
+    type: Ability_Type.target_ground
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -196,7 +217,9 @@ type Ability_Ground_Target =
     Ability_Skywrath_Mystic_Flare |
     Ability_Dragon_Knight_Breathe_Fire |
     Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
-    Ability_Lion_Impale
+    Ability_Lion_Impale |
+    Ability_Mirana_Arrow |
+    Ability_Mirana_Leap
 
 type Ability_Unit_Target =
     Ability_Pudge_Dismember |
@@ -213,7 +236,8 @@ type Ability_No_Target =
     Ability_Tide_Ravage |
     Ability_Luna_Eclipse |
     Ability_Skywrath_Concussive_Shot |
-    Ability_Dragon_Knight_Elder_Dragon_Form
+    Ability_Dragon_Knight_Elder_Dragon_Form |
+    Ability_Mirana_Starfall
 
 type Ability_Definition_Active = Ability_Ground_Target | Ability_Unit_Target | Ability_No_Target
 
@@ -223,7 +247,8 @@ type Ability_Definition_Passive =
 type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive
 
 type Ability_Effect =
-    Ability_Effect_Luna_Moon_Glaive
+    Ability_Effect_Luna_Moon_Glaive |
+    Ability_Effect_Mirana_Starfall
 
 type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
@@ -231,7 +256,9 @@ type Delta_Ground_Target_Ability =
     Delta_Ability_Skywrath_Mystic_Flare |
     Delta_Ability_Dragon_Knight_Breathe_Fire |
     Delta_Ability_Dragon_Knight_Elder_Dragon_Form_Attack |
-    Delta_Ability_Lion_Impale
+    Delta_Ability_Lion_Impale |
+    Delta_Ability_Mirana_Arrow |
+    Delta_Ability_Mirana_Leap
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -248,7 +275,8 @@ type Delta_Use_No_Target_Ability =
     Delta_Ability_Tide_Ravage |
     Delta_Ability_Luna_Eclipse |
     Delta_Ability_Skywrath_Concussive_Shot |
-    Delta_Ability_Dragon_Knight_Elder_Dragon_Form
+    Delta_Ability_Dragon_Knight_Elder_Dragon_Form |
+    Delta_Ability_Mirana_Starfall
 
 
 type Basic_Attack_Hit = {
@@ -367,6 +395,13 @@ type Ability_Effect_Luna_Moon_Glaive = {
     damage_dealt: Health_Change
 }
 
+type Ability_Effect_Mirana_Starfall = {
+    ability_id: Ability_Id.mirana_starfall
+    source_unit_id: number
+    target_unit_id: number
+    damage_dealt: Health_Change
+}
+
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
     missed_beams: number
@@ -407,4 +442,23 @@ type Delta_Ability_Lion_Impale = Delta_Ground_Target_Ability_Base & {
 type Delta_Ability_Lion_Finger_Of_Death = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.lion_finger_of_death
     damage_dealt: Health_Change
+}
+
+type Delta_Ability_Mirana_Starfall = Delta_Use_No_Target_Ability_Base & {
+    ability_id: Ability_Id.mirana_starfall
+    targets: Unit_Health_Change[]
+}
+
+type Mirana_Arrow_Hit = {
+    hit: true
+    stun: Unit_Modifier_Application
+}
+
+type Delta_Ability_Mirana_Arrow = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.mirana_arrow
+    result: Mirana_Arrow_Hit | Line_Ability_Miss
+}
+
+type Delta_Ability_Mirana_Leap = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.mirana_leap
 }

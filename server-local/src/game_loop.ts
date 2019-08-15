@@ -257,9 +257,8 @@ function process_state_transition(main_player: Main_Player, current_state: Playe
 }
 
 function try_submit_state_transition(main_player: Main_Player, new_state: Player_State_Data) {
-    print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
-
     if (new_state.state != main_player.state) {
+        print(`Well I have a new state transition and it is ${main_player.state} -> ${new_state.state}`);
 
         state_transition = new_state;
     }
@@ -302,6 +301,7 @@ function main() {
     link_modifier("Modifier_Dragon_Knight_Elder_Dragon", "modifiers/modifier_dragon_knight_elder_dragon");
     link_modifier("Modifier_Lion_Hex", "modifiers/modifier_lion_hex");
     link_modifier("Modifier_Euls_Scepter", "modifiers/modifier_euls_scepter");
+    link_modifier("Modifier_Activity_Translation", "modifiers/modifier_activity_translation");
 
     mode.SetContextThink("scheduler_think", () => {
         update_scheduler();

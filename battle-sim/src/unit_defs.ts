@@ -129,7 +129,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
         case Hero_Type.tidehunter: {
             return {
                 health: 16,
-                move_points: 3,
+                move_points: 2,
                 attack_damage: 5,
                 attack: basic_attack(1),
                 abilities: [
@@ -297,6 +297,40 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                         flags: [],
                         charges: 1,
                         damage: 8
+                    })
+                ],
+                ability_bench: []
+            }
+        }
+
+        case Hero_Type.mirana: {
+            return {
+                health: 10,
+                move_points: 3,
+                attack_damage: 4,
+                attack: basic_attack(3),
+                abilities: [
+                    active_ability<Ability_Mirana_Starfall>({
+                        available_since_level: 1,
+                        targeting: target_rect_area_around_caster(2),
+                        flags: [],
+                        charges: 1,
+                        damage: 3
+                    }),
+                    active_ability<Ability_Mirana_Arrow>({
+                        available_since_level: 2,
+                        targeting: target_line(7, targets_in_line(7)),
+                        flags: [],
+                        charges: 1
+                    }),
+                    active_ability<Ability_Mirana_Leap>({
+                        available_since_level: 3,
+                        targeting: {
+                            type: Ability_Targeting_Type.any_free_cell,
+                            selector: single_target()
+                        },
+                        flags: [ Ability_Flag.does_not_consume_action ],
+                        charges: 1
                     })
                 ],
                 ability_bench: []

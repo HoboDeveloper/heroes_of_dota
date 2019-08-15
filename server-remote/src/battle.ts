@@ -120,7 +120,7 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
     for (const unit of battle.units) {
         if (!is_unit_a_valid_target(unit)) continue;
 
-        if (ability_targeting_fits(targeting, caster.position, unit.position)) {
+        if (ability_targeting_fits(battle, targeting, caster.position, unit.position)) {
             units.push(unit);
         }
     }
@@ -235,7 +235,7 @@ function perform_spell_cast_unit_target(battle: Battle_Record, player: Battle_Pl
     }
 }
 
-function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability: Ability_Ground_Target, target: XY): Delta_Ground_Target_Ability{
+function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability: Ability_Ground_Target, target: XY): Delta_Ground_Target_Ability {
     const base: Delta_Ground_Target_Ability_Base = {
         type: Delta_Type.use_ground_target_ability,
         unit_id: unit.id,
@@ -255,7 +255,7 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
 
                 return {
                     ...base,
-                    ability_id: Ability_Id.basic_attack,
+                    ability_id: ability.id,
                     result: {
                         hit: true,
                         target_unit_id: scan.unit.id,
@@ -265,7 +265,7 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
             } else {
                 return {
                     ...base,
-                    ability_id: Ability_Id.basic_attack,
+                    ability_id: ability.id,
                     result: {
                         hit: false,
                         final_point: scan.final_point
@@ -366,6 +366,40 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
                 ability_id: ability.id,
                 targets: targets
             };
+        }
+
+        case Ability_Id.mirana_arrow: {
+            const scan = scan_for_unit_in_direction(battle, unit.position, target, ability.targeting.line_length);
+
+            if (scan.hit) {
+                return {
+                    ...base,
+                    ability_id: ability.id,
+                    result: {
+                        hit: true,
+                        stun: {
+                            target_unit_id: scan.unit.id,
+                            modifier: new_timed_modifier(battle, Modifier_Id.mirana_arrow, 1, [ Modifier_Field.state_stunned_counter, 1 ])
+                        }
+                    }
+                };
+            } else {
+                return {
+                    ...base,
+                    ability_id: ability.id,
+                    result: {
+                        hit: false,
+                        final_point: scan.final_point
+                    }
+                };
+            }
+        }
+
+        case Ability_Id.mirana_leap: {
+            return {
+                ...base,
+                ability_id: ability.id
+            }
         }
     }
 }
@@ -500,6 +534,35 @@ function perform_ability_cast_no_target(battle: Battle_Record, unit: Unit, abili
                     }],
                     duration: ability.duration
                 },
+            }
+        }
+
+        case Ability_Id.mirana_starfall: {
+            defer_delta(battle, () => {
+                const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
+                const enemies = targets.filter(target => !are_units_allies(unit, target));
+                const allies = targets.filter(target => are_units_allies(unit, target));
+                const extra_target = enemies.length > 0 ? random_in_array(enemies) : random_in_array(allies);
+
+                if (extra_target) {
+                    return apply_ability_effect_delta({
+                        ability_id: ability.id,
+                        source_unit_id: unit.id,
+                        target_unit_id: extra_target.id,
+                        damage_dealt: health_change(extra_target, -ability.damage)
+                    });
+                }
+            });
+
+            const targets = query_units_for_no_target_ability(battle, unit, ability.targeting);
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: targets.map(target => ({
+                    target_unit_id: target.id,
+                    change: health_change(target, -ability.damage)
+                }))
             }
         }
     }
@@ -1109,7 +1172,7 @@ function defer_creep_try_retaliate(battle: Battle_Record, creep: Creep, target: 
             const move_cost = costs.cell_index_to_cost[index];
 
             if (move_cost <= creep.move_points) {
-                if (ability_targeting_fits(attack_intent.ability.targeting, cell.position, target.position)) {
+                if (ability_targeting_fits(battle, attack_intent.ability.targeting, cell.position, target.position)) {
                     defer_delta(battle, () => ({
                         type: Delta_Type.unit_move,
                         to_position: cell.position,
@@ -1478,6 +1541,24 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             for (const message of messages) {
                 submit_chat_message(player, message);
             }
+
+            break;
+        }
+
+        case "charges": {
+            const unit = find_unit_by_id(battle, selected_unit_id);
+
+            if (!unit) break;
+
+            const ability_index = parseInt(parts[1]);
+            const charges = parseInt(parts[2] || "20");
+
+            submit_battle_deltas(battle, [{
+                type: Delta_Type.set_ability_charges_remaining,
+                unit_id: unit.id,
+                ability_id: unit.abilities[ability_index].id,
+                charges_remaining: charges
+            }]);
 
             break;
         }

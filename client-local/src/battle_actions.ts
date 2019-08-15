@@ -274,7 +274,7 @@ function try_attack_target(source: Unit, target: XY, flash_ground_on_error: bool
                 for (const cell of battle.cells) {
                     const index = grid_cell_index(battle, cell.position);
 
-                    if (ability_targeting_fits(source.attack.targeting, source.position, cell.position)) {
+                    if (ability_targeting_fits(battle, source.attack.targeting, source.position, cell.position)) {
                         cell_index_to_highlight[index] = true;
                     }
                 }

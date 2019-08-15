@@ -113,6 +113,19 @@ function hero_sounds_by_hero_type(hero_type: Hero_Type): Hero_Sounds {
             pain: range("lion_lion_pain", 10),
             purchase: range("lion_lion_purc", 3)
         };
+
+        case Hero_Type.mirana: return {
+            file: "soundevents/voscripts/game_sounds_vo_mirana.vsndevts",
+            spawn: range("mirana_mir_spawn", 12),
+            move: range("mirana_mir_move", 17),
+            attack: range("mirana_mir_attack", 11),
+            level_up: range("mirana_mir_levelup", 6),
+            kill: range("mirana_mir_kill", 17),
+            deny: range("mirana_mir_deny", 19),
+            not_yet: range("mirana_mir_notyet", 9),
+            pain: range("mirana_mir_pain", 10),
+            purchase: range("mirana_mir_purch", 3)
+        }
     }
 }
 

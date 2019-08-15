@@ -403,7 +403,7 @@ function on_cell_right_clicked(game: Game_In_Battle, player: Battle_Player, x: n
 
             if (right_clicked_unit) {
                 if (selected_unit.attack.type == Ability_Type.target_ground) {
-                    if (ability_targeting_fits(selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
+                    if (ability_targeting_fits(game.battle, selected_unit.attack.targeting, selected_unit.position, xy(x, y))) {
                         take_battle_action(game, {
                             type: Action_Type.ground_target_ability,
                             unit_id: selected_unit.id,
@@ -453,7 +453,7 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
             const ability = find_unit_ability(selected, game.selection.ability_id);
 
             if (ability && (ability.type == Ability_Type.target_unit || ability.type == Ability_Type.target_ground)) {
-                const can_be_cast = ability_targeting_fits(ability.targeting, selected.position, xy(x, y));
+                const can_be_cast = ability_targeting_fits(game.battle, ability.targeting, selected.position, xy(x, y));
 
                 if (ability.type == Ability_Type.target_unit && unit_in_cell && can_be_cast) {
                     take_battle_action(game, {
@@ -536,7 +536,7 @@ function highlight_cells_unit_can_go_to(battle: Battle, unit: Unit) {
 function highlight_cells_for_ability(battle: Battle, unit: Unit, ability: Ability_Active) {
     for (let x = 0; x < battle.grid_size.x; x++) {
         for (let y = 0; y < battle.grid_size.y; y++) {
-            if (ability_targeting_fits(ability.targeting, unit.position, xy(x, y))) {
+            if (ability_targeting_fits(battle, ability.targeting, unit.position, xy(x, y))) {
                 game.ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
                 game.ctx.fillRect(x * cell_size, y * cell_size, cell_size, cell_size);
             }
@@ -1037,7 +1037,7 @@ function draw_grid(game: Game_In_Battle, player: Battle_Player | undefined, high
 
                     if (ability && ability.type != Ability_Type.passive) {
                         if (ability.type == Ability_Type.target_unit || ability.type == Ability_Type.target_ground) {
-                            if (hovered_cell && ability_targeting_fits(ability.targeting, unit.position, hovered_cell)) {
+                            if (hovered_cell && ability_targeting_fits(game.battle, ability.targeting, unit.position, hovered_cell)) {
                                 highlight_cells_for_ability_selector(game.battle, unit.position, hovered_cell, ability.targeting.selector);
                             } else {
                                 highlight_cells_for_ability(game.battle, unit, ability);

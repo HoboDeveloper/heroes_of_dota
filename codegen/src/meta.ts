@@ -133,6 +133,10 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     const argument = resolve_alias(toSimpleType(call.typeArguments[0], checker));
                     const enum_members: SimpleTypeEnumMember[] = resolve_enum_members(argument);
 
+                    if (argument.kind == SimpleTypeKind.ENUM_MEMBER) {
+                        enum_members.push(argument);
+                    }
+
                     return ts.createArrayLiteral(enum_members.map(member => {
                         if (member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
                             const literal = ts.createLiteral(member.type.value);
@@ -140,6 +144,10 @@ export default function run_transformer(program: ts.Program, options: Options): 
                             ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, member.name);
 
                             return literal;
+                        }
+
+                        if (member.type.kind == SimpleTypeKind.STRING_LITERAL) {
+                            return ts.createStringLiteral(member.type.value);
                         }
 
                         error_out(call, "Unsupported member type " + member.type);
@@ -270,6 +278,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
             }
         } catch (e) {
             console.error(e);
+            throw e;
         }
 
         return node;

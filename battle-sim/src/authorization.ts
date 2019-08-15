@@ -398,7 +398,7 @@ function authorize_ability_use(order_unit: Order_Unit_Permission, ability_id: Ab
 }
 
 function authorize_unit_target_ability_use(use: Ability_Use_Permission, on_target: Act_On_Unit_Permission): Unit_Target_Ability_Use_Auth {
-    if (!ability_targeting_fits(use.ability.targeting, use.unit.position, on_target.unit.position)) {
+    if (!ability_targeting_fits(use.battle, use.ability.targeting, use.unit.position, on_target.unit.position)) {
         return { ok: false, kind: Unit_Target_Ability_Use_Error.not_in_range };
     }
 
@@ -417,7 +417,7 @@ function authorize_ground_target_ability_use(use: Ability_Use_Permission, at: XY
 
     if (!cell) return { ok: false, kind: Ground_Target_Ability_Use_Error.other };
 
-    if (!ability_targeting_fits(use.ability.targeting, use.unit.position, cell.position)) {
+    if (!ability_targeting_fits(use.battle, use.ability.targeting, use.unit.position, cell.position)) {
         return { ok: false, kind: Ground_Target_Ability_Use_Error.not_in_range };
     }
 

@@ -62,7 +62,8 @@ declare const enum Hero_Type {
     luna = 4,
     skywrath_mage = 5,
     dragon_knight = 6,
-    lion = 7
+    lion = 7,
+    mirana = 8
 }
 
 declare const enum Unit_Supertype {
@@ -91,7 +92,8 @@ declare const enum Rune_Type {
 declare const enum Ability_Targeting_Type {
     line = 0,
     unit_in_manhattan_distance = 2,
-    rectangular_area_around_caster = 3
+    rectangular_area_around_caster = 3,
+    any_free_cell = 4
 }
 
 declare const enum Ability_Target_Selector_Type {
@@ -160,6 +162,11 @@ type Ability_Targeting_Rectangular_Area_Around_Caster = {
     selector: Ability_Target_Selector
 }
 
+type Ability_Targeting_Any_Free_Cell = {
+    type: Ability_Targeting_Type.any_free_cell
+    selector: Ability_Target_Selector
+}
+
 type Ability_Target_Selector_Single_Target = {
     type: Ability_Target_Selector_Type.single_target
 }
@@ -189,7 +196,8 @@ type Ability_Target_Selector =
 type Ability_Targeting =
     Ability_Targeting_Line |
     Ability_Targeting_Target_In_Manhattan_Distance |
-    Ability_Targeting_Rectangular_Area_Around_Caster
+    Ability_Targeting_Rectangular_Area_Around_Caster |
+    Ability_Targeting_Any_Free_Cell
 
 type Action_Move = {
     type: Action_Type.move

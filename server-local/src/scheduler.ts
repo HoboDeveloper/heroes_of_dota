@@ -1,6 +1,10 @@
-const scheduler: Scheduler = {
-    tasks: new Map<Coroutine<any>, Task>()
-};
+declare let scheduler: Scheduler;
+
+if (!scheduler) {
+    scheduler = {
+        tasks: new Map<Coroutine<any>, Task>()
+    };
+}
 
 type Scheduler = {
     tasks: Map<Coroutine<any>, Task>;

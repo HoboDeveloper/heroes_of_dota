@@ -179,6 +179,7 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
         case Hero_Type.skywrath_mage: return "npc_dota_hero_skywrath_mage";
         case Hero_Type.dragon_knight: return "npc_dota_hero_dragon_knight";
         case Hero_Type.lion: return "npc_dota_hero_lion";
+        case Hero_Type.mirana: return "npc_dota_hero_mirana";
     }
 }
 
@@ -484,6 +485,17 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
     chain.release();
 }
 
+function starfall_drop_star_on_unit(main_player: Main_Player, caster: Battle_Unit, target: Battle_Unit, change: Health_Change) {
+    const fx = fx_by_unit("particles/units/heroes/hero_mirana/mirana_starfall_attack.vpcf", target);
+
+    wait(0.5);
+
+    unit_emit_sound(caster, "Ability.StarfallImpact");
+    change_health(main_player, caster, target, change);
+
+    fx.destroy_and_release(false);
+}
+
 function tide_ravage(main_player: Main_Player, caster: Battle_Unit, cast: Delta_Ability_Tide_Ravage) {
     caster.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
@@ -587,7 +599,13 @@ function get_ranged_attack_spec(unit: Battle_Unit): Ranged_Attack_Spec | undefin
                     particle_path: "particles/units/heroes/hero_lion/lion_base_attack.vpcf",
                     projectile_speed: 1200,
                     attack_point: 0.4
-                }
+                };
+
+                case Hero_Type.mirana: return {
+                    particle_path: "particles/units/heroes/hero_mirana/mirana_base_attack.vpcf",
+                    projectile_speed: 1400,
+                    attack_point: 0.3
+                };
             }
 
             break;
@@ -667,6 +685,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.skywrath_mage: return "Hero_SkywrathMage.Attack";
             case Hero_Type.dragon_knight: return "Hero_DragonKnight.Attack";
             case Hero_Type.lion: return "Hero_Lion.Attack";
+            case Hero_Type.mirana: return "Hero_Mirana.Attack";
         }
     }
 
@@ -676,6 +695,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.luna: return "Hero_Luna.ProjectileImpact";
             case Hero_Type.skywrath_mage: return "Hero_SkywrathMage.ProjectileImpact";
             case Hero_Type.lion: return "Hero_Lion.ProjectileImpact";
+            case Hero_Type.mirana: return "Hero_Mirana.ProjectileImpact";
         }
     }
 
@@ -742,6 +762,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 
     const world_from = battle_position_to_world_position_center(unit.position);
     const world_to = battle_position_to_world_position_center(cast.target_position);
+    const distance = ((world_to - world_from) as Vector).Length2D();
     const direction = ((world_to - world_from) as Vector).Normalized();
 
     switch (cast.ability_id) {
@@ -974,6 +995,117 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             break;
         }
 
+        case Ability_Id.mirana_arrow: {
+            function is_arrow_hit(cast: Mirana_Arrow_Hit | Line_Ability_Miss): cast is Mirana_Arrow_Hit {
+                return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
+            }
+
+            turn_unit_towards_target(unit, cast.target_position);
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2);
+
+            let travel_target: XY;
+
+            if (is_arrow_hit(cast.result)) {
+                const target = find_unit_by_id(cast.result.stun.target_unit_id);
+
+                if (!target) {
+                    log_chat_debug_message("Mirana arrow target not found");
+                    return;
+                }
+
+                travel_target = target.position;
+            } else {
+                travel_target = cast.result.final_point;
+            }
+
+            const world_to = battle_position_to_world_position_center(travel_target);
+            const distance = (world_to - world_from as Vector).Length2D();
+
+            const travel_speed = 1300;
+            const time_to_travel = distance / travel_speed;
+            const particle = fx("particles/units/heroes/hero_mirana/mirana_spell_arrow.vpcf")
+                .with_vector_value(0, battle_position_to_world_position_center(unit.position))
+                .with_vector_value(1, direction * travel_speed as Vector)
+                .with_forward_vector(0, unit.handle.GetForwardVector());
+
+            const loop_sound = "Hero_Mirana.Arrow";
+
+            unit_emit_sound(unit, "Hero_Mirana.ArrowCast");
+            unit_emit_sound(unit, loop_sound);
+
+            wait(time_to_travel);
+
+            if (is_arrow_hit(cast.result)) {
+                const target = find_unit_by_id(cast.result.stun.target_unit_id);
+
+                if (target) {
+                    apply_modifier(main_player, target, cast.result.stun.modifier);
+                }
+
+                unit_stop_sound(unit, loop_sound);
+                unit_emit_sound(unit, "Hero_Mirana.ArrowImpact");
+            }
+
+            particle.destroy_and_release(false);
+
+            break;
+        }
+
+        case Ability_Id.mirana_leap: {
+            turn_unit_towards_target(unit, cast.target_position);
+
+            const travel_speed = 2400;
+            const time_to_travel = distance / travel_speed;
+            const peak_height = Math.min(250, distance / 5);
+            const animation_length = 0.5;
+            const animation_speed = animation_length / time_to_travel;
+
+            print(peak_height);
+
+            const start_time = GameRules.GetGameTime();
+
+            function parabolic(x: number) {
+                const nx = (x * 2 - 1);
+                return 1 - nx * nx;
+            }
+
+            unit_emit_sound(unit, "Ability.Leap");
+
+            unit.handle.StartGestureWithPlaybackRate(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_3, animation_speed);
+
+            while (true) {
+                const now = GameRules.GetGameTime();
+                const delta_time = now - start_time;
+                const time_normalized = delta_time / time_to_travel;
+
+                const position_now = world_from + (direction * distance * time_normalized) as Vector;
+                position_now.z = world_from.z + parabolic(time_normalized) * peak_height;
+
+                unit.handle.SetAbsOrigin(position_now);
+
+                if (delta_time >= time_to_travel) {
+                    break;
+                }
+
+                wait_one_frame();
+            }
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_3);
+            unit.handle.StartGesture(GameActivity_t.ACT_MIRANA_LEAP_END);
+            unit.handle.SetAbsOrigin(world_to);
+
+            unit.position = cast.target_position;
+
+            fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
+            unit_emit_sound(unit, "eul_scepter_drop");
+
+            wait(0.5);
+
+            unit.handle.FadeGesture(GameActivity_t.ACT_MIRANA_LEAP_END);
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -1088,6 +1220,10 @@ function apply_modifier(main_player: Main_Player, target: Battle_Unit, modifier:
 
 function unit_emit_sound(unit: Battle_Unit, sound: string) {
     unit.handle.EmitSound(sound);
+}
+
+function unit_stop_sound(unit: Battle_Unit, sound: string) {
+    unit.handle.StopSound(sound);
 }
 
 function battle_emit_sound(sound: string) {
@@ -1423,6 +1559,23 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
             break;
         }
 
+        case Ability_Id.mirana_starfall: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.8);
+            fx_by_unit("particles/units/heroes/hero_mirana/mirana_starfall_circle.vpcf", unit).release();
+
+            unit_emit_sound(unit, "Ability.Starfall");
+
+            wait_for_all_forks(from_client_array(cast.targets).map(target => fork(() => {
+                const target_unit = find_unit_by_id(target.target_unit_id);
+
+                if (target_unit) {
+                    starfall_drop_star_on_unit(main_player, unit, target_unit, target.change);
+                }
+            })));
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -1484,7 +1637,18 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             break;
         }
 
-        default: unreachable(effect.ability_id);
+        case Ability_Id.mirana_starfall: {
+            const source = find_unit_by_id(effect.source_unit_id);
+            const target = find_unit_by_id(effect.target_unit_id);
+
+            if (source && target) {
+                starfall_drop_star_on_unit(main_player, source, target, effect.damage_dealt);
+            }
+
+            break;
+        }
+
+        default: unreachable(effect);
     }
 }
 
@@ -1783,6 +1947,15 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
     }
 }
 
+function add_activity_translation(target: Battle_Unit, translation: Activity_Translation, duration: number) {
+    const parameters: Modifier_Activity_Translation_Params = {
+        translation: translation,
+        duration: duration
+    };
+
+    target.handle.AddNewModifier(target.handle, undefined, "Modifier_Activity_Translation", parameters);
+}
+
 function play_delta(main_player: Main_Player, delta: Delta, head: number) {
     switch (delta.type) {
         case Delta_Type.hero_spawn: {
@@ -1797,6 +1970,12 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
             const owner = array_find(battle.participants, player => player.id == delta.owner_id)!;
             const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_hero_for_battle(delta.hero_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
+
+            if (delta.hero_type == Hero_Type.mirana) {
+                add_activity_translation(unit, Activity_Translation.ti8, 1.0);
+            }
+
+            unit.handle.ForcePlayActivityOnce(GameActivity_t.ACT_DOTA_SPAWN);
 
             battle.units.push(unit);
 

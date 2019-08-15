@@ -892,7 +892,7 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
         switch (ability.type) {
             case Ability_Type.target_ground:
             case Ability_Type.target_unit: {
-                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(ability.targeting, selection.unit.position, hovered_cell);
+                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(battle, ability.targeting, selection.unit.position, hovered_cell);
                 highlighted_ability_selector = ability.targeting.selector;
 
                 break;
@@ -922,7 +922,7 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
 
         switch (ability.type) {
             case Ability_Type.target_ground: {
-                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                if (ability_targeting_fits(battle, ability.targeting, selection.unit.position, cell.position)) {
                     alpha = 20;
                     cell_color = color_red;
 
@@ -933,7 +933,7 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
             }
 
             case Ability_Type.target_unit: {
-                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                if (ability_targeting_fits(battle, ability.targeting, selection.unit.position, cell.position)) {
                     if (unit_in_cell) {
                         alpha = 140;
                         cell_color = color_green;
@@ -949,7 +949,7 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
             }
 
             case Ability_Type.no_target: {
-                if (ability_targeting_fits(ability.targeting, selection.unit.position, cell.position)) {
+                if (ability_targeting_fits(battle, ability.targeting, selection.unit.position, cell.position)) {
                     alpha = 140;
                     cell_color = color_red;
                 }
@@ -1641,6 +1641,9 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.lion_hex: return `Hex target enemy, silencing, disarming and slowing them by ${a.move_points_reduction} for ${a.duration} turns`;
         case Ability_Id.lion_impale: return `Deal ${a.damage} and stun targets in a line`;
         case Ability_Id.lion_finger_of_death: return `Deal ${a.damage} damage to target`;
+        case Ability_Id.mirana_starfall: return `Deal ${a.damage} damage to targets. One target takes additional ${a.damage} damage`;
+        case Ability_Id.mirana_arrow: return `Stun target`;
+        case Ability_Id.mirana_leap: return `Leap to a point`;
     }
 }
 
@@ -1667,6 +1670,9 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.lion_hex: return "lion_voodoo";
         case Ability_Id.lion_impale: return "lion_impale";
         case Ability_Id.lion_finger_of_death: return "lion_finger_of_death";
+        case Ability_Id.mirana_starfall: return "mirana_starfall";
+        case Ability_Id.mirana_arrow: return "mirana_arrow";
+        case Ability_Id.mirana_leap: return "mirana_leap";
     }
 }
 
@@ -1697,6 +1703,7 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
         case Modifier_Id.tide_anchor_smash: return from_ability(Ability_Id.tide_anchor_smash);
         case Modifier_Id.tide_gush: return from_ability(Ability_Id.tide_gush);
         case Modifier_Id.tide_ravage: return from_ability(Ability_Id.tide_ravage);
+        case Modifier_Id.mirana_arrow: return from_ability(Ability_Id.mirana_arrow);
 
         case Modifier_Id.spell_euls_scepter: return "items/cyclone";
         case Modifier_Id.spell_mekansm: return "items/mekansm";
@@ -1706,7 +1713,7 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
     }
 }
 
-function get_hero_name(type: Hero_Type): string {
+function get_hero_dota_name(type: Hero_Type): string {
     switch (type) {
         case Hero_Type.sniper: return "sniper";
         case Hero_Type.pudge: return "pudge";
@@ -1716,6 +1723,7 @@ function get_hero_name(type: Hero_Type): string {
         case Hero_Type.skywrath_mage: return "skywrath_mage";
         case Hero_Type.dragon_knight: return "dragon_knight";
         case Hero_Type.lion: return "lion";
+        case Hero_Type.mirana: return "mirana";
     }
 }
 
@@ -1730,7 +1738,7 @@ function get_full_ability_icon_path(id: Ability_Id): string {
 }
 
 function get_full_unit_icon_path(type: Hero_Type): string {
-    return `file://{images}/heroes/npc_dota_hero_${get_hero_name(type)}.png`;
+    return `file://{images}/heroes/npc_dota_hero_${get_hero_dota_name(type)}.png`;
 }
 
 function create_level_bar(parent: Panel, id: string): Level_Bar {
@@ -2373,12 +2381,12 @@ function create_card_ui(root: Panel, card: Card) {
 
             const art = $.CreatePanel("Image", container, "card_art");
             art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
-            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_name(card.hero_type)}.jpg`);
+            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_dota_name(card.hero_type)}.jpg`);
 
             const name_panel = $.CreatePanel("Panel", container, "name_panel");
             const hero_name = $.CreatePanel("Label", name_panel, "");
 
-            hero_name.text = get_hero_name(card.hero_type);
+            hero_name.text = get_hero_dota_name(card.hero_type);
 
             const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
 
@@ -2615,7 +2623,7 @@ function highlight_grid_for_no_target_ability(event: Grid_Highlight_No_Target_Ab
     highlight_grid_for_unit_ability_with_predicate(
         event.unit_id,
         event.ability_id,
-        (ability, cell) => ability_targeting_fits(ability.targeting, event.from, cell.position)
+        (ability, cell) => ability_targeting_fits(battle, ability.targeting, event.from, cell.position)
     );
 }
 
