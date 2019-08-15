@@ -1236,7 +1236,13 @@ function draw_battle_list(global_map: Game_On_Global_Map) {
 
     let height_offset = 0;
 
-    for (const battle of global_map.battles) {
+    const battles = global_map.battles.slice();
+
+    if (battles.length > 10) {
+        battles.splice(0, battles.length - 10);
+    }
+
+    for (const battle of battles) {
         const top_left_x = 250, top_left_y = 70 + height_offset;
         const text = `Spectate ${battle.participants[0].name} vs ${battle.participants[1].name}`;
 
