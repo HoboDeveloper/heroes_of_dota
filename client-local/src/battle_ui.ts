@@ -2227,136 +2227,146 @@ function get_entity_under_cursor(cursor: [ number, number ]): EntityId | undefin
     return undefined;
 }
 
-function setup_mouse_filter() {
-    GameUI.SetMouseCallback((event, button) => {
-        if (current_state != Player_State.in_battle) {
+function filter_mouse_click(event: MouseEvent, button: MouseButton | WheelScroll): boolean {
+    if (current_state != Player_State.in_battle) {
+        return false;
+    }
+
+    if (event == "pressed" || event == "doublepressed") {
+        const click_behaviors = GameUI.GetClickBehaviors();
+        const cursor = GameUI.GetCursorPosition();
+        const world_position = GameUI.GetScreenWorldPosition(cursor);
+        const battle_position = world_position_to_battle_position(world_position);
+        const cursor_entity = get_entity_under_cursor(cursor);
+        const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
+        const cursor_entity_shop = find_shop_by_entity_id(battle, cursor_entity);
+
+        if (button == MouseButton.LEFT && selection.type == Selection_Type.none && cursor_entity == null) {
+            const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
+            Particles.SetParticleControl(particle, 0, world_position);
+            Particles.ReleaseParticleIndex(particle);
+        }
+
+        if (button == MouseButton.LEFT && selection.type == Selection_Type.none) {
+            if (Game.IsInToolsMode()) {
+                if (GameUI.IsShiftDown()) {
+                    cheat(`tree ${battle_position.x} ${battle_position.y}`);
+                } else if (GameUI.IsAltDown()) {
+                    cheat(`rune ${battle_position.x} ${battle_position.y}`);
+                } else if (GameUI.IsControlDown()) {
+                    cheat(`shop ${battle_position.x} ${battle_position.y}`);
+                }
+            }
+        }
+
+        if (selection.type == Selection_Type.ability) {
+            const wants_to_use_ability = button == MouseButton.LEFT;
+            const wants_to_cancel = button == MouseButton.RIGHT;
+
+            if (wants_to_cancel) {
+                deselect_ability(selection);
+
+                if (click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE) {
+                    return false;
+                }
+            } else if (wants_to_use_ability) {
+                const success = try_use_targeted_ability(selection.unit, selection.ability, battle_position, cursor_entity_unit);
+
+                if (success) {
+                    deselect_ability(selection);
+                } else {
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        const wants_to_cancel_current_behavior =
+            button == MouseButton.RIGHT &&
+            click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+
+        if (wants_to_cancel_current_behavior) {
             return false;
         }
 
-        if (event == "pressed" || event == "doublepressed") {
-            const click_behaviors = GameUI.GetClickBehaviors();
-            const cursor = GameUI.GetCursorPosition();
-            const world_position = GameUI.GetScreenWorldPosition(cursor);
-            const battle_position = world_position_to_battle_position(world_position);
-            const cursor_entity = get_entity_under_cursor(cursor);
-            const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
-            const cursor_entity_shop = find_shop_by_entity_id(battle, cursor_entity);
+        const wants_to_select_entity =
+            button == MouseButton.LEFT &&
+            click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
 
-            if (button == MouseButton.LEFT && selection.type == Selection_Type.none && cursor_entity == null) {
-                const particle = Particles.CreateParticle("particles/ui/ground_click.vpcf", ParticleAttachment_t.PATTACH_WORLDORIGIN, 0);
-                Particles.SetParticleControl(particle, 0, world_position);
-                Particles.ReleaseParticleIndex(particle);
-            }
+        if (wants_to_select_entity) {
+            if (cursor_entity) {
+                if (cursor_entity_unit) {
+                    select_unit(cursor_entity, event == "doublepressed");
 
-            if (button == MouseButton.LEFT && selection.type == Selection_Type.none) {
-                if (Game.IsInToolsMode()) {
-                    if (GameUI.IsShiftDown()) {
-                        cheat(`tree ${battle_position.x} ${battle_position.y}`);
-                    } else if (GameUI.IsAltDown()) {
-                        cheat(`rune ${battle_position.x} ${battle_position.y}`);
-                    } else if (GameUI.IsControlDown()) {
-                        cheat(`shop ${battle_position.x} ${battle_position.y}`);
-                    }
-                }
-            }
+                    const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
 
-            if (selection.type == Selection_Type.ability) {
-                const wants_to_use_ability = button == MouseButton.LEFT;
-                const wants_to_cancel = button == MouseButton.RIGHT;
-
-                if (wants_to_cancel) {
-                    deselect_ability(selection);
-
-                    if (click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE) {
-                        return false;
-                    }
-                } else if (wants_to_use_ability) {
-                    const success = try_use_targeted_ability(selection.unit, selection.ability, battle_position, cursor_entity_unit);
-
-                    if (success) {
-                        deselect_ability(selection);
-                    } else {
-                        return true;
-                    }
+                    Particles.SetParticleControl(particle, 1, [255, 255, 255]);
+                    Particles.SetParticleControl(particle, 2, [64, 255, 0]);
+                    Particles.ReleaseParticleIndex(particle);
                 }
 
-                return true;
-            }
-
-            const wants_to_cancel_current_behavior =
-                button == MouseButton.RIGHT &&
-                click_behaviors != CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
-
-            if (wants_to_cancel_current_behavior) {
-                return false;
-            }
-
-            const wants_to_select_entity =
-                button == MouseButton.LEFT &&
-                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
-
-            if (wants_to_select_entity) {
-                if (cursor_entity) {
-                    if (cursor_entity_unit) {
-                        select_unit(cursor_entity, event == "doublepressed");
-
-                        const particle = Particles.CreateParticle("particles/ui_mouseactions/select_unit.vpcf", ParticleAttachment_t.PATTACH_ABSORIGIN_FOLLOW, cursor_entity);
-
-                        Particles.SetParticleControl(particle, 1, [255, 255, 255]);
-                        Particles.SetParticleControl(particle, 2, [64, 255, 0]);
-                        Particles.ReleaseParticleIndex(particle);
-                    }
-
-                    if (cursor_entity_shop) {
-                        select_shop(cursor_entity);
-                    }
-                } else {
-                    drop_selection();
+                if (cursor_entity_shop) {
+                    select_shop(cursor_entity);
                 }
-
-                update_grid_visuals();
-
-                return true;
+            } else {
+                drop_selection();
             }
 
-            if (selection.type == Selection_Type.unit) {
-                const wants_to_perform_automatic_action =
-                    button == MouseButton.RIGHT &&
-                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+            update_grid_visuals();
 
-                const wants_to_move_unconditionally =
-                    button == MouseButton.LEFT &&
-                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
-
-                const wants_to_attack_unconditionally =
-                    button == MouseButton.LEFT &&
-                    click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
-
-                if (wants_to_perform_automatic_action) {
-                    const unit_at_cursor_position = unit_at(battle, battle_position);
-                    const rune_at_cursor_position = rune_at(battle, battle_position);
-
-                    if (unit_at_cursor_position) {
-                        if (unit_at_cursor_position != selection.unit) {
-                            try_attack_target(selection.unit, battle_position, true);
-                        }
-                    } else if (rune_at_cursor_position) {
-                        try_order_unit_to_pick_up_rune(selection.unit, rune_at_cursor_position);
-                        move_order_particle(world_position);
-                    } else {
-                        try_order_unit_to_move(selection.unit, battle_position);
-                        move_order_particle(world_position);
-                    }
-                } else if (wants_to_move_unconditionally) {
-                    try_order_unit_to_move(selection.unit, battle_position);
-                    move_order_particle(world_position);
-                } else if (wants_to_attack_unconditionally) {
-                    try_attack_target(selection.unit, battle_position, false);
-                }
-            }
+            return true;
         }
 
-        return true;
+        if (selection.type == Selection_Type.unit) {
+            const wants_to_perform_automatic_action =
+                button == MouseButton.RIGHT &&
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_NONE;
+
+            const wants_to_move_unconditionally =
+                button == MouseButton.LEFT &&
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_MOVE;
+
+            const wants_to_attack_unconditionally =
+                button == MouseButton.LEFT &&
+                click_behaviors == CLICK_BEHAVIORS.DOTA_CLICK_BEHAVIOR_ATTACK;
+
+            if (wants_to_perform_automatic_action) {
+                const unit_at_cursor_position = unit_at(battle, battle_position);
+                const rune_at_cursor_position = rune_at(battle, battle_position);
+
+                if (unit_at_cursor_position) {
+                    if (unit_at_cursor_position != selection.unit) {
+                        try_attack_target(selection.unit, battle_position, true);
+                    }
+                } else if (rune_at_cursor_position) {
+                    try_order_unit_to_pick_up_rune(selection.unit, rune_at_cursor_position);
+                    move_order_particle(world_position);
+                } else {
+                    try_order_unit_to_move(selection.unit, battle_position);
+                    move_order_particle(world_position);
+                }
+            } else if (wants_to_move_unconditionally) {
+                try_order_unit_to_move(selection.unit, battle_position);
+                move_order_particle(world_position);
+            } else if (wants_to_attack_unconditionally) {
+                try_attack_target(selection.unit, battle_position, false);
+            }
+        }
+    }
+
+    return true;
+}
+
+function setup_mouse_filter() {
+    GameUI.SetMouseCallback((event, button) => {
+        try {
+            return filter_mouse_click(event, button);
+        } catch (e) {
+            $.Msg(e);
+
+            return true;
+        }
     });
 }
 
