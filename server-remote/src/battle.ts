@@ -657,7 +657,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             return {
                 ...base,
                 ability_id: ability.id,
-                modifier: new_timed_modifier(battle, Modifier_Id.dragon_knight_dragon_tail, 1, [Modifier_Field.state_stunned_counter, 1]),
+                modifier: new_timed_modifier(battle, Modifier_Id.venge_magic_missile, 1, [Modifier_Field.state_stunned_counter, 1]),
                 damage_dealt: health_change(target, -ability.damage)
             }
         }
