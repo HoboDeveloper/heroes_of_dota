@@ -2236,6 +2236,11 @@ function filter_mouse_click(event: MouseEvent, button: MouseButton | WheelScroll
         const click_behaviors = GameUI.GetClickBehaviors();
         const cursor = GameUI.GetCursorPosition();
         const world_position = GameUI.GetScreenWorldPosition(cursor);
+
+        if (!world_position) {
+            return true;
+        }
+
         const battle_position = world_position_to_battle_position(world_position);
         const cursor_entity = get_entity_under_cursor(cursor);
         const cursor_entity_unit = find_unit_by_entity_id(battle, cursor_entity);
@@ -2464,8 +2469,6 @@ function get_hovered_battle_position(): XY | undefined {
     }
 
     const cursor = GameUI.GetCursorPosition();
-    const world_position = GameUI.GetScreenWorldPosition(cursor);
-    const battle_position = world_position_to_battle_position(world_position);
 
     if (!is_unit_selection(selection)) {
         const cursor_entity = get_entity_under_cursor(cursor);
@@ -2475,6 +2478,14 @@ function get_hovered_battle_position(): XY | undefined {
             return cursor_entity_unit.position;
         }
     }
+
+    const world_position = GameUI.GetScreenWorldPosition(cursor);
+
+    if (!world_position) {
+        return;
+    }
+
+    const battle_position = world_position_to_battle_position(world_position);
 
     const is_position_valid = battle_position.x >= 0 && battle_position.x < battle.grid_size.x && battle_position.y >= 0 && battle_position.y < battle.grid_size.y;
 
@@ -2593,8 +2604,10 @@ function update_hand() {
         const card_position = GameUI.GetScreenWorldPosition([position.x + panel.actuallayoutwidth / 2, position.y  + panel.actuallayoutheight / 2]);
         const cursor_world = GameUI.GetScreenWorldPosition([cursor_x, cursor_y]);
 
-        Particles.SetParticleControl(selection.targeting_fx, 0, cursor_world);
-        Particles.SetParticleControl(selection.targeting_fx, 1, [card_position[0], card_position[1], card_position[2] + 100]);
+        if (card_position && cursor_world) {
+            Particles.SetParticleControl(selection.targeting_fx, 0, cursor_world);
+            Particles.SetParticleControl(selection.targeting_fx, 1, [card_position[0], card_position[1], card_position[2] + 100]);
+        }
 
         panel.SetHasClass("targeting_something", !!hovered_cell);
     }
