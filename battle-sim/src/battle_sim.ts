@@ -898,8 +898,8 @@ function collapse_unit_target_ability_use(battle: Battle, caster: Unit, target: 
             const caster_position = caster.position;
             const target_position = target.position;
 
-            move_unit(battle, caster, target_position);
-            move_unit(battle, target, caster_position);
+            caster.position = target_position;
+            target.position = caster_position;
 
             break;
         }
