@@ -927,6 +927,8 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.3);
             unit_emit_sound(unit, "Hero_Lion.Impale");
 
+            // TODO :VoiceOver
+
             // @HardcodedConstant
             const distance_to_travel = 3;
             const travel_speed = 1500;
@@ -1042,9 +1044,12 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
                     apply_modifier(main_player, target, cast.result.stun.modifier);
                 }
 
-                unit_stop_sound(unit, loop_sound);
                 unit_emit_sound(unit, "Hero_Mirana.ArrowImpact");
             }
+
+            // TODO :VoiceOver hit/miss voicelines
+
+            unit_stop_sound(unit, loop_sound);
 
             particle.destroy_and_release(false);
 
