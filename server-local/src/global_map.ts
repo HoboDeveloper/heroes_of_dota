@@ -152,6 +152,8 @@ function query_other_players_movement(main_player: Main_Player, players: Player_
 
         if (player) {
             player.movement_history = player_data.movement_history;
+            player.last_recorded_x = player_data.current_location.x;
+            player.last_recorded_y = player_data.current_location.y;
 
             update_player_from_movement_history(player);
         } else {
