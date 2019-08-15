@@ -372,6 +372,94 @@ function toss_target_up(target: Battle_Unit) {
     target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
 }
 
+function linear_projectile_with_targets<T>(
+    from: XY,
+    towards: XY,
+    travel_speed: number,
+    distance_in_cells: number,
+    fx_path: string,
+    targets: T[],
+    position_getter: (target: T) => Vector,
+    action: (target: T) => void
+) {
+    const start_time = GameRules.GetGameTime();
+    const time_to_travel = distance_in_cells * battle_cell_size / travel_speed;
+    const world_from = battle_position_to_world_position_center(from);
+    const direction = Vector(towards.x - from.x, towards.y - from.y).Normalized();
+
+    const particle = fx(fx_path)
+        .with_vector_value(0, world_from)
+        .with_forward_vector(0, direction)
+        .with_vector_value(1, direction * travel_speed as Vector);
+
+    type Target_Record = {
+        target: T
+        was_hit: boolean
+    }
+
+    const target_records: Target_Record[] = [];
+
+    for (const target of targets) {
+        target_records.push({
+            target: target,
+            was_hit: false
+        })
+    }
+
+    while (true) {
+        const travelled_for = GameRules.GetGameTime() - start_time;
+        const distance_travelled = travelled_for * travel_speed;
+
+        if (travelled_for >= time_to_travel && target_records.every(target => target.was_hit)) {
+            break;
+        }
+
+        for (const record of target_records) {
+            if (record.was_hit) continue;
+
+            if (distance_travelled > (position_getter(record.target) - world_from as Vector).Length2D()) {
+                action(record.target);
+
+                record.was_hit = true;
+            }
+        }
+
+        wait_one_frame();
+    }
+
+    particle.destroy_and_release(false);
+}
+
+type Replace_Target_Unit_Id<T> = Pick<T, Exclude<keyof T, "target_unit_id">> & { unit: Battle_Unit };
+
+function filter_and_map_existing_units<T extends { target_unit_id: number }>(array: T[]): Replace_Target_Unit_Id<T>[] {
+    const result: Replace_Target_Unit_Id<T>[] = [];
+
+    for (const member of array) {
+        const unit = find_unit_by_id(member.target_unit_id);
+
+        if (unit) {
+            const replaced: table = {};
+            replaced.unit = unit;
+
+            for (const key in member) {
+                replaced[key] = member[key];
+            }
+
+            result.push(replaced as Replace_Target_Unit_Id<T>);
+
+            /* This would be enough AND typesafe if it worked in TSTL
+            result.push({
+                ...member,
+                unit: unit
+            });
+             */
+        }
+    }
+
+    return result;
+}
+
 function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ability_Pudge_Hook) {
     function is_hook_hit(cast: Pudge_Hook_Hit | Line_Ability_Miss): cast is Pudge_Hook_Hit {
         return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
@@ -715,8 +803,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
     }
 
     if (ranged_attack_spec) {
-        turn_unit_towards_target(unit, target);
-        wait(0.2);
         try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
         unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK, ranged_attack_spec.attack_point);
         try_play_sound_for_hero(unit, get_unit_attack_sound);
@@ -744,8 +830,6 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             tracking_projectile_to_point(unit, cast.result.final_point, ranged_attack_spec.particle_path, ranged_attack_spec.projectile_speed);
         }
     } else {
-        turn_unit_towards_target(unit, target);
-        wait(0.2);
         try_play_sound_for_hero(unit, get_unit_pre_attack_sound);
         unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
 
@@ -774,6 +858,8 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
     const distance = ((world_to - world_from) as Vector).Length2D();
     const direction = ((world_to - world_from) as Vector).Normalized();
 
+    turn_unit_towards_target(unit, cast.target_position);
+
     switch (cast.ability_id) {
         case Ability_Id.basic_attack: {
             perform_basic_attack(main_player, unit, cast);
@@ -786,8 +872,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.skywrath_mystic_flare: {
-            turn_unit_towards_target(unit, cast.target_position);
-
             unit.handle.StartGesture(GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
 
             unit_emit_sound(unit, "vo_skywrath_mage_mystic_flare");
@@ -853,7 +937,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.dragon_knight_breathe_fire: {
-            turn_unit_towards_target(unit, cast.target_position);
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.3);
             unit_emit_sound(unit, "Hero_DragonKnight.BreathFire");
 
@@ -908,8 +991,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.dragon_knight_elder_dragon_form_attack: {
-            turn_unit_towards_target(unit, cast.target_position);
-            wait(0.2);
             unit_emit_sound(unit, "Hero_DragonKnight.ElderDragonShoot3.Attack");
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_ATTACK);
             tracking_projectile_to_point(unit, cast.target_position, "particles/units/heroes/hero_dragon_knight/dragon_knight_dragon_tail_dragonform_proj.vpcf", 1200);
@@ -932,74 +1013,30 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.lion_impale: {
-            turn_unit_towards_target(unit, cast.target_position);
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.3);
             unit_emit_sound(unit, "Hero_Lion.Impale");
 
             // TODO :VoiceOver
 
-            // @HardcodedConstant
-            const distance_to_travel = 3;
-            const travel_speed = 1500;
-            const start_time = GameRules.GetGameTime();
-            const time_to_travel = distance_to_travel * battle_cell_size / travel_speed;
-            const particle = fx("particles/units/heroes/hero_lion/lion_spell_impale.vpcf")
-                .with_vector_value(0, battle_position_to_world_position_center(unit.position))
-                .with_vector_value(1, direction * travel_speed as Vector);
-
-            type Impale_Target = {
-                unit: Battle_Unit
-                change: Health_Change
-                modifier: Modifier_Application
-                was_hit: boolean
-            }
-
-            const targets: Impale_Target[] = [];
-
-            for (const target of from_client_array(cast.targets)) {
-                const target_unit = find_unit_by_id(target.target_unit_id);
-
-                if (target_unit) {
-                    targets.push({
-                        unit: target_unit,
-                        change: target.change,
-                        modifier: target.modifier,
-                        was_hit: false
-                    })
-                }
-            }
-
+            const targets = filter_and_map_existing_units(from_client_array(cast.targets));
             const forks: Fork[] = [];
 
-            while (true) {
-                const travelled_for = GameRules.GetGameTime() - start_time;
-                const distance_travelled = travelled_for * travel_speed;
+            // @HardcodedConstant
+            const distance = 3;
+            const fx = "particles/units/heroes/hero_lion/lion_spell_impale.vpcf";
+            const from = unit.position;
+            const to = cast.target_position;
 
-                if (travelled_for >= time_to_travel && targets.every(target => target.was_hit)) {
-                    break;
-                }
+            linear_projectile_with_targets(from, to, 1500, distance, fx, targets, target => target.unit.handle.GetAbsOrigin(), target => {
+                change_health(main_player, unit, target.unit, target.change);
+                apply_modifier(main_player, target.unit, target.modifier);
 
-                for (const target of targets) {
-                    if (target.was_hit) continue;
-
-                    if (target.unit && distance_travelled > (target.unit.handle.GetAbsOrigin() - world_from as Vector).Length2D()) {
-                        change_health(main_player, unit, target.unit, target.change);
-                        apply_modifier(main_player, target.unit, target.modifier);
-
-                        forks.push(fork(() => {
-                            unit_emit_sound(target.unit, "Hero_Lion.ImpaleHitTarget");
-                            toss_target_up(target.unit);
-                            unit_emit_sound(target.unit, "Hero_Lion.ImpaleTargetLand");
-                        }));
-
-                        target.was_hit = true;
-                    }
-                }
-
-                wait_one_frame();
-            }
-
-            particle.destroy_and_release(false);
+                forks.push(fork(() => {
+                    unit_emit_sound(target.unit, "Hero_Lion.ImpaleHitTarget");
+                    toss_target_up(target.unit);
+                    unit_emit_sound(target.unit, "Hero_Lion.ImpaleTargetLand");
+                }));
+            });
 
             wait_for_all_forks(forks);
 
@@ -1011,7 +1048,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
                 return cast.hit as any as number == 1; // Panorama passes booleans this way, meh
             }
 
-            turn_unit_towards_target(unit, cast.target_position);
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2);
 
             let travel_target: XY;
@@ -1066,8 +1102,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.mirana_leap: {
-            turn_unit_towards_target(unit, cast.target_position);
-
             const travel_speed = 2400;
             const time_to_travel = distance / travel_speed;
             const peak_height = Math.min(250, distance / 5);
@@ -1121,14 +1155,20 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.venge_wave_of_terror: {
-            for (const target of from_client_array(cast.targets)) {
-                const target_unit = find_unit_by_id(target.target_unit_id);
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_2);
+            unit_emit_sound(unit, "Hero_VengefulSpirit.WaveOfTerror");
 
-                if (target_unit) {
-                    change_health(main_player, unit, target_unit, target.change);
-                    apply_modifier(main_player, target_unit, target.modifier);
-                }
-            }
+            // @HardcodedConstant
+            const distance = 5;
+            const fx = "particles/units/heroes/hero_vengeful/vengeful_wave_of_terror.vpcf";
+            const from = unit.position;
+            const to = cast.target_position;
+            const targets = filter_and_map_existing_units(from_client_array(cast.targets));
+
+            linear_projectile_with_targets(from, to, 2000, distance, fx, targets, target => target.unit.handle.GetAbsOrigin(), target => {
+                change_health(main_player, unit, target.unit, target.change);
+                apply_modifier(main_player, target.unit, target.modifier);
+            });
 
             break;
         }
@@ -1179,6 +1219,10 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         }
     }
 
+    function follow(path: string) {
+        return simple(target => fx_follow_unit(path, target));
+    }
+
     switch (id) {
         case Modifier_Id.tide_gush: return complex("Modifier_Tide_Gush");
         case Modifier_Id.skywrath_ancient_seal: return simple(target =>
@@ -1188,25 +1232,14 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         );
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
         case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
-        case Modifier_Id.rune_double_damage: return simple(target =>
-            fx_follow_unit("particles/generic_gameplay/rune_doubledamage_owner.vpcf", target)
-        );
-        case Modifier_Id.rune_haste: return simple(target =>
-            fx_follow_unit("particles/generic_gameplay/rune_haste_owner.vpcf", target)
-        );
-        case Modifier_Id.item_satanic: return simple(target =>
-            fx_follow_unit("particles/items2_fx/satanic_buff.vpcf", target)
-        );
-        case Modifier_Id.item_mask_of_madness: return simple(target =>
-            fx_follow_unit("particles/items2_fx/mask_of_madness.vpcf", target)
-        );
-        case Modifier_Id.item_armlet: return simple(target =>
-            fx_follow_unit("particles/items_fx/armlet.vpcf", target)
-        );
+        case Modifier_Id.venge_wave_of_terror: return follow("particles/units/heroes/hero_vengeful/vengeful_wave_of_terror_recipient.vpcf");
+        case Modifier_Id.rune_double_damage: return follow("particles/generic_gameplay/rune_doubledamage_owner.vpcf");
+        case Modifier_Id.rune_haste: return follow("particles/generic_gameplay/rune_haste_owner.vpcf");
+        case Modifier_Id.item_satanic: return follow("particles/items2_fx/satanic_buff.vpcf");
+        case Modifier_Id.item_mask_of_madness: return follow("particles/items2_fx/mask_of_madness.vpcf");
+        case Modifier_Id.item_armlet: return follow("particles/items_fx/armlet.vpcf");
         case Modifier_Id.spell_euls_scepter: return complex("Modifier_Euls_Scepter");
-        case Modifier_Id.spell_mekansm: return simple(target =>
-            fx_follow_unit("particles/items_fx/buckler.vpcf", target)
-        );
+        case Modifier_Id.spell_mekansm: return follow("particles/items_fx/buckler.vpcf");
     }
 }
 
@@ -1381,13 +1414,31 @@ function play_unit_target_ability_delta(main_player: Main_Player, caster: Battle
         }
 
         case Ability_Id.venge_magic_missile: {
+            const projectile_fx = "particles/units/heroes/hero_vengeful/vengeful_magic_missle.vpcf";
+
+            unit_play_activity(caster, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.4);
+            unit_emit_sound(caster, "Hero_VengefulSpirit.MagicMissile");
+            tracking_projectile_to_unit(caster, target, projectile_fx, 1400, "attach_attack2");
+            unit_emit_sound(target, "Hero_VengefulSpirit.MagicMissileImpact");
             change_health(main_player, caster, target, cast.damage_dealt);
             apply_modifier(main_player, target, cast.modifier);
+            shake_screen(target.position, Shake.medium);
 
             break;
         }
 
         case Ability_Id.venge_nether_swap: {
+            unit_play_activity(caster, GameActivity_t.ACT_DOTA_CAST_ABILITY_4);
+            unit_emit_sound(caster, "Hero_VengefulSpirit.NetherSwap");
+
+            fx("particles/units/heroes/hero_vengeful/vengeful_nether_swap.vpcf")
+                .to_unit_origin(0, caster)
+                .to_unit_origin(1, target);
+
+            fx("particles/units/heroes/hero_vengeful/vengeful_nether_swap_target.vpcf")
+                .to_unit_origin(0, target)
+                .to_unit_origin(1, caster);
+
             const caster_position = caster.position;
             const target_position = target.position;
 
@@ -1399,6 +1450,12 @@ function play_unit_target_ability_delta(main_player: Main_Player, caster: Battle
 
             target.handle.SetAbsOrigin(caster_world_position);
             caster.handle.SetAbsOrigin(target_world_position);
+
+            caster.handle.StartGesture(GameActivity_t.ACT_DOTA_CHANNEL_END_ABILITY_4);
+
+            wait(0.7);
+
+            caster.handle.FadeGesture(GameActivity_t.ACT_DOTA_CHANNEL_END_ABILITY_4);
 
             break;
         }
