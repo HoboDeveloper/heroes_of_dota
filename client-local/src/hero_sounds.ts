@@ -12,8 +12,6 @@ type Hero_Sounds = {
 }
 
 function hero_sounds_by_hero_type(hero_type: Hero_Type): Hero_Sounds {
-    // ^".*
-
     function range(prefix: string, last_num: number): string[] {
         const sounds: string[] = [];
 
@@ -139,6 +137,36 @@ function hero_sounds_by_hero_type(hero_type: Hero_Type): Hero_Sounds {
             pain: range("vengefulspirit_vng_pain", 5),
             purchase: range("vengefulspirit_vng_purch", 2)
         };
+
+        case Hero_Type.dark_seer: return {
+            file: "soundevents/voscripts/game_sounds_vo_dark_seer.vsndevts",
+            spawn: range("dark_seer_dkseer_spawn", 5),
+            move: range("dark_seer_dkseer_move", 13),
+            attack: range("dark_seer_dkseer_attack", 11),
+            level_up: range("dark_seer_dkseer_levelup", 8),
+            kill: range("dark_seer_dkseer_kill", 13),
+            deny: range("dark_seer_dkseer_deny", 8),
+            not_yet: range("dark_seer_dkseer_notyet", 9),
+            pain: range("dark_seer_dkseer_pain", 11),
+            purchase: range("_purch", 2)
+        };
+
+        // ^".*
     }
 }
 
+function get_hero_dota_name(type: Hero_Type): string {
+    switch (type) {
+        case Hero_Type.sniper: return "sniper";
+        case Hero_Type.pudge: return "pudge";
+        case Hero_Type.ursa: return "ursa";
+        case Hero_Type.tidehunter: return "tidehunter";
+        case Hero_Type.luna: return "luna";
+        case Hero_Type.skywrath_mage: return "skywrath_mage";
+        case Hero_Type.dragon_knight: return "dragon_knight";
+        case Hero_Type.lion: return "lion";
+        case Hero_Type.mirana: return "mirana";
+        case Hero_Type.vengeful_spirit: return "vengefulspirit";
+        case Hero_Type.dark_seer: return "dark_seer";
+    }
+}

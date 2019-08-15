@@ -170,18 +170,7 @@ function shake_screen(at: XY, strength: Shake) {
 }
 
 function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
-    switch (hero_type) {
-        case Hero_Type.ursa: return "npc_dota_hero_ursa";
-        case Hero_Type.pudge: return "npc_dota_hero_pudge";
-        case Hero_Type.sniper: return "npc_dota_hero_sniper";
-        case Hero_Type.tidehunter: return "npc_dota_hero_tidehunter";
-        case Hero_Type.luna: return "npc_dota_hero_luna";
-        case Hero_Type.skywrath_mage: return "npc_dota_hero_skywrath_mage";
-        case Hero_Type.dragon_knight: return "npc_dota_hero_dragon_knight";
-        case Hero_Type.lion: return "npc_dota_hero_lion";
-        case Hero_Type.mirana: return "npc_dota_hero_mirana";
-        case Hero_Type.vengeful_spirit: return "npc_dota_hero_vengefulspirit";
-    }
+    return `npc_dota_hero_${get_hero_dota_name(hero_type)}`;
 }
 
 function creep_to_dota_unit_name(): string {
@@ -767,6 +756,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.tidehunter: return "hero_tidehunter.PreAttack";
             case Hero_Type.skywrath_mage: return "Hero_SkywrathMage.PreAttack";
             case Hero_Type.dragon_knight: return "Hero_DragonKnight.PreAttack";
+            case Hero_Type.dark_seer: return "Hero_DarkSeer.PreAttack";
         }
     }
 
@@ -782,6 +772,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.lion: return "Hero_Lion.Attack";
             case Hero_Type.mirana: return "Hero_Mirana.Attack";
             case Hero_Type.vengeful_spirit: return "Hero_VengefulSpirit.Attack";
+            case Hero_Type.dark_seer: return "Hero_DarkSeer.Attack";
         }
     }
 

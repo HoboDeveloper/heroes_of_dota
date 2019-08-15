@@ -135,7 +135,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                 abilities: [
                     active_ability<Ability_Tide_Gush>({
                         available_since_level: 1,
-                        targeting: target_in_manhattan_distance(6),
+                        targeting: target_in_manhattan_distance(5),
                         flags: [],
                         charges: 1,
                         damage: 4,
@@ -173,7 +173,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                         targeting: target_in_manhattan_distance(5),
                         flags: [],
                         charges: 1,
-                        damage: 5
+                        damage: 4
                     }),
                     passive_ability<Ability_Luna_Moon_Glaive>({
                         available_since_level: 2
@@ -367,6 +367,17 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                         charges: 1
                     })
                 ],
+                ability_bench: []
+            }
+        }
+
+        case Hero_Type.dark_seer: {
+            return {
+                health: 11,
+                move_points: 3,
+                attack_damage: 4,
+                attack: basic_attack(1),
+                abilities: [],
                 ability_bench: []
             }
         }

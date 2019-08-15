@@ -1721,21 +1721,6 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
     }
 }
 
-function get_hero_dota_name(type: Hero_Type): string {
-    switch (type) {
-        case Hero_Type.sniper: return "sniper";
-        case Hero_Type.pudge: return "pudge";
-        case Hero_Type.ursa: return "ursa";
-        case Hero_Type.tidehunter: return "tidehunter";
-        case Hero_Type.luna: return "luna";
-        case Hero_Type.skywrath_mage: return "skywrath_mage";
-        case Hero_Type.dragon_knight: return "dragon_knight";
-        case Hero_Type.lion: return "lion";
-        case Hero_Type.mirana: return "mirana";
-        case Hero_Type.vengeful_spirit: return "vengefulspirit";
-    }
-}
-
 function safely_set_panel_background_image(panel: Panel, image: string) {
     panel.style.backgroundImage = `url('${image}')`;
     panel.AddClass("fix_bg");

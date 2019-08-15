@@ -64,7 +64,8 @@ declare const enum Hero_Type {
     dragon_knight = 6,
     lion = 7,
     mirana = 8,
-    vengeful_spirit = 9
+    vengeful_spirit = 9,
+    dark_seer = 10
 }
 
 declare const enum Unit_Supertype {

@@ -11,34 +11,17 @@ require("hero_sounds");
 
 function Activate() { main(); }
 function Precache(context: CScriptPrecacheContext) {
-    const heroes: string[] = [
-        "pudge",
-        "luna",
-        "tidehunter",
-        "ursa",
-        "sniper",
-        "skywrath_mage",
-        "dragon_knight",
-        "lion",
-        "mirana",
-        "vengefulspirit"
-    ];
-
-    for (const hero_name of heroes) {
-        const path = `soundevents/game_sounds_heroes/game_sounds_${hero_name}.vsndevts`;
-
-        PrecacheResource("soundfile", path, context);
-
-        print("Precaching", path);
-    }
-
     const hero_types = enum_values<Hero_Type>();
 
     for (const hero_type of hero_types) {
-        PrecacheUnitByNameSync(hero_type_to_dota_unit_name(hero_type), context);
-        PrecacheResource("soundfile", hero_sounds_by_hero_type(hero_type).file, context);
+        const hero_name = get_hero_dota_name(hero_type);
+        const unit_name = hero_type_to_dota_unit_name(hero_type);
 
-        print("Precaching", hero_type_to_dota_unit_name(hero_type));
+        PrecacheUnitByNameSync(unit_name, context);
+        PrecacheResource("soundfile", hero_sounds_by_hero_type(hero_type).file, context);
+        PrecacheResource("soundfile", `soundevents/game_sounds_heroes/game_sounds_${hero_name}.vsndevts`, context);
+
+        print("Precaching", unit_name);
     }
 
     PrecacheUnitByNameSync(creep_to_dota_unit_name(), context);
