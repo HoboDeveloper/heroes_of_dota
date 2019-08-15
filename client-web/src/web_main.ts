@@ -500,6 +500,7 @@ function on_cell_selected(game: Game_In_Battle, player: Battle_Player, x: number
 
 function get_hero_name(type: Hero_Type): string {
     switch (type) {
+        case Hero_Type.vengeful_spirit: return "vengefulspirit";
         default: return enum_to_string(type);
     }
 }

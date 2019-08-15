@@ -125,7 +125,20 @@ function hero_sounds_by_hero_type(hero_type: Hero_Type): Hero_Sounds {
             not_yet: range("mirana_mir_notyet", 9),
             pain: range("mirana_mir_pain", 10),
             purchase: range("mirana_mir_purch", 3)
-        }
+        };
+
+        case Hero_Type.vengeful_spirit: return {
+            file: "soundevents/voscripts/game_sounds_vo_vengefulspirit.vsndevts",
+            spawn: range("vengefulspirit_vng_spawn", 7),
+            move: range("vengefulspirit_vng_move", 17),
+            attack: range("vengefulspirit_vng_attack", 15),
+            level_up: range("vengefulspirit_vng_levelup", 5),
+            kill: range("vengefulspirit_vng_kill", 5),
+            deny: range("vengefulspirit_vng_deny", 4),
+            not_yet: range("vengefulspirit_vng_notyet", 9),
+            pain: range("vengefulspirit_vng_pain", 5),
+            purchase: range("vengefulspirit_vng_purch", 2)
+        };
     }
 }
 

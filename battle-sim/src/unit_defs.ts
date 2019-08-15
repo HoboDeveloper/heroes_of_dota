@@ -337,6 +337,17 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
             }
         }
 
+        case Hero_Type.vengeful_spirit: {
+            return {
+                health: 9,
+                move_points: 3,
+                attack_damage: 3,
+                attack: basic_attack(3),
+                abilities: [],
+                ability_bench: []
+            }
+        }
+
         default: return unreachable(type);
     }
 }

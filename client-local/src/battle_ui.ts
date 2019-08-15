@@ -1724,6 +1724,7 @@ function get_hero_dota_name(type: Hero_Type): string {
         case Hero_Type.dragon_knight: return "dragon_knight";
         case Hero_Type.lion: return "lion";
         case Hero_Type.mirana: return "mirana";
+        case Hero_Type.vengeful_spirit: return "vengefulspirit";
     }
 }
 

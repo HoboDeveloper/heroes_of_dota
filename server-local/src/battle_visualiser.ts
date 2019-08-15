@@ -180,6 +180,7 @@ function hero_type_to_dota_unit_name(hero_type: Hero_Type): string {
         case Hero_Type.dragon_knight: return "npc_dota_hero_dragon_knight";
         case Hero_Type.lion: return "npc_dota_hero_lion";
         case Hero_Type.mirana: return "npc_dota_hero_mirana";
+        case Hero_Type.vengeful_spirit: return "npc_dota_hero_vengefulspirit";
     }
 }
 
@@ -606,6 +607,12 @@ function get_ranged_attack_spec(unit: Battle_Unit): Ranged_Attack_Spec | undefin
                     projectile_speed: 1400,
                     attack_point: 0.3
                 };
+
+                case Hero_Type.vengeful_spirit: return {
+                    particle_path: "particles/units/heroes/hero_vengeful/vengeful_base_attack.vpcf",
+                    projectile_speed: 1400,
+                    attack_point: 0.3
+                }
             }
 
             break;
@@ -686,6 +693,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.dragon_knight: return "Hero_DragonKnight.Attack";
             case Hero_Type.lion: return "Hero_Lion.Attack";
             case Hero_Type.mirana: return "Hero_Mirana.Attack";
+            case Hero_Type.vengeful_spirit: return "Hero_VengefulSpirit.Attack";
         }
     }
 
@@ -696,6 +704,7 @@ function perform_basic_attack(main_player: Main_Player, unit: Battle_Unit, cast:
             case Hero_Type.skywrath_mage: return "Hero_SkywrathMage.ProjectileImpact";
             case Hero_Type.lion: return "Hero_Lion.ProjectileImpact";
             case Hero_Type.mirana: return "Hero_Mirana.ProjectileImpact";
+            case Hero_Type.vengeful_spirit: return "Hero_VengefulSpirit.ProjectileImpact";
         }
     }
 
@@ -1567,7 +1576,6 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
         case Ability_Id.mirana_starfall: {
             unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1, 0.8);
             fx_by_unit("particles/units/heroes/hero_mirana/mirana_starfall_circle.vpcf", unit).release();
-
             unit_emit_sound(unit, "Ability.Starfall");
 
             wait_for_all_forks(from_client_array(cast.targets).map(target => fork(() => {
@@ -1647,6 +1655,7 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             const target = find_unit_by_id(effect.target_unit_id);
 
             if (source && target) {
+                wait(0.25);
                 starfall_drop_star_on_unit(main_player, source, target, effect.damage_dealt);
             }
 

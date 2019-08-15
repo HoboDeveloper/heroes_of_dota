@@ -20,7 +20,8 @@ function Precache(context: CScriptPrecacheContext) {
         "skywrath_mage",
         "dragon_knight",
         "lion",
-        "mirana"
+        "mirana",
+        "vengefulspirit"
     ];
 
     for (const hero_name of heroes) {
