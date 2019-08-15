@@ -2,6 +2,8 @@ type Player = {
     id: number;
     hero_unit: CDOTA_BaseNPC_Hero;
     movement_history: Movement_History_Entry[]
+    last_recorded_x: number
+    last_recorded_y: number
 }
 
 type Main_Player = {
@@ -74,19 +76,19 @@ function process_player_global_map_order(main_player: Main_Player, players: Play
 }
 
 function create_new_player_from_response(response: Player_Movement_Data): Player {
-    const current_location = response.movement_history[response.movement_history.length - 1];
-
     return {
         id: response.id,
         movement_history: response.movement_history,
         hero_unit: CreateUnitByName(
             "npc_dota_hero_lina",
-            Vector(current_location.location_x, current_location.location_y),
+            Vector(response.current_location.x, response.current_location.y),
             true,
             null,
             null,
             DOTATeam_t.DOTA_TEAM_GOODGUYS
-        ) as CDOTA_BaseNPC_Hero
+        ) as CDOTA_BaseNPC_Hero,
+        last_recorded_x: response.current_location.x,
+        last_recorded_y: response.current_location.y
     };
 }
 
@@ -120,6 +122,8 @@ function update_player_from_movement_history(player: Player) {
 
         FindClearSpaceForUnit(player.hero_unit, Vector(last_entry.location_x, last_entry.location_y), true);
         player.hero_unit.MoveToPosition(Vector(last_entry.order_x, last_entry.order_y));
+    } else {
+        FindClearSpaceForUnit(player.hero_unit, Vector(player.last_recorded_x, player.last_recorded_y), true);
     }
 }
 
@@ -150,7 +154,7 @@ function query_other_players_movement(main_player: Main_Player, players: Player_
             player.movement_history = player_data.movement_history;
 
             update_player_from_movement_history(player);
-        } else if (player_data.movement_history.length > 0) {
+        } else {
             const new_player = create_new_player_from_response(player_data);
 
             players[new_player.id] = new_player;
