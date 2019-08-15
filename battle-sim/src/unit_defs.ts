@@ -357,7 +357,8 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                         flags: [],
                         charges: 1,
                         damage: 3,
-                        armor_reduction: 2
+                        armor_reduction: 2,
+                        duration: 2
                     }),
                     active_ability<Ability_Venge_Nether_Swap>({
                         available_since_level: 3,

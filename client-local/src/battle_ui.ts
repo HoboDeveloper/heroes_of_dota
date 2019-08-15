@@ -1645,7 +1645,7 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.mirana_arrow: return `Stun target`;
         case Ability_Id.mirana_leap: return `Leap to a point`;
         case Ability_Id.venge_magic_missile: return `Deal ${a.damage} to a target and stun it`;
-        case Ability_Id.venge_wave_of_terror: return `Deal ${a.damage} to all targets and reduce their armor by ${a.armor_reduction}`;
+        case Ability_Id.venge_wave_of_terror: return `Deal ${a.damage} to all targets and reduce their armor by ${a.armor_reduction} for ${a.duration} turns`;
         case Ability_Id.venge_nether_swap: return `Swap places with target`;
     }
 }

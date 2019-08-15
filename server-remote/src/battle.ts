@@ -406,7 +406,7 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
             const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting).map(target => ({
                 target_unit_id: target.id,
                 change: health_change(target, -ability.damage),
-                modifier: new_timed_modifier(battle, Modifier_Id.venge_wave_of_terror, 1, [Modifier_Field.armor_bonus, -ability.armor_reduction])
+                modifier: new_timed_modifier(battle, Modifier_Id.venge_wave_of_terror, ability.duration, [Modifier_Field.armor_bonus, -ability.armor_reduction])
             }));
 
             return {

@@ -222,6 +222,7 @@ type Ability_Venge_Wave_Of_Terror = Ability_Definition_Active_Base & {
     type: Ability_Type.target_ground
     damage: number
     armor_reduction: number
+    duration: number
 }
 
 type Ability_Venge_Nether_Swap = Ability_Definition_Active_Base & {
