@@ -248,6 +248,10 @@ function draw_header(game: Game) {
     ctx.fillText(enum_to_string(game.state), 30, 30);
 }
 
+function accept_chat_messages(game: Game, messages: Chat_Message[]) {
+    game.chat_messages.push(...messages.map(message => `${message.from_player_name}: ${message.message}`));
+}
+
 async function check_and_try_refresh_battles(game: Game_On_Global_Map, time: number) {
     if (time - game.refreshed_battles_at < 1000) {
         return;
@@ -310,11 +314,11 @@ async function check_and_try_request_chat(state: Game, time: number) {
 
     state.requested_chat_at = time;
 
-    const messages = await api_request<Pull_Pending_Chat_Messages_Request, Pull_Pending_Chat_Messages_Response>("/pull_chat_messages", {
+    const response = await api_request<Pull_Pending_Chat_Messages_Request, Pull_Pending_Chat_Messages_Response>("/pull_chat_messages", {
         access_token: state.access_token
     });
 
-    state.chat_messages.push(...messages.messages.map(message => `${message.from_player_name}: ${message.message}`));
+    accept_chat_messages(state, response.messages);
 }
 
 async function check_and_try_request_battle_deltas(game: Game_In_Battle, time: number) {
@@ -1539,12 +1543,14 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
 
 async function start_game() {
     const canvas_element = document.getElementById("canvas");
+    const input_element = document.getElementById("text_input");
 
-    if (!canvas_element) {
-        throw "Canvas not found";
+    if (!canvas_element || !input_element) {
+        throw "Malformed page";
     }
 
     const canvas = (canvas_element as HTMLCanvasElement);
+    const input = (input_element as HTMLInputElement);
     const context = canvas.getContext("2d");
 
     if (!context) {
@@ -1613,6 +1619,30 @@ async function start_game() {
     });
 
     canvas.addEventListener("contextmenu", event => event.preventDefault());
+
+    input.addEventListener("keyup", event => {
+        if (event.code == "Enter") {
+            const message = input.value;
+
+            if (message.startsWith("-") && game.state == Player_State.in_battle) {
+                api_request<Battle_Cheat_Command_Request, Boolean>("/battle_cheat", {
+                    access_token: game.access_token,
+                    cheat: message.substring(1),
+                    selected_unit_id: game.selection.type == Selection_Type.unit ? game.selection.unit_id : -1
+                });
+            } else {
+                api_request<Submit_Chat_Message_Request, Submit_Chat_Message_Response>("/submit_chat_message", {
+                    access_token: game.access_token,
+                    message: message
+                }).then(response => {
+                    accept_chat_messages(game, response.messages);
+                });
+            }
+
+            input.value = "";
+            event.preventDefault();
+        }
+    });
 
     start_animation_frame_loop(0);
 }
