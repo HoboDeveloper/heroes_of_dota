@@ -1471,6 +1471,8 @@ function play_unit_target_ability_delta(main_player: Main_Player, caster: Battle
         }
 
         case Ability_Id.dark_seer_ion_shell: {
+            unit_play_activity(caster, GameActivity_t.ACT_DOTA_CAST_ABILITY_2);
+            unit_emit_sound(target, "Hero_Dark_Seer.Ion_Shield_Start");
             apply_modifier(main_player, target, cast.modifier);
 
             break;
@@ -1786,6 +1788,10 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             if (source) {
                 for (const target of targets) {
                     change_health(main_player, source, target.unit, target.change);
+                    fx("particles/units/heroes/hero_dark_seer/dark_seer_ion_shell_damage.vpcf")
+                        .follow_unit_origin(0, source)
+                        .to_unit_attach_point(1, target.unit, "attach_hitloc")
+                        .release();
                 }
 
                 wait(1);
@@ -2090,6 +2096,10 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
 
         unit_emit_sound(unit, "eul_scepter_drop");
         fx_by_unit("particles/dev/library/base_dust_hit.vpcf", unit).release();
+    }
+
+    if (modifier_id == Modifier_Id.dark_seer_ion_shell) {
+        unit_emit_sound(unit, "Hero_Dark_Seer.Ion_Shield_end");
     }
 }
 
