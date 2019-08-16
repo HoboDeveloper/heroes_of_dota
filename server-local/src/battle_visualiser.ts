@@ -1242,6 +1242,7 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
                 .to_unit_attach_point(0, target, "attach_hitloc")
                 .with_point_value(1, 50, 50, 50)
         );
+        case Modifier_Id.dark_seer_surge: return follow("particles/units/heroes/hero_dark_seer/dark_seer_surge.vpcf");
         case Modifier_Id.rune_double_damage: return follow("particles/generic_gameplay/rune_doubledamage_owner.vpcf");
         case Modifier_Id.rune_haste: return follow("particles/generic_gameplay/rune_haste_owner.vpcf");
         case Modifier_Id.item_satanic: return follow("particles/items2_fx/satanic_buff.vpcf");
@@ -1476,6 +1477,8 @@ function play_unit_target_ability_delta(main_player: Main_Player, caster: Battle
         }
 
         case Ability_Id.dark_seer_surge: {
+            unit_play_activity(caster, GameActivity_t.ACT_DOTA_CAST_ABILITY_3);
+            unit_emit_sound(caster, "Hero_Dark_Seer.Surge");
             apply_modifier(main_player, target, cast.modifier);
 
             break;
