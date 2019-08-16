@@ -426,12 +426,64 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
         }
 
         case Ability_Id.dark_seer_vacuum: {
-            // TODO
+            const targets = query_units_for_point_target_ability(battle, unit, target, ability.targeting);
+            const sorted_by_distance_to_target = targets.sort((a, b) => {
+                const a_distance = manhattan(a.position, target);
+                const b_distance = manhattan(b.position, target);
+
+                return a_distance - b_distance;
+            });
+
+            const selector = ability.targeting.selector;
+            const free_cells = battle.cells
+                .filter(cell => !cell.occupied && ability_selector_fits(selector, unit.position, target, cell.position))
+                .map(cell => cell.position);
+
+            const closest_free_cell = (for_unit_cell: XY) => {
+                let closest_index: number | undefined;
+                let closest_distance = Number.MAX_SAFE_INTEGER;
+                const unit_to_target = manhattan(for_unit_cell, target);
+
+                for (let index = 0; index < free_cells.length; index++) {
+                    const cell = free_cells[index];
+                    const cell_to_target = manhattan(target, cell);
+                    const cell_to_unit = manhattan(for_unit_cell, cell);
+
+                    if (cell_to_unit <= unit_to_target && cell_to_target <= unit_to_target && cell_to_target <= closest_distance) {
+                        closest_index = index;
+                        closest_distance = cell_to_target;
+                    }
+                }
+
+                return closest_index;
+            };
+
+            const vacuum_targets: Vacuum_Target[] = [];
+
+            for (const affected_target of sorted_by_distance_to_target) {
+                const move_to_index = closest_free_cell(affected_target.position);
+
+                if (move_to_index == undefined) {
+                    continue;
+                }
+
+                const move_to = free_cells[move_to_index];
+
+                free_cells[move_to_index] = affected_target.position;
+
+                vacuum_targets.push({
+                    target_unit_id: affected_target.id,
+                    move_to: {
+                        x: move_to.x,
+                        y: move_to.y
+                    }
+                });
+            }
 
             return {
                 ...base,
                 ability_id: ability.id,
-                targets: []
+                targets: vacuum_targets
             }
         }
     }

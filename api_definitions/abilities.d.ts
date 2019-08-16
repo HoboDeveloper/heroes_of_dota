@@ -554,13 +554,15 @@ type Delta_Ability_Dark_Seer_Surge = Delta_Unit_Target_Ability_Base & {
     modifier: Modifier_Application
 }
 
+type Vacuum_Target = {
+    target_unit_id: number,
+    move_to: {
+        x: number,
+        y: number
+    }
+}
+
 type Delta_Ability_Dark_Seer_Vacuum = Delta_Ground_Target_Ability_Base & {
     ability_id: Ability_Id.dark_seer_vacuum
-    targets: {
-        target_unit_id: number,
-        move_to: {
-            x: number,
-            y: number
-        }
-    }[]
+    targets: Vacuum_Target[]
 }
