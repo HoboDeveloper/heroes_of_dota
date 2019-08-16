@@ -74,6 +74,8 @@ type UI_Unit_Data_Base = {
 
     modifiers: Modifier_Id[]
     modifier_bar: Panel
+
+    stats: Unit_Stats
 }
 
 type UI_Hero_Data = UI_Unit_Data_Base & {
@@ -116,9 +118,8 @@ type Control_Panel = {
 
 type Stat_Indicator = {
     label: LabelPanel
-    value: number
     displayed_value: number
-    formatter(unit: Unit, value: number): string
+    value_provider(unit: Unit_Stats): number
 }
 
 type Hero_Row = {
@@ -1225,25 +1226,31 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
     top_level.AddClass("unit_stat_bar");
 
     function create_health_indicator() {
-        return stat_indicator_ui(
-            data.health,
-            data.max_health,
+        const [ label, max_label ] = current_max_stat_indicator(
             "health_container",
             "health_icon",
             "health_label",
             "max_health_label"
         );
+
+        return [
+            stat_indicator(label, unit => unit.health),
+            stat_indicator(max_label, unit => unit.max_health)
+        ];
     }
 
     function create_move_points_indicator() {
-        return stat_indicator_ui(
-            data.move_points,
-            data.max_move_points,
+        const [ label, max_label ] = current_max_stat_indicator(
             "move_points_container",
             "move_points_icon",
             "move_points_label",
             "max_move_points_label"
         );
+
+        return [
+            stat_indicator(label, unit => unit.move_points),
+            stat_indicator(max_label, unit => unit.max_move_points + unit.move_points_bonus)
+        ];
     }
 
     function create_attack_indicator(): Stat_Indicator {
@@ -1252,12 +1259,7 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
         $.CreatePanel("Panel", attack_container, "attack_icon").AddClass("stat_icon");
         attack_container.AddClass("container");
 
-        return {
-            displayed_value: data.attack_bonus,
-            value: data.attack_bonus,
-            label: attack_label,
-            formatter: (unit, value) => get_unit_attack_value(unit, value).toString()
-        };
+        return stat_indicator(attack_label, unit => unit.attack_damage + unit.attack_bonus);
     }
 
     function create_modifier_container(): Panel {
@@ -1268,16 +1270,15 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
         return bar;
     }
 
-    function stat_indicator(label: LabelPanel, value: number): Stat_Indicator {
+    function stat_indicator(label: LabelPanel, value_provider: (unit: Unit_Stats) => number): Stat_Indicator {
         return {
-            displayed_value: value,
-            value: value,
-            label: label,
-            formatter: (unit, value) => value.toString()
+            displayed_value: value_provider(data),
+            value_provider: value_provider,
+            label: label
         }
     }
 
-    function stat_indicator_ui(value: number, max_value: number, container_id: string, icon_id: string, label_id: string, max_label_id: string) {
+    function current_max_stat_indicator(container_id: string, icon_id: string, label_id: string, max_label_id: string) {
         const container = $.CreatePanel("Panel", top_level, container_id);
         const value_label = $.CreatePanel("Label", container, label_id);
 
@@ -1291,10 +1292,7 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
 
         $.CreatePanel("Panel", container, icon_id).AddClass("stat_icon");
 
-        return [
-            stat_indicator(value_label, value),
-            stat_indicator(max_value_label, max_value)
-        ]
+        return [ value_label, max_value_label ];
     }
 
     switch (data.supertype) {
@@ -1317,7 +1315,8 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
                 stat_bar_panel: top_level,
                 level_bar: level_bar,
                 modifier_bar: modifiers,
-                modifiers: from_server_array(data.modifiers)
+                modifiers: from_server_array(data.modifiers),
+                stats: data
             }
         }
 
@@ -1337,15 +1336,18 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
                 stat_max_health: max_health,
                 stat_bar_panel: top_level,
                 modifier_bar: modifiers,
-                modifiers: from_server_array(data.modifiers)
+                modifiers: from_server_array(data.modifiers),
+                stats: data
             }
         }
     }
 }
 
 function update_unit_stat_bar_data(data: UI_Unit_Data) {
-    if (data.stat_health.value != data.stat_health.displayed_value) {
-        const which_animation = data.stat_health.value < data.stat_health.displayed_value ? "animate_damage" : "animate_heal";
+    const health_stat_value = data.stat_health.value_provider(data.stats);
+
+    if (health_stat_value != data.stat_health.displayed_value) {
+        const which_animation = health_stat_value < data.stat_health.displayed_value ? "animate_damage" : "animate_heal";
 
         data.stat_health.label.RemoveClass("animate_damage");
         data.stat_health.label.RemoveClass("animate_heal");
@@ -1359,11 +1361,6 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
     for (const child of data.modifier_bar.Children()) {
         child.DeleteAsync(0);
     }
-
-    const unit = find_unit_by_id(battle, data.id);
-
-    if (unit && unit.supertype == Unit_Supertype.hero)
-    $.Msg("Updating unit bar: ", enum_to_string(unit.type), " ", data.modifiers.map(modifier => enum_to_string(modifier)));
 
     for (const modifier of data.modifiers) {
         const modifier_panel = $.CreatePanel("Panel", data.modifier_bar, "");
@@ -1433,12 +1430,8 @@ function process_state_update(state: Player_Net_Table) {
                     existing_data.level = new_data.level;
                 }
 
-                existing_data.stat_health.value = new_data.health;
-                existing_data.stat_max_health.value = new_data.max_health;
-                existing_data.stat_move_points.value = new_data.move_points;
-                existing_data.stat_max_move_points.value = new_data.max_move_points;
-                existing_data.stat_attack.value = new_data.attack_bonus;
                 existing_data.modifiers = from_server_array(new_data.modifiers);
+                existing_data.stats = new_data;
 
                 update_unit_stat_bar_data(existing_data);
             } else {
@@ -2090,25 +2083,21 @@ function update_current_ability_based_on_cursor_state() {
     }
 }
 
-function get_unit_attack_value(unit: Unit, bonus: number) {
-    return unit.attack_damage + bonus;
-}
-
 function try_update_stat_bar_display(ui_data: UI_Unit_Data, force = false) {
-    const unit = find_unit_by_id(battle, ui_data.id);
-
-    if (!unit) return;
-
-    function try_update_stat_indicator(stat_indicator: Stat_Indicator) {
+    const try_update_stat_indicator = function (stat_indicator: Stat_Indicator) {
         if (force) {
-            stat_indicator.label.text = stat_indicator.formatter(unit!, stat_indicator.displayed_value);
-        } else if (stat_indicator.value != stat_indicator.displayed_value) {
-            const direction = Math.sign(stat_indicator.value - stat_indicator.displayed_value);
+            stat_indicator.label.text = stat_indicator.displayed_value.toString();
+        } else {
+            const value = stat_indicator.value_provider(ui_data.stats);
 
-            stat_indicator.displayed_value += direction;
-            stat_indicator.label.text = stat_indicator.formatter(unit!, stat_indicator.displayed_value);
+            if (value != stat_indicator.displayed_value) {
+                const direction = Math.sign(value - stat_indicator.displayed_value);
+
+                stat_indicator.displayed_value += direction;
+                stat_indicator.label.text = stat_indicator.displayed_value.toString();
+            }
         }
-    }
+    };
 
     try_update_stat_indicator(ui_data.stat_attack);
     try_update_stat_indicator(ui_data.stat_health);
