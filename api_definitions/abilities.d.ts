@@ -25,6 +25,9 @@ declare const enum Ability_Id {
     venge_magic_missile = 25,
     venge_wave_of_terror = 26,
     venge_nether_swap = 27,
+    dark_seer_ion_shell = 28,
+    dark_seer_surge = 29,
+    dark_seer_vacuum = 30,
 
     sniper_shrapnel = 99
 }
@@ -44,6 +47,8 @@ declare const enum Modifier_Id {
     mirana_arrow = 9,
     venge_magic_missile = 10,
     venge_wave_of_terror = 11,
+    dark_seer_ion_shell = 12,
+    dark_seer_surge = 13,
     item_boots_of_travel = 100,
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,
@@ -230,6 +235,24 @@ type Ability_Venge_Nether_Swap = Ability_Definition_Active_Base & {
     type: Ability_Type.target_unit
 }
 
+type Ability_Dark_Seer_Ion_Shell = Ability_Definition_Active_Base & {
+    id: Ability_Id.dark_seer_ion_shell
+    type: Ability_Type.target_unit
+    damage_per_turn: number
+    duration: number
+}
+
+type Ability_Dark_Seer_Surge = Ability_Definition_Active_Base & {
+    id: Ability_Id.dark_seer_surge
+    type: Ability_Type.target_unit
+    move_points_bonus: number
+}
+
+type Ability_Dark_Seer_Vacuum = Ability_Definition_Active_Base & {
+    id: Ability_Id.dark_seer_vacuum
+    type: Ability_Type.target_ground
+}
+
 type Ability_Sniper_Shrapnel = Ability_Definition_Active_Base & {
     id: Ability_Id.sniper_shrapnel
     type: Ability_Type.target_ground
@@ -244,7 +267,8 @@ type Ability_Ground_Target =
     Ability_Lion_Impale |
     Ability_Mirana_Arrow |
     Ability_Mirana_Leap |
-    Ability_Venge_Wave_Of_Terror
+    Ability_Venge_Wave_Of_Terror |
+    Ability_Dark_Seer_Vacuum
 
 type Ability_Unit_Target =
     Ability_Pudge_Dismember |
@@ -255,7 +279,9 @@ type Ability_Unit_Target =
     Ability_Lion_Hex |
     Ability_Lion_Finger_Of_Death |
     Ability_Venge_Magic_Missile |
-    Ability_Venge_Nether_Swap
+    Ability_Venge_Nether_Swap |
+    Ability_Dark_Seer_Ion_Shell |
+    Ability_Dark_Seer_Surge
 
 type Ability_No_Target =
     Ability_Pudge_Rot |
@@ -275,7 +301,8 @@ type Ability_Definition = Ability_Definition_Active | Ability_Definition_Passive
 
 type Ability_Effect =
     Ability_Effect_Luna_Moon_Glaive |
-    Ability_Effect_Mirana_Starfall
+    Ability_Effect_Mirana_Starfall |
+    Ability_Effect_Dark_Seer_Ion_Shell
 
 type Delta_Ground_Target_Ability =
     Delta_Ability_Basic_Attack |
@@ -286,7 +313,8 @@ type Delta_Ground_Target_Ability =
     Delta_Ability_Lion_Impale |
     Delta_Ability_Mirana_Arrow |
     Delta_Ability_Mirana_Leap |
-    Delta_Ability_Venge_Wave_Of_Terror
+    Delta_Ability_Venge_Wave_Of_Terror |
+    Delta_Ability_Dark_Seer_Vacuum
 
 type Delta_Unit_Target_Ability =
     Delta_Ability_Pudge_Dismember |
@@ -297,7 +325,9 @@ type Delta_Unit_Target_Ability =
     Delta_Ability_Lion_Hex |
     Delta_Ability_Lion_Finger_Of_Death |
     Delta_Ability_Venge_Magic_Missile |
-    Delta_Ability_Venge_Nether_Swap
+    Delta_Ability_Venge_Nether_Swap |
+    Delta_Ability_Dark_Seer_Ion_Shell |
+    Delta_Ability_Dark_Seer_Surge
 
 type Delta_Use_No_Target_Ability =
     Delta_Ability_Pudge_Rot |
@@ -432,6 +462,12 @@ type Ability_Effect_Mirana_Starfall = {
     damage_dealt: Health_Change
 }
 
+type Ability_Effect_Dark_Seer_Ion_Shell = {
+    ability_id: Ability_Id.dark_seer_ion_shell
+    source_unit_id: number
+    targets: Unit_Health_Change[]
+}
+
 type Delta_Ability_Luna_Eclipse = Delta_Use_No_Target_Ability_Base & {
     ability_id: Ability_Id.luna_eclipse
     missed_beams: number
@@ -506,4 +542,25 @@ type Delta_Ability_Venge_Wave_Of_Terror = Delta_Ground_Target_Ability_Base & {
 
 type Delta_Ability_Venge_Nether_Swap = Delta_Unit_Target_Ability_Base & {
     ability_id: Ability_Id.venge_nether_swap
+}
+
+type Delta_Ability_Dark_Seer_Ion_Shell = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.dark_seer_ion_shell
+    modifier: Modifier_Application
+}
+
+type Delta_Ability_Dark_Seer_Surge = Delta_Unit_Target_Ability_Base & {
+    ability_id: Ability_Id.dark_seer_surge
+    modifier: Modifier_Application
+}
+
+type Delta_Ability_Dark_Seer_Vacuum = Delta_Ground_Target_Ability_Base & {
+    ability_id: Ability_Id.dark_seer_vacuum
+    targets: {
+        target_unit_id: number,
+        move_to: {
+            x: number,
+            y: number
+        }
+    }[]
 }

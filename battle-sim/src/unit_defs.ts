@@ -377,7 +377,29 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                 move_points: 3,
                 attack_damage: 4,
                 attack: basic_attack(1),
-                abilities: [],
+                abilities: [
+                    active_ability<Ability_Dark_Seer_Ion_Shell>({
+                        available_since_level: 1,
+                        targeting: target_in_manhattan_distance(5),
+                        flags: [ Ability_Flag.does_not_consume_action ],
+                        charges: 1,
+                        damage_per_turn: 1,
+                        duration: 5
+                    }),
+                    active_ability<Ability_Dark_Seer_Surge>({
+                        available_since_level: 2,
+                        targeting: target_in_manhattan_distance(5),
+                        flags: [ Ability_Flag.does_not_consume_action ],
+                        charges: 2,
+                        move_points_bonus: 3
+                    }),
+                    active_ability<Ability_Dark_Seer_Vacuum>({
+                        available_since_level: 3,
+                        targeting: target_in_manhattan_distance(4, targets_in_rectangle(2)),
+                        flags: [ ],
+                        charges: 1,
+                    }),
+                ],
                 ability_bench: []
             }
         }

@@ -1164,6 +1164,18 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             break;
         }
 
+        case Ability_Id.dark_seer_vacuum: {
+            const targets = filter_and_map_existing_units(from_client_array(cast.targets));
+
+            for (const target of targets) {
+                target.unit.position = target.move_to;
+
+                FindClearSpaceForUnit(target.unit.handle, battle_position_to_world_position_center(target.move_to), true);
+            }
+
+            break;
+        }
+
         default: unreachable(cast);
     }
 }
@@ -1224,6 +1236,11 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
         case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
         case Modifier_Id.venge_wave_of_terror: return follow("particles/units/heroes/hero_vengeful/vengeful_wave_of_terror_recipient.vpcf");
+        case Modifier_Id.dark_seer_ion_shell: return simple(
+            target => fx("particles/units/heroes/hero_dark_seer/dark_seer_ion_shell.vpcf")
+                .to_unit_attach_point(0, target, "attach_hitloc")
+                .with_point_value(1, 50, 300, 100)
+        );
         case Modifier_Id.rune_double_damage: return follow("particles/generic_gameplay/rune_doubledamage_owner.vpcf");
         case Modifier_Id.rune_haste: return follow("particles/generic_gameplay/rune_haste_owner.vpcf");
         case Modifier_Id.item_satanic: return follow("particles/items2_fx/satanic_buff.vpcf");
@@ -1447,6 +1464,18 @@ function play_unit_target_ability_delta(main_player: Main_Player, caster: Battle
             wait(0.7);
 
             caster.handle.FadeGesture(GameActivity_t.ACT_DOTA_CHANNEL_END_ABILITY_4);
+
+            break;
+        }
+
+        case Ability_Id.dark_seer_ion_shell: {
+            apply_modifier(main_player, target, cast.modifier);
+
+            break;
+        }
+
+        case Ability_Id.dark_seer_surge: {
+            apply_modifier(main_player, target, cast.modifier);
 
             break;
         }
@@ -1741,6 +1770,21 @@ function play_ability_effect_delta(main_player: Main_Player, effect: Ability_Eff
             if (source && target) {
                 wait(0.25);
                 starfall_drop_star_on_unit(main_player, source, target, effect.damage_dealt);
+            }
+
+            break;
+        }
+
+        case Ability_Id.dark_seer_ion_shell: {
+            const source = find_unit_by_id(effect.source_unit_id);
+            const targets = filter_and_map_existing_units(from_client_array(effect.targets));
+
+            if (source) {
+                for (const target of targets) {
+                    change_health(main_player, source, target.unit, target.change);
+                }
+
+                wait(1);
             }
 
             break;

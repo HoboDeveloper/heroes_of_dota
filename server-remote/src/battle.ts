@@ -51,6 +51,15 @@ function defer_delta(battle: Battle_Record, supplier: () => Delta | undefined) {
     });
 }
 
+function defer_delta_by_unit(battle: Battle_Record, unit: Unit, supplier: () => Delta | undefined) {
+    defer_delta(battle, () => {
+        const act_on_unit_permission = authorize_act_on_known_unit(battle, unit);
+        if (!act_on_unit_permission.ok) return;
+
+        return supplier();
+    })
+}
+
 type Scan_Result_Hit = {
     hit: true,
     unit: Unit
@@ -76,7 +85,7 @@ function scan_for_unit_in_direction(
 
         const unit = unit_at(battle, current_cell);
 
-        if (unit) {
+        if (unit && authorize_act_on_known_unit(battle, unit).ok) {
             return { hit: true, unit: unit };
         }
 
@@ -101,7 +110,7 @@ function query_units_in_rectangular_area_around_point(battle: Battle, from_exclu
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (!is_unit_a_valid_target(unit)) continue;
+        if (!authorize_act_on_known_unit(battle, unit).ok) continue;
 
         const unit_position = unit.position;
         const distance = rectangular(unit_position, from_exclusive);
@@ -118,7 +127,7 @@ function query_units_for_no_target_ability(battle: Battle, caster: Unit, targeti
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (!is_unit_a_valid_target(unit)) continue;
+        if (!authorize_act_on_known_unit(battle, unit).ok) continue;
 
         if (ability_targeting_fits(battle, targeting, caster.position, unit.position)) {
             units.push(unit);
@@ -132,7 +141,7 @@ function query_units_with_selector(battle: Battle, from: XY, target: XY, selecto
     const units: Unit[] = [];
 
     for (const unit of battle.units) {
-        if (!is_unit_a_valid_target(unit)) continue;
+        if (!authorize_act_on_known_unit(battle, unit).ok) continue;
 
         if (ability_selector_fits(selector, from, target, unit.position)) {
             units.push(unit);
@@ -200,10 +209,10 @@ function perform_spell_cast_no_target(battle: Battle_Record, player: Battle_Play
         player_id: player.id
     };
 
-    const owned_units = battle.units.filter(unit => is_unit_a_valid_target(unit) && player_owns_unit(player, unit));
-
     switch (spell.spell_id) {
         case Spell_Id.mekansm: {
+            const owned_units = battle.units.filter(unit => authorize_act_on_known_unit(battle, unit).ok && player_owns_unit(player, unit));
+
             return {
                 ...base,
                 spell_id: spell.spell_id,
@@ -413,6 +422,16 @@ function perform_ability_cast_ground(battle: Battle_Record, unit: Unit, ability:
                 ...base,
                 ability_id: ability.id,
                 targets: targets
+            }
+        }
+
+        case Ability_Id.dark_seer_vacuum: {
+            // TODO
+
+            return {
+                ...base,
+                ability_id: ability.id,
+                targets: []
             }
         }
     }
@@ -666,6 +685,27 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             return {
                 ...base,
                 ability_id: ability.id
+            }
+        }
+
+        case Ability_Id.dark_seer_ion_shell: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: {
+                    modifier_id: Modifier_Id.dark_seer_ion_shell,
+                    modifier_handle_id: get_next_entity_id(battle),
+                    changes: [],
+                    duration: ability.duration
+                }
+            }
+        }
+
+        case Ability_Id.dark_seer_surge: {
+            return {
+                ...base,
+                ability_id: ability.id,
+                modifier: new_timed_modifier(battle, Modifier_Id.dark_seer_surge, 1, [Modifier_Field.move_points_bonus, ability.move_points_bonus]),
             }
         }
     }
@@ -1261,6 +1301,105 @@ function server_change_health(battle: Battle_Record, source: Source, target: Uni
     return killed;
 }
 
+function resolve_end_turn_items_and_modifiers(battle: Battle_Record) {
+    const item_to_units = new Map<Item_Id, [Hero, Item][]>();
+    const modifiers_to_units = new Map<Modifier_Id, [Unit, Modifier][]>();
+
+    for (const unit of battle.units) {
+        if (unit.supertype == Unit_Supertype.hero) {
+            for (const item of unit.items) {
+                let item_units = item_to_units.get(item.id);
+
+                if (!item_units) {
+                    item_units = [];
+
+                    item_to_units.set(item.id, item_units);
+                }
+
+                item_units.push([unit, item]);
+            }
+        }
+
+        for (const modifier of unit.modifiers) {
+            let modifier_units = modifiers_to_units.get(modifier.id);
+
+            if (!modifier_units) {
+                modifier_units = [];
+
+                modifiers_to_units.set(modifier.id, modifier_units);
+            }
+
+            modifier_units.push([unit, modifier]);
+        }
+    }
+
+    function for_heroes_with_item(item_id: Item_Id, action: (hero: Hero, item: Item) => void) {
+        const item_units = item_to_units.get(item_id);
+
+        if (item_units) {
+            for (const [hero, item] of item_units) {
+                action(hero, item);
+            }
+        }
+    }
+
+    function for_units_with_modifier(modifier_id: Modifier_Id, action: (unit: Unit, modifier: Modifier) => void) {
+        const modifier_units = modifiers_to_units.get(modifier_id);
+
+        if (modifier_units) {
+            for (const [unit, modifier] of modifier_units) {
+                action(unit, modifier);
+            }
+        }
+    }
+
+    // I don't know how to get rid of the ifs
+    for_heroes_with_item(Item_Id.heart_of_tarrasque, (hero, item) => {
+        if (item.id == Item_Id.heart_of_tarrasque) {
+            defer_delta_by_unit(battle, hero, () => ({
+                type: Delta_Type.health_change,
+                source_unit_id: hero.id,
+                target_unit_id: hero.id,
+                ...health_change(hero, item.regeneration_per_turn)
+            }));
+        }
+    });
+
+    for_heroes_with_item(Item_Id.armlet, (hero, item) => {
+        if (item.id == Item_Id.armlet) {
+            defer_delta_by_unit(battle, hero, () => ({
+                type: Delta_Type.health_change,
+                source_unit_id: hero.id,
+                target_unit_id: hero.id,
+                ...health_change(hero, -Math.min(item.health_loss_per_turn, hero.health - 1))
+            }));
+        }
+    });
+
+    for_units_with_modifier(Modifier_Id.dark_seer_ion_shell, (unit, modifier) => {
+        defer_delta_by_unit(battle, unit, () => {
+            const source = modifier.source;
+
+            if (source.type != Source_Type.unit) return;
+
+            for (const ability of source.unit.abilities) {
+                if (ability.id != Ability_Id.dark_seer_ion_shell) continue;
+
+                const targets = query_units_in_rectangular_area_around_point(battle, unit.position, 1);
+
+                return apply_ability_effect_delta({
+                    ability_id: Ability_Id.dark_seer_ion_shell,
+                    source_unit_id: unit.id,
+                    targets: targets.map(target => ({
+                        target_unit_id: target.id,
+                        change: health_change(target, -ability.damage_per_turn)
+                    }))
+                });
+            }
+        });
+    });
+}
+
 function server_end_turn(battle: Battle_Record) {
     end_turn_default(battle);
 
@@ -1273,33 +1412,9 @@ function server_end_turn(battle: Battle_Record) {
                 }));
             }
         }
-
-        if (!unit.dead && unit.supertype == Unit_Supertype.hero) {
-            for (const item of unit.items) {
-                switch (item.id) {
-                    case Item_Id.heart_of_tarrasque: {
-                        defer_delta(battle, () => ({
-                            type: Delta_Type.health_change,
-                            source_unit_id: unit.id,
-                            target_unit_id: unit.id,
-                            ...health_change(unit, item.regeneration_per_turn)
-                        }));
-
-                        break;
-                    }
-
-                    case Item_Id.armlet: {
-                        defer_delta(battle, () => ({
-                            type: Delta_Type.health_change,
-                            source_unit_id: unit.id,
-                            target_unit_id: unit.id,
-                            ...health_change(unit, -Math.min(item.health_loss_per_turn, unit.health - 1))
-                        }));
-                    }
-                }
-            }
-        }
     }
+
+    resolve_end_turn_items_and_modifiers(battle);
 
     defer_delta(battle, () => ({
         type: Delta_Type.start_turn,

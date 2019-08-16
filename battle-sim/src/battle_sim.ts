@@ -211,7 +211,7 @@ function rectangular(from: XY, to: XY) {
 }
 
 function unit_at(battle: Battle, at: XY): Unit | undefined {
-    return battle.units.find(unit => is_unit_a_valid_target(unit) && xy_equal(at, unit.position));
+    return battle.units.find(unit => !unit.dead && xy_equal(at, unit.position));
 }
 
 function are_units_allies(a: Unit, b: Unit): boolean {
@@ -270,11 +270,6 @@ function is_unit_disarmed(unit: Unit) {
 
 function is_point_in_shop_range(xy: XY, shop: Shop) {
     return rectangular(xy, shop.position) <= shop_range;
-}
-
-// TODO deprecate this, use validation framework?
-function is_unit_a_valid_target(unit: Unit) {
-    return !unit.dead && !is_unit_out_of_the_game(unit);
 }
 
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
@@ -806,6 +801,16 @@ function collapse_ability_effect(battle: Battle, effect: Ability_Effect) {
             break;
         }
 
+        case Ability_Id.dark_seer_ion_shell: {
+            const source = find_unit_by_id(battle, effect.source_unit_id);
+
+            if (source) {
+                change_health_multiple(battle, unit_source(source, effect.ability_id), effect.targets);
+            }
+
+            break;
+        }
+
         default: unreachable(effect);
     }
 }
@@ -901,6 +906,16 @@ function collapse_unit_target_ability_use(battle: Battle, caster: Unit, target: 
             caster.position = target_position;
             target.position = caster_position;
 
+            break;
+        }
+
+        case Ability_Id.dark_seer_ion_shell: {
+            apply_modifier(battle, source, target, cast.modifier);
+            break;
+        }
+
+        case Ability_Id.dark_seer_surge: {
+            apply_modifier(battle, source, target, cast.modifier);
             break;
         }
 
@@ -1033,6 +1048,18 @@ function collapse_ground_target_ability_use(battle: Battle, caster: Unit, at: Ce
 
         case Ability_Id.venge_wave_of_terror: {
             change_health_and_apply_modifier_multiple(battle, source, cast.targets);
+
+            break;
+        }
+
+        case Ability_Id.dark_seer_vacuum: {
+            for (const target of cast.targets) {
+                const target_unit = find_unit_by_id(battle, target.target_unit_id);
+
+                if (target_unit) {
+                    move_unit(battle, target_unit, target.move_to);
+                }
+            }
 
             break;
         }

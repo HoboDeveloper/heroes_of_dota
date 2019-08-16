@@ -1647,6 +1647,9 @@ function get_ability_tooltip(a: Ability): string {
         case Ability_Id.venge_magic_missile: return `Deal ${a.damage} to a target and stun it`;
         case Ability_Id.venge_wave_of_terror: return `Deal ${a.damage} to all targets and reduce their armor by ${a.armor_reduction} for ${a.duration} turns`;
         case Ability_Id.venge_nether_swap: return `Swap places with target`;
+        case Ability_Id.dark_seer_ion_shell: return `Apply a shield which deals ${a.damage_per_turn} damage per turn to the targets around the carrier for ${a.duration} turns`;
+        case Ability_Id.dark_seer_surge: return `Give target ${a.move_points_bonus} move points for their turn`;
+        case Ability_Id.dark_seer_vacuum: return `Pull all targets in the area towards point`;
     }
 }
 
@@ -1679,6 +1682,9 @@ function get_ability_icon(ability_id: Ability_Id): string {
         case Ability_Id.venge_magic_missile: return "vengefulspirit_magic_missile";
         case Ability_Id.venge_wave_of_terror: return "vengefulspirit_wave_of_terror";
         case Ability_Id.venge_nether_swap: return "vengefulspirit_nether_swap";
+        case Ability_Id.dark_seer_ion_shell: return "dark_seer_ion_shell";
+        case Ability_Id.dark_seer_surge: return "dark_seer_surge";
+        case Ability_Id.dark_seer_vacuum: return "dark_seer_vacuum";
     }
 }
 
@@ -1712,6 +1718,8 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
         case Modifier_Id.mirana_arrow: return from_ability(Ability_Id.mirana_arrow);
         case Modifier_Id.venge_magic_missile: return from_ability(Ability_Id.venge_magic_missile);
         case Modifier_Id.venge_wave_of_terror: return from_ability(Ability_Id.venge_wave_of_terror);
+        case Modifier_Id.dark_seer_ion_shell: return from_ability(Ability_Id.dark_seer_ion_shell);
+        case Modifier_Id.dark_seer_surge: return from_ability(Ability_Id.dark_seer_surge);
 
         case Modifier_Id.spell_euls_scepter: return "items/cyclone";
         case Modifier_Id.spell_mekansm: return "items/mekansm";
