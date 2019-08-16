@@ -1239,7 +1239,7 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
         case Modifier_Id.dark_seer_ion_shell: return simple(
             target => fx("particles/units/heroes/hero_dark_seer/dark_seer_ion_shell.vpcf")
                 .to_unit_attach_point(0, target, "attach_hitloc")
-                .with_point_value(1, 50, 300, 100)
+                .with_point_value(1, 50, 50, 50)
         );
         case Modifier_Id.rune_double_damage: return follow("particles/generic_gameplay/rune_doubledamage_owner.vpcf");
         case Modifier_Id.rune_haste: return follow("particles/generic_gameplay/rune_haste_owner.vpcf");
