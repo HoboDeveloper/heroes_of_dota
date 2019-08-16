@@ -1233,6 +1233,7 @@ function modifier_id_to_visuals(id: Modifier_Id): Modifier_Visuals_Complex | Mod
                 .follow_unit_overhead(0, target)
                 .follow_unit_origin(1, target)
         );
+        case Modifier_Id.skywrath_concussive_shot: return follow("particles/units/heroes/hero_skywrath_mage/skywrath_mage_concussive_shot_slow_debuff.vpcf");
         case Modifier_Id.dragon_knight_elder_dragon_form: return complex("Modifier_Dragon_Knight_Elder_Dragon");
         case Modifier_Id.lion_hex: return complex("Modifier_Lion_Hex");
         case Modifier_Id.venge_wave_of_terror: return follow("particles/units/heroes/hero_vengeful/vengeful_wave_of_terror_recipient.vpcf");
