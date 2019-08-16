@@ -50,6 +50,8 @@ export interface Player_Login {
     last_used_at: number
 }
 
+let dev_mode = false;
+
 const players: Player[] = [];
 const token_to_player_login = new Map<string, Player_Login>();
 const steam_id_to_player = new Map<string, Player>();
@@ -282,7 +284,7 @@ function initiate_battle_between_players(player_one: Player, player_two: Player)
 
 function check_and_disconnect_offline_players() {
     const now = Date.now();
-    const disconnect_time = 20_000;
+    const disconnect_time = dev_mode ? 1000_000 : 20_000;
 
     for (const [token, login] of token_to_player_login) {
         if (now - login.last_used_at > disconnect_time) {
@@ -661,8 +663,10 @@ function handle_request(url: string, data: string): Request_Result {
     }
 }
 
-export function start_server(with_test_player: boolean) {
-    if (with_test_player) {
+export function start_server(dev: boolean) {
+    dev_mode = dev;
+
+    if (dev) {
         test_player = make_new_player("whatever", "Test guy");
         test_player.state = Player_State.on_global_map;
         test_player.movement_history = [{

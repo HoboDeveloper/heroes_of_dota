@@ -4,14 +4,14 @@ console.log("Starting server");
 
 const args = process.argv.slice(2);
 
-let with_test_player = false;
+let dev = false;
 
 if (args.length > 0) {
     for (const arg of args) {
-        if (arg == "with_test_player") {
-            with_test_player = true;
+        if (arg == "dev") {
+            dev = true;
         }
     }
 }
 
-start_server(with_test_player);
+start_server(dev);
