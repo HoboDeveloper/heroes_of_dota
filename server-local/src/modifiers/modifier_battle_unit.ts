@@ -9,11 +9,18 @@ class Modifier_Battle_Unit extends CDOTA_Modifier_Lua {
     }
 
     DeclareFunctions(): modifierfunction[] {
-        return [ modifierfunction.MODIFIER_PROPERTY_MODEL_SCALE ];
+        return [
+            modifierfunction.MODIFIER_PROPERTY_MODEL_SCALE,
+            modifierfunction.MODIFIER_PROPERTY_IGNORE_MOVESPEED_LIMIT
+        ];
     }
 
     GetModifierModelScale(): number {
         return -15;
+    }
+
+    GetModifierIgnoreMovespeedLimit(): 0 | 1 {
+        return 1;
     }
 }
 

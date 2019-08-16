@@ -1189,6 +1189,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             attack_bonus: 0,
             max_health: definition.health,
             max_move_points: definition.move_points,
+            move_points_bonus: 0,
             state_stunned_counter: 0,
             state_silenced_counter: 0,
             state_disarmed_counter: 0,
@@ -1399,7 +1400,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
                     unit.attack.charges_remaining = unit.attack.charges;
                 }
 
-                unit.move_points = unit.max_move_points;
+                unit.move_points = unit.max_move_points + unit.move_points_bonus;
                 unit.has_taken_an_action_this_turn = false;
             }
 

@@ -129,6 +129,7 @@ type Unit_Stats = {
     max_health: number
     attack_damage: number
     move_points: number
+    move_points_bonus: number
     max_move_points: number
     attack_bonus: number
     state_stunned_counter: number

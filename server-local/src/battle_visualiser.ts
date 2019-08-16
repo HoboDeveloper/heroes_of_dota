@@ -279,6 +279,7 @@ function unit_base(unit_id: number, dota_unit_name: string, definition: Unit_Def
         state_disarmed_counter: 0,
         state_out_of_the_game_counter: 0,
         move_points: definition.move_points,
+        move_points_bonus: 0,
         max_move_points: definition.move_points,
         modifiers: [],
         dead: false
@@ -1961,6 +1962,8 @@ function update_specific_state_visuals(unit: Battle_Unit, counter: number, assoc
 function update_state_visuals(unit: Battle_Unit) {
     update_specific_state_visuals(unit, unit.state_stunned_counter, "modifier_stunned");
     update_specific_state_visuals(unit, unit.state_silenced_counter, "modifier_silence");
+
+    unit.handle.SetBaseMoveSpeed(Math.max(100, 500 + unit.move_points_bonus * 100));
 }
 
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
@@ -2041,7 +2044,7 @@ function move_unit(main_player: Main_Player, unit: Battle_Unit, path: XY[]) {
         unit.handle.MoveToPosition(world_position);
 
         wait_until(() => {
-            return (unit.handle.GetAbsOrigin() - world_position as Vector).Length2D() < battle_cell_size / 4;
+            return (unit.handle.GetAbsOrigin() - world_position as Vector).Length2D() < unit.handle.GetBaseMoveSpeed() / 10;
         });
 
         unit.move_points = unit.move_points - 1;
@@ -2326,7 +2329,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
 
         case Delta_Type.start_turn: {
             for (const unit of battle.units) {
-                unit.move_points = unit.max_move_points;
+                unit.move_points = unit.max_move_points + unit.move_points_bonus;
             }
 
             if (delta.of_player_id == main_player.remote_id) {
