@@ -155,6 +155,7 @@ type Ability_Targeting_Line = {
 type Ability_Targeting_Target_In_Manhattan_Distance = {
     type: Ability_Targeting_Type.unit_in_manhattan_distance
     distance: number
+    include_caster: boolean
     selector: Ability_Target_Selector
 }
 

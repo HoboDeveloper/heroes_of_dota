@@ -42,11 +42,12 @@ function targets_in_line(length: number): Ability_Target_Selector_Line {
     }
 }
 
-function target_in_manhattan_distance(distance: number, selector: Ability_Target_Selector = single_target()): Ability_Targeting_Target_In_Manhattan_Distance {
+function target_in_manhattan_distance(distance: number, selector: Ability_Target_Selector = single_target(), include_yourself = false): Ability_Targeting_Target_In_Manhattan_Distance {
     return {
         type: Ability_Targeting_Type.unit_in_manhattan_distance,
         distance: distance,
-        selector: selector
+        selector: selector,
+        include_caster: include_yourself
     }
 }
 
@@ -215,7 +216,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Skywrath_Mystic_Flare>({
                         available_since_level: 3,
-                        targeting: target_in_manhattan_distance(5, targets_in_rectangle(1)),
+                        targeting: target_in_manhattan_distance(5, targets_in_rectangle(1), true),
                         flags: [],
                         charges: 1,
                         damage: 10
@@ -380,7 +381,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                 abilities: [
                     active_ability<Ability_Dark_Seer_Ion_Shell>({
                         available_since_level: 1,
-                        targeting: target_in_manhattan_distance(5),
+                        targeting: target_in_manhattan_distance(5, single_target(), true),
                         flags: [ Ability_Flag.does_not_consume_action ],
                         charges: 1,
                         damage_per_turn: 1,
@@ -388,7 +389,7 @@ function unit_definition_by_type(type: Hero_Type): Unit_Definition {
                     }),
                     active_ability<Ability_Dark_Seer_Surge>({
                         available_since_level: 2,
-                        targeting: target_in_manhattan_distance(5),
+                        targeting: target_in_manhattan_distance(5, single_target(), true),
                         flags: [ Ability_Flag.does_not_consume_action ],
                         charges: 2,
                         move_points_bonus: 3

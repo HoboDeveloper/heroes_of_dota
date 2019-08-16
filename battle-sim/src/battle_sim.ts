@@ -522,7 +522,12 @@ function ability_targeting_fits(battle: Battle, targeting: Ability_Targeting, fr
 
         case Ability_Targeting_Type.unit_in_manhattan_distance: {
             const distance = manhattan(from, check_at);
-            return distance > 0 && distance <= targeting.distance;
+
+            if (targeting.include_caster) {
+                return distance <= targeting.distance;
+            } else {
+                return distance > 0 && distance <= targeting.distance;
+            }
         }
 
         case Ability_Targeting_Type.any_free_cell: {

@@ -1933,6 +1933,10 @@ function turn_unit_towards_target(unit: Battle_Unit, towards: XY) {
     const towards_world_position = battle_position_to_world_position_center(towards);
     const desired_forward = ((towards_world_position - unit.handle.GetAbsOrigin()) * Vector(1, 1, 0) as Vector).Normalized();
 
+    if (desired_forward.Length2D() == 0) {
+        return;
+    }
+
     while (true) {
         unit.handle.FaceTowards(towards_world_position);
 
