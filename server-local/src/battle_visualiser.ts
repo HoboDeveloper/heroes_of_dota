@@ -338,26 +338,34 @@ function tracking_projectile_to_point(source: Battle_Unit, target: XY, particle_
     particle.destroy_and_release(false);
 }
 
-function toss_target_up(target: Battle_Unit) {
-    const toss_start_time = GameRules.GetGameTime();
-    const toss_time = 0.4;
-    const start_origin = target.handle.GetAbsOrigin();
-
-    target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
+function do_each_frame_for(time: number, action: (progress: number) => void) {
+    const start_time = GameRules.GetGameTime();
 
     while (true) {
         const now = GameRules.GetGameTime();
-        const progress = Math.min(1, (now - toss_start_time) / toss_time);
-        const current_height = Math.sin(progress * Math.PI) * 260;
+        const progress = Math.min(1, (now - start_time) / time);
 
-        target.handle.SetAbsOrigin(start_origin + Vector(0, 0, current_height) as Vector);
+        action(progress);
 
-        if (now >= toss_start_time + toss_time) {
+        if (progress == 1) {
             break;
         }
 
         wait_one_frame();
     }
+}
+
+function toss_target_up(target: Battle_Unit) {
+    const toss_time = 0.4;
+    const start_origin = target.handle.GetAbsOrigin();
+
+    target.handle.StartGesture(GameActivity_t.ACT_DOTA_FLAIL);
+
+    do_each_frame_for(toss_time, progress => {
+        const current_height = Math.sin(progress * Math.PI) * 260;
+
+        target.handle.SetAbsOrigin(start_origin + Vector(0, 0, current_height) as Vector);
+    });
 
     target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
 }
@@ -524,24 +532,15 @@ function pudge_hook(main_player: Main_Player, pudge: Battle_Unit, cast: Delta_Ab
 
         chain.to_unit_attach_point(1, target, "attach_hitloc", target.handle.GetOrigin() + hook_offset as Vector);
 
-        const travel_start_time = GameRules.GetGameTime();
         const target_world_position = battle_position_to_world_position_center(cast.result.move_target_to);
         const travel_position_start = target.handle.GetAbsOrigin();
         const travel_position_finish = GetGroundPosition(Vector(target_world_position.x, target_world_position.y), target.handle);
 
-        while (true) {
-            const now = GameRules.GetGameTime();
-            const progress = Math.min(1, (now - travel_start_time) / time_to_travel);
+        do_each_frame_for(time_to_travel, progress => {
             const travel_position = (travel_position_finish - travel_position_start) * progress + travel_position_start as Vector;
 
             target.handle.SetAbsOrigin(travel_position);
-
-            if (now >= travel_start_time + time_to_travel) {
-                break;
-            }
-
-            wait_one_frame();
-        }
+        });
 
         target.handle.StopSound(chain_sound);
         target.handle.FadeGesture(GameActivity_t.ACT_DOTA_FLAIL);
@@ -1102,8 +1101,6 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 
             print(peak_height);
 
-            const start_time = GameRules.GetGameTime();
-
             function parabolic(x: number) {
                 const nx = (x * 2 - 1);
                 return 1 - nx * nx;
@@ -1113,22 +1110,12 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
 
             unit.handle.StartGestureWithPlaybackRate(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_3, animation_speed);
 
-            while (true) {
-                const now = GameRules.GetGameTime();
-                const delta_time = now - start_time;
-                const time_normalized = delta_time / time_to_travel;
-
-                const position_now = world_from + (direction * distance * time_normalized) as Vector;
-                position_now.z = world_from.z + parabolic(time_normalized) * peak_height;
+            do_each_frame_for(time_to_travel, progress => {
+                const position_now = world_from + (direction * distance * progress) as Vector;
+                position_now.z = world_from.z + parabolic(progress) * peak_height;
 
                 unit.handle.SetAbsOrigin(position_now);
-
-                if (delta_time >= time_to_travel) {
-                    break;
-                }
-
-                wait_one_frame();
-            }
+            });
 
             unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_OVERRIDE_ABILITY_3);
             unit.handle.StartGesture(GameActivity_t.ACT_MIRANA_LEAP_END);
@@ -1166,13 +1153,44 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
         }
 
         case Ability_Id.dark_seer_vacuum: {
+            unit_play_activity(unit, GameActivity_t.ACT_DOTA_CAST_ABILITY_1);
+            unit_emit_sound(unit, "Hero_Dark_Seer.Vacuum");
+
+            // @HardcodedConstant
+            const radius = 2;
+
+            fx("particles/units/heroes/hero_dark_seer/dark_seer_vacuum.vpcf")
+                .with_vector_value(0, world_to)
+                .with_point_value(1, (radius + 0.5) * battle_cell_size)
+                .release();
+
             const targets = filter_and_map_existing_units(from_client_array(cast.targets));
 
-            for (const target of targets) {
-                target.unit.position = target.move_to;
+            wait_for_all_forks(targets.map(target => fork(() => {
+                const world_from = target.unit.handle.GetAbsOrigin();
+                const world_to_actual = battle_position_to_world_position_center(target.move_to);
+                const distance_to_cast_point = (world_to - world_from as Vector).Length2D();
+                const distance_to_actual_position = (world_to - world_to_actual as Vector).Length2D();
 
-                FindClearSpaceForUnit(target.unit.handle, battle_position_to_world_position_center(target.move_to), true);
-            }
+                if (distance_to_cast_point != 0) {
+                    const travel_speed_to_cast_point = 1000;
+
+                    do_each_frame_for(distance_to_cast_point / travel_speed_to_cast_point, progress => {
+                        target.unit.handle.SetAbsOrigin(world_from + (world_to - world_from) * progress as Vector);
+                    });
+                }
+
+                if (distance_to_actual_position != 0) {
+                    const travel_speed_to_actual_position = 800;
+
+                    do_each_frame_for(distance_to_actual_position / travel_speed_to_actual_position, progress => {
+                        target.unit.handle.SetAbsOrigin(world_to + (world_to_actual - world_to) * progress as Vector);
+                    });
+                }
+
+                target.unit.position = target.move_to;
+                target.unit.handle.SetAbsOrigin(world_to_actual);
+            })));
 
             break;
         }
@@ -2078,26 +2096,15 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
         const handle = unit.handle;
         const ground = battle_position_to_world_position_center(unit.position);
         const delta_z = handle.GetAbsOrigin().z - ground.z;
-
-        const start_time = GameRules.GetGameTime();
         const fall_time = 0.45;
 
         function f(x: number) {
             return ((1 - Math.sin(x * 6 - 6)/(x * 6 - 6)) + (1 - x * x)) / 2;
         }
 
-        while (true) {
-            const current_time = GameRules.GetGameTime();
-            const delta_time = Math.min(current_time - start_time, fall_time);
-
-            if (delta_time >= fall_time) {
-                break;
-            }
-
-            handle.SetAbsOrigin(Vector(ground.x, ground.y, f(delta_time / fall_time) * delta_z + ground.z));
-
-            wait_one_frame();
-        }
+        do_each_frame_for(fall_time, progress => {
+            handle.SetAbsOrigin(Vector(ground.x, ground.y, f(progress) * delta_z + ground.z));
+        });
 
         handle.SetAbsOrigin(ground);
 
