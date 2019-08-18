@@ -1591,18 +1591,17 @@ function play_no_target_ability_delta(main_player: Main_Player, unit: Battle_Uni
                 .to_unit_origin(2, unit)
                 .to_unit_origin(3, unit);
 
-            const beam_targets = from_client_array(cast.targets)
-                .filter(delta => delta.change.value_delta > 0)
-                .map(delta => ({
-                    delta: delta,
-                    beams_remaining: -delta.change.value_delta
+            const beam_targets = filter_and_map_existing_units(from_client_array(cast.targets))
+                .filter(target => target.change.value_delta != 0)
+                .map(target => ({
+                    target: target,
+                    beams_remaining: -target.change.value_delta
                 }));
 
             while (beam_targets.length > 0) {
                 const random_index = RandomInt(0, beam_targets.length - 1);
                 const random_target = beam_targets[random_index];
-                const target_unit = find_unit_by_id(random_target.delta.target_unit_id);
-
+                const target_unit = random_target.target.unit;
 
                 random_target.beams_remaining--;
 
