@@ -912,7 +912,7 @@ function pick_up_rune(battle: Battle_Record, hero: Hero, rune: Rune, move_cost: 
                 ...base,
                 type: Delta_Type.rune_pick_up,
                 rune_type: rune.type,
-                modifier: new_timed_modifier(battle, Modifier_Id.rune_haste, 3, [Modifier_Field.move_points_bonus, 3])
+                modifier: new_modifier(battle, Modifier_Id.rune_haste, [Modifier_Field.move_points_bonus, 3])
             };
         }
 
@@ -921,7 +921,7 @@ function pick_up_rune(battle: Battle_Record, hero: Hero, rune: Rune, move_cost: 
                 ...base,
                 type: Delta_Type.rune_pick_up,
                 rune_type: rune.type,
-                modifier: new_timed_modifier(battle, Modifier_Id.rune_double_damage, 3, [Modifier_Field.attack_bonus, hero.attack_damage])
+                modifier: new_modifier(battle, Modifier_Id.rune_double_damage, [Modifier_Field.attack_bonus, hero.attack_damage])
             };
         }
     }
