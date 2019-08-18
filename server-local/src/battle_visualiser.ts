@@ -2342,7 +2342,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
             }
 
             if (delta.source_spell_id == Spell_Id.buyback) {
-                const particle = fx("particles/econ/events/fall_major_2016/teleport_start_fm06_godrays.vpcf")
+                const particle = fx("particles/buyback_start.vpcf")
                     .to_location(0, delta.at_position);
 
                 unit_emit_sound(unit, "buyback_respawn");

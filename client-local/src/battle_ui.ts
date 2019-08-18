@@ -1664,7 +1664,7 @@ function get_spell_name(spell_id: Spell_Id): string {
 
 function get_spell_text(spell: Card_Spell): string {
     switch (spell.spell_id) {
-        case Spell_Id.buyback: return `Spend gold to get back one of your dead heroes. They keep their stats`;
+        case Spell_Id.buyback: return `Spend gold to return a dead ally hero to your hand`;
         case Spell_Id.euls_scepter: return `Make target untargetable until next turn`;
         case Spell_Id.mekansm: return `Restore ${spell.heal} health to all allies and give them ${spell.armor} armor for ${spell.duration} turns`
         case Spell_Id.town_portal_scroll: return `Restore hero's health and return them to your hand`;
