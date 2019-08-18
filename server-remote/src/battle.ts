@@ -239,6 +239,7 @@ function perform_spell_cast_unit_target(battle: Battle_Record, player: Battle_Pl
                 ...base,
                 spell_id: spell.spell_id,
                 new_card_id: get_next_entity_id(battle),
+                gold_change: -get_buyback_cost(target),
                 heal: { new_value: target.max_health, value_delta: 0 },
                 modifier: new_modifier(battle, Modifier_Id.returned_to_hand, [ Modifier_Field.state_out_of_the_game_counter, 1 ])
             }
@@ -1101,10 +1102,15 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
             const card_use_permission = authorize_card_use(action_permission, action.card_id);
             if (!card_use_permission.ok) return;
 
-            const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, action.unit_id);
+            const spell_use_permission = authorize_unit_target_spell_use(card_use_permission);
             if (!spell_use_permission.ok) return;
 
-            const { player, card, spell, unit } = spell_use_permission;
+            const spell_use_on_unit_permission = authorize_unit_target_for_spell_card_use(spell_use_permission, action.unit_id);
+            if (!spell_use_on_unit_permission.ok) return;
+
+            if (!authorize_spell_use_buyback_check(spell_use_on_unit_permission)) return;
+
+            const { player, card, spell, unit } = spell_use_on_unit_permission;
 
             return [
                 use_card(player, card),
@@ -1867,6 +1873,22 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
                     refresh_unit(battle, unit);
                 }
             }
+
+            break;
+        }
+
+        case "kill": {
+            const unit = find_unit_by_id(battle, selected_unit_id);
+
+            if (!unit) break;
+
+            submit_battle_deltas(battle, [{
+                type: Delta_Type.health_change,
+                source_unit_id: unit.id,
+                target_unit_id: unit.id,
+                new_value: 0,
+                value_delta: -unit.health
+            }]);
 
             break;
         }

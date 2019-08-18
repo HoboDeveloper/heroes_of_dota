@@ -17,6 +17,22 @@
         vsnd_files = "sounds/ui/bonus_level.vsnd"
     }
 
+    buyback_use = {
+        type = "dota_src1_2d"
+        volume = 1.0
+        pitch = 1.0
+        event_type = 3.0
+        vsnd_files = "sounds/music/valve_dota_001/stingers/buy_back.vsnd"
+    }
+
+    buyback_respawn = {
+        type = "dota_src1_2d"
+        volume = 1.0
+        pitch = 1.0
+        event_type = 3.0
+        vsnd_files = "sounds/music/valve_dota_001/stingers/respawn.vsnd"
+    }
+
     hero_spawn = {
         type = "dota_src1_2d"
         volume = 1.0

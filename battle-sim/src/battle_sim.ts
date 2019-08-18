@@ -311,8 +311,12 @@ function find_modifier_by_handle_id(battle: Battle, id: number): [ Unit, Modifie
     }
 }
 
-function get_buyback_cost(hero: Hero) {
-    return hero.level * 4;
+function get_buyback_cost(unit: Unit) {
+    if (unit.supertype == Unit_Supertype.hero) {
+        return unit.level * 4;
+    }
+
+    return 0;
 }
 
 function try_consume_unit_action(unit: Unit, ability_id: Ability_Id) {
@@ -1115,6 +1119,7 @@ function collapse_unit_target_spell_use(battle: Battle, caster: Battle_Player, t
 
             target.dead = false;
 
+            change_gold(caster, cast.gold_change);
             change_health(battle, source, target, cast.heal);
             apply_modifier(battle, source, target, cast.modifier);
 

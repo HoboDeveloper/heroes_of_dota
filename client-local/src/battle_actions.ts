@@ -54,8 +54,10 @@ function custom_error(message: string) {
     return { reason: 80, message: message };
 }
 
-function show_error_ui(reason: Error_Reason) {
+function show_error_ui(reason: Error_Reason): undefined {
     GameEvents.SendEventClientSide("dota_hud_error_message", reason);
+
+    return;
 }
 
 function show_generic_error(error: string) {
@@ -139,12 +141,18 @@ function hero_card_use_error_reason(error: Action_Error<Hero_Card_Use_Error>): E
     }
 }
 
+function spell_target_unit_error_reason(error: Action_Error<Spell_Target_Unit_Error>): Error_Reason {
+    switch (error.kind) {
+        case Spell_Target_Unit_Error.other: return custom_error("Error");
+        case Spell_Target_Unit_Error.not_a_hero: return custom_error("Can only target heroes");
+        case Spell_Target_Unit_Error.not_an_ally: return custom_error("Can only target allies");
+        case Spell_Target_Unit_Error.out_of_the_game: return custom_error("Target out of the game");
+    }
+}
+
 function unit_target_spell_use_error_reason(error: Action_Error<Unit_Target_Spell_Card_Use_Error>): Error_Reason {
     switch (error.kind) {
         case Unit_Target_Spell_Card_Use_Error.other: return custom_error("Error");
-        case Unit_Target_Spell_Card_Use_Error.not_a_hero: return custom_error("Can only target heroes");
-        case Unit_Target_Spell_Card_Use_Error.not_an_ally: return custom_error("Can only target allies");
-        case Unit_Target_Spell_Card_Use_Error.out_of_the_game: return custom_error("Target out of the game");
     }
 }
 
@@ -407,18 +415,29 @@ function try_order_unit_to_move(unit: Unit, move_where: XY) {
 
 type Use_Spell_Action = Action_Use_Unit_Target_Spell | Action_Use_No_Target_Spell;
 
-function try_use_card_spell(spell: Card_Spell, hovered_cell: XY, action_permission: Player_Action_Permission, card_use_permission: Card_Use_Permission): Use_Spell_Action | undefined {
+function try_use_card_spell(spell: Card_Spell, hover: Hover_State_Unit | Hover_State_Cell, action_permission: Player_Action_Permission, card_use_permission: Card_Use_Permission): Use_Spell_Action | undefined {
     switch (spell.spell_type) {
         case Spell_Type.unit_target: {
-            const target = unit_at(battle, hovered_cell);
+            const target = (() => {
+                if (hover.type == Hover_Type.cell) {
+                    return unit_at(battle, hover.cell);
+                } else {
+                    return hover.unit;
+                }
+            })();
 
             if (!target) {
                 show_error_ui(custom_error("Select a target"));
                 return;
             }
 
-            const spell_use_permission = authorize_known_unit_target_card_spell_use(card_use_permission, target);
+            const spell_use_permission = authorize_unit_target_spell_use(card_use_permission);
             if (!spell_use_permission.ok) return show_action_error_ui(spell_use_permission, unit_target_spell_use_error_reason);
+
+            const spell_use_on_unit_permission = authorize_known_unit_target_for_spell_card_use(spell_use_permission, target);
+            if (!spell_use_on_unit_permission.ok) return show_action_error_ui(spell_use_on_unit_permission, spell_target_unit_error_reason);
+
+            if (!authorize_spell_use_buyback_check(spell_use_on_unit_permission)) return show_error_ui(custom_error("Not enough gold"));
 
             return {
                 type: Action_Type.use_unit_target_spell_card,
@@ -441,7 +460,7 @@ function try_use_card_spell(spell: Card_Spell, hovered_cell: XY, action_permissi
     }
 }
 
-function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void) {
+function try_use_card(card: Card, hover: Hover_State_Unit | Hover_State_Cell, success_callback: () => void) {
     const action_permission = authorize_action_by_player(battle, battle.this_player);
     if (!action_permission.ok) return show_player_action_error_ui(action_permission);
 
@@ -450,33 +469,37 @@ function try_use_card(card: Card, hovered_cell: XY, success_callback: () => void
 
     switch (card.type) {
         case Card_Type.hero: {
-            const hero_card_use_permission = authorize_hero_card_use(card_use_permission, hovered_cell);
+            if (hover.type != Hover_Type.cell) return;
+
+            const hero_card_use_permission = authorize_hero_card_use(card_use_permission, hover.cell);
             if (!hero_card_use_permission.ok) return show_action_error_ui(hero_card_use_permission, hero_card_use_error_reason);
 
             take_battle_action({
                 type: Action_Type.use_hero_card,
                 card_id: card.id,
-                at: hovered_cell
+                at: hover.cell
             }, success_callback);
 
             break;
         }
 
         case Card_Type.existing_hero: {
-            const hero_card_use_permission = authorize_existing_hero_card_use(card_use_permission, hovered_cell);
+            if (hover.type != Hover_Type.cell) return;
+
+            const hero_card_use_permission = authorize_existing_hero_card_use(card_use_permission, hover.cell);
             if (!hero_card_use_permission.ok) return show_action_error_ui(hero_card_use_permission, hero_card_use_error_reason);
 
             take_battle_action({
                 type: Action_Type.use_existing_hero_card,
                 card_id: card.id,
-                at: hovered_cell
+                at: hover.cell
             }, success_callback);
 
             break;
         }
 
         case Card_Type.spell: {
-            const action = try_use_card_spell(card, hovered_cell, action_permission, card_use_permission);
+            const action = try_use_card_spell(card, hover, action_permission, card_use_permission);
 
             if (action) {
                 take_battle_action(action, success_callback);

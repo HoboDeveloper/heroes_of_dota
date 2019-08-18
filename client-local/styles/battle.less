@@ -586,6 +586,65 @@
   }
 }
 
+#card_selection_overlay {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  transition-property: opacity;
+  transition-duration: 0.3s;
+  opacity: 0;
+
+  >#container {
+    align: center center;
+    flow-children: down;
+
+    > #title {
+      align: center center;
+      font-family: @font-title;
+      font-size: 38px;
+      color: #e9e9e9;
+      padding-bottom: 30px;
+    }
+
+    > #card_container {
+      align: center center;
+      flow-children: right;
+
+      > .card {
+        margin: 40px;
+
+        #gold_cost {
+          flow-children: right;
+          background-color: #000000cc;
+          align: center bottom;
+          margin-bottom: 30px;
+          padding: 0 12px;
+          border-radius: 6px;
+
+          #icon {
+            background-image: url("s2r://panorama/images/hud/icon_gold_psd.vtex");
+            background-size: 100% 100%;
+            width: 36px;
+            height: 36px;
+          }
+
+          #amount {
+            font-family: @font-mono;
+            color: gold;
+            font-size: 36px;
+            vertical-align: center;
+            margin-left: 4px;
+          }
+        }
+      }
+    }
+  }
+
+  &.visible {
+    opacity: 1;
+  }
+}
+
 #end_turn_button {
   width: 200px;
   height: 50px;

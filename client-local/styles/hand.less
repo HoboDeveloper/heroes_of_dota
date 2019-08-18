@@ -3,148 +3,148 @@
 #hand_ui {
   width: 100%;
   height: 100%;
+}
 
-  .card {
-    transition-property: transform;
-    transition-duration: 0.1s;
+.card {
+  transition-property: transform;
+  transition-duration: 0.1s;
 
-    &.spell {
-      flow-children: down;
+  &.spell {
+    flow-children: down;
 
-      #card_art {
-        height: 55%;
-        horizontal-align: center;
-        background-image: url("s2r://panorama/images/profile_badges/bg_01_psd.vtex");
-        background-size: 100% 100%;
-      }
-
-      #card_text {
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 127, 162, 0.53);
-        box-shadow: #151515 0 0 16px 0;
-        padding: 0 8px;
-
-        Label {
-          text-align: center;
-          align: center center;
-          color: white;
-          font-family: @font-regular;
-          font-size: 18px;
-          text-shadow: 0px 0px 2px 2.0 #333333ff;
-        }
-      }
+    #card_art {
+      height: 55%;
+      horizontal-align: center;
+      background-image: url("s2r://panorama/images/profile_badges/bg_01_psd.vtex");
+      background-size: 100% 100%;
     }
 
-    &.hero {
-      #card_art {
-        width: 100%;
-        height: 100%;
+    #card_text {
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 127, 162, 0.53);
+      box-shadow: #151515 0 0 16px 0;
+      padding: 0 8px;
 
+      Label {
+        text-align: center;
+        align: center center;
+        color: white;
+        font-family: @font-regular;
+        font-size: 18px;
+        text-shadow: 0px 0px 2px 2.0 #333333ff;
       }
+    }
+  }
 
-      #name_panel {
-        background-color: rgba(132, 164, 190, 0.8);
-      }
+  &.hero {
+    #card_art {
+      width: 100%;
+      height: 100%;
+
     }
 
     #name_panel {
-      width: 100%;
-      height: 36px;
-      background-color: rgba(0, 127, 162, 0.53);
-      background-image: url("s2r://panorama/images/backgrounds/background_play_button_2x_png.vtex");
-      background-size: 100% 100%;
-      vertical-align: top;
-      //margin-bottom: 40px;
-      box-shadow: #151515 0 0 16px 0;
-
-      Label {
-        font-size: 24px;
-        font-family: @font-regular;
-        color: white;
-        text-shadow: 0px 0px 2px 2.0 #333333ff;
-        padding-left: 8px;
-        width: 100%;
-        vertical-align: center;
-      }
+      background-color: rgba(132, 164, 190, 0.8);
     }
+  }
 
-    #stat_panel {
-      flow-children: right;
-      align: center bottom;
-      padding-left: 8px;
-      padding-right: 8px;
-      border-radius: 6px 6px 0 0;
-      background-color: #000000cc;
-
-      .stat_container {
-        flow-children: right;
-        margin: 2px;
-
-        #icon {
-          background-size: cover;
-          width: 12px;
-          height: 12px;
-          vertical-align: middle;
-        }
-
-        #value {
-          font-family: @font-mono;
-          font-size: 16px;
-          margin-bottom: -3px;
-          color: white;
-          text-align: center;
-        }
-      }
-
-      #attack.stat_container #value { text-shadow: 0px 0px 2px 2.0 #aa0000aa; }
-      #health.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0); }
-      #move_points.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(162, 154, 0); }
-
-      #attack.stat_container #icon { background-image: @icon-attack-damage; }
-      #health.stat_container #icon { background-image: @icon-armor; }
-      #move_points.stat_container #icon { background-image: @icon-move-points; }
-    }
-
-    &.targeting_something {
-      transform: translateY(-30px);
-      border: 2px solid #76eedd;
-    }
-
-    &.disappearing {
-      transform: scaleX(1.5) scaleY(1.5) translateY(-200px);
-      opacity: 0;
-    }
-
-    &.disappearing_transition.override {
-      transition-property: transform, opacity;
-      transition-duration: 0.2s;
-      transition-timing-function: ease-out;
-    }
-
-    &.can_use {
-      box-shadow: #76eedd 0 0 8px 0;
-    }
-
-    width: 150px;
-    height: 225px;
-    border: 1px solid black;
-    background-image: url("s2r://panorama/images/backgrounds/dashboard_vignette_png.vtex");
+  #name_panel {
+    width: 100%;
+    height: 36px;
+    background-color: rgba(0, 127, 162, 0.53);
+    background-image: url("s2r://panorama/images/backgrounds/background_play_button_2x_png.vtex");
     background-size: 100% 100%;
-    background-color: #588080;
-    box-shadow: #151515 0 0 8px 0;
-    border-radius: 2px;
+    vertical-align: top;
+    //margin-bottom: 40px;
+    box-shadow: #151515 0 0 16px 0;
 
-    &:not(:hover) {
-      transition-property: transform, position;
-      transition-duration: 0.15s;
-      transition-timing-function: ease-out;
+    Label {
+      font-size: 24px;
+      font-family: @font-regular;
+      color: white;
+      text-shadow: 0px 0px 2px 2.0 #333333ff;
+      padding-left: 8px;
+      width: 100%;
+      vertical-align: center;
+    }
+  }
+
+  #stat_panel {
+    flow-children: right;
+    align: center bottom;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 6px 6px 0 0;
+    background-color: #000000cc;
+
+    .stat_container {
+      flow-children: right;
+      margin: 2px;
+
+      #icon {
+        background-size: cover;
+        width: 12px;
+        height: 12px;
+        vertical-align: middle;
+      }
+
+      #value {
+        font-family: @font-mono;
+        font-size: 16px;
+        margin-bottom: -3px;
+        color: white;
+        text-align: center;
+      }
     }
 
-    &:hover, &.in_preview {
-      width: 200px;
-      height: 300px;
-      z-index: 10;
-    }
+    #attack.stat_container #value { text-shadow: 0px 0px 2px 2.0 #aa0000aa; }
+    #health.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(17, 162, 0); }
+    #move_points.stat_container #value { text-shadow: 0px 0px 2px 2.0 rgb(162, 154, 0); }
+
+    #attack.stat_container #icon { background-image: @icon-attack-damage; }
+    #health.stat_container #icon { background-image: @icon-armor; }
+    #move_points.stat_container #icon { background-image: @icon-move-points; }
+  }
+
+  &.targeting_something {
+    transform: translateY(-30px);
+    border: 2px solid #76eedd;
+  }
+
+  &.disappearing {
+    transform: scaleX(1.5) scaleY(1.5) translateY(-200px);
+    opacity: 0;
+  }
+
+  &.disappearing_transition.override {
+    transition-property: transform, opacity;
+    transition-duration: 0.2s;
+    transition-timing-function: ease-out;
+  }
+
+  &.can_use {
+    box-shadow: #76eedd 0 0 8px 0;
+  }
+
+  width: 150px;
+  height: 225px;
+  border: 1px solid black;
+  background-image: url("s2r://panorama/images/backgrounds/dashboard_vignette_png.vtex");
+  background-size: 100% 100%;
+  background-color: #588080;
+  box-shadow: #151515 0 0 8px 0;
+  border-radius: 2px;
+
+  &:not(:hover) {
+    transition-property: transform, position;
+    transition-duration: 0.15s;
+    transition-timing-function: ease-out;
+  }
+
+  &:hover, &.in_preview {
+    width: 200px;
+    height: 300px;
+    z-index: 10;
   }
 }

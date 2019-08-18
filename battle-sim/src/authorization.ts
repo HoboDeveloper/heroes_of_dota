@@ -29,6 +29,10 @@ declare const enum No_Target_Spell_Card_Use_Error {
 }
 
 declare const enum Unit_Target_Spell_Card_Use_Error {
+    other = 0
+}
+
+declare const enum Spell_Target_Unit_Error {
     other = 0,
     out_of_the_game = 1,
     not_a_hero = 2,
@@ -114,6 +118,7 @@ type Existing_Hero_Card_Use_Permission = {
 
 type Spell_Card_Use_Permission<Spell_Type> = {
     ok: true
+    battle: Battle
     player: Battle_Player
     card: Card_Spell
     spell: Spell_Type
@@ -128,8 +133,14 @@ type Act_On_Unit_Permission = {
 type Act_On_Owned_Unit_Permission = Player_Action_Permission & Act_On_Unit_Permission
 
 type No_Target_Spell_Card_Use_Permission = Spell_Card_Use_Permission<Card_Spell_No_Target>
-type Unit_Target_Spell_Card_Use_Permission = Spell_Card_Use_Permission<Card_Spell_Unit_Target> & {
+type Unit_Target_Spell_Card_Use_Permission = Spell_Card_Use_Permission<Card_Spell_Unit_Target>
+
+type Spell_Target_Unit_Permission = {
+    ok: true
     unit: Unit
+    player: Battle_Player
+    card: Card_Spell
+    spell: Card_Spell_Unit_Target
 }
 
 type Use_Shop_Permission = {
@@ -183,6 +194,7 @@ type Hero_Card_Use_Auth = Auth<Hero_Card_Use_Permission, Hero_Card_Use_Error>
 type Existing_Hero_Card_Use_Auth = Auth<Existing_Hero_Card_Use_Permission, Hero_Card_Use_Error>
 type No_Target_Spell_Card_Use_Auth = Auth<No_Target_Spell_Card_Use_Permission, No_Target_Spell_Card_Use_Error>
 type Unit_Target_Spell_Card_Use_Auth = Auth<Unit_Target_Spell_Card_Use_Permission, Unit_Target_Spell_Card_Use_Error>
+type Spell_Target_Unit_Auth = Auth<Spell_Target_Unit_Permission, Spell_Target_Unit_Error>
 type Act_On_Unit_Auth = Auth<Act_On_Unit_Permission, Act_On_Unit_Error>
 type Use_Shop_Auth = Auth<Use_Shop_Permission, Use_Shop_Error>
 type Purchase_Item_Auth = Auth<Purchase_Item_Permission, Purchase_Item_Error>
@@ -278,13 +290,45 @@ function authorize_no_target_card_spell_use(use: Card_Use_Permission): No_Target
 
     return {
         ok: true,
+        battle: use.battle,
         player: use.player,
         card: use.card,
         spell: use.card
     }
 }
 
-function authorize_known_unit_target_card_spell_use(use: Card_Use_Permission, unit: Unit): Unit_Target_Spell_Card_Use_Auth {
+function authorize_unit_target_for_spell_card_use(use: Unit_Target_Spell_Card_Use_Permission, unit_id: number): Spell_Target_Unit_Auth {
+    const unit = find_unit_by_id(use.battle, unit_id);
+
+    if (!unit) return  { ok: false, kind: Spell_Target_Unit_Error.other };
+
+    return authorize_known_unit_target_for_spell_card_use(use, unit);
+}
+
+function authorize_known_unit_target_for_spell_card_use(use: Unit_Target_Spell_Card_Use_Permission, unit: Unit): Spell_Target_Unit_Auth {
+    function error(error: Spell_Target_Unit_Error): Action_Error<Spell_Target_Unit_Error> {
+        return { ok: false, kind: error };
+    }
+
+    const flags = use.spell.targeting_flags;
+    const has_flag = (flag: Spell_Unit_Targeting_Flag) => flags.indexOf(flag) != -1; // .includes won't work in panorama
+
+    if (is_unit_out_of_the_game(unit)) return error(Spell_Target_Unit_Error.out_of_the_game);
+
+    if (has_flag(Spell_Unit_Targeting_Flag.allies) && !player_owns_unit(use.player, unit)) return error(Spell_Target_Unit_Error.not_an_ally);
+    if (has_flag(Spell_Unit_Targeting_Flag.dead) && !unit.dead) return error(Spell_Target_Unit_Error.other);
+    if (has_flag(Spell_Unit_Targeting_Flag.heroes) && unit.supertype != Unit_Supertype.hero) return error(Spell_Target_Unit_Error.not_a_hero);
+
+    return {
+        ok: true,
+        player: use.player,
+        unit: unit,
+        spell: use.spell,
+        card: use.card
+    }
+}
+
+function authorize_unit_target_spell_use(use: Card_Use_Permission): Unit_Target_Spell_Card_Use_Auth {
     function error(error: Unit_Target_Spell_Card_Use_Error): Action_Error<Unit_Target_Spell_Card_Use_Error> {
         return { ok: false, kind: error };
     }
@@ -292,30 +336,13 @@ function authorize_known_unit_target_card_spell_use(use: Card_Use_Permission, un
     if (use.card.type != Card_Type.spell) return error(Unit_Target_Spell_Card_Use_Error.other);
     if (use.card.spell_type != Spell_Type.unit_target) return error(Unit_Target_Spell_Card_Use_Error.other);
 
-    const flags = use.card.targeting_flags;
-    const has_flag = (flag: Spell_Unit_Targeting_Flag) => flags.indexOf(flag) != -1; // .includes won't work in panorama
-
-    if (is_unit_out_of_the_game(unit)) return error(Unit_Target_Spell_Card_Use_Error.out_of_the_game);
-
-    if (has_flag(Spell_Unit_Targeting_Flag.allies) && !player_owns_unit(use.player, unit)) return error(Unit_Target_Spell_Card_Use_Error.not_an_ally);
-    if (has_flag(Spell_Unit_Targeting_Flag.dead) && !unit.dead) return error(Unit_Target_Spell_Card_Use_Error.other);
-    if (has_flag(Spell_Unit_Targeting_Flag.heroes) && unit.supertype != Unit_Supertype.hero) return error(Unit_Target_Spell_Card_Use_Error.not_a_hero);
-
     return {
         ok: true,
+        battle: use.battle,
         player: use.player,
         card: use.card,
         spell: use.card,
-        unit: unit
     }
-}
-
-function authorize_unit_target_card_spell_use(use: Card_Use_Permission, target_unit_id: number): Unit_Target_Spell_Card_Use_Auth {
-    const unit = find_unit_by_id(use.battle, target_unit_id);
-
-    if (!unit) return  { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
-
-    return authorize_known_unit_target_card_spell_use(use, unit);
 }
 
 function authorize_act_on_known_unit(battle: Battle, unit: Unit): Act_On_Unit_Auth {
@@ -493,4 +520,12 @@ function authorize_ground_target_ability_use(use: Ability_Use_Permission, at: XY
         ability: use.ability,
         target: cell
     }
+}
+
+function authorize_spell_use_buyback_check(use: Spell_Target_Unit_Permission) {
+    if (use.spell.spell_id == Spell_Id.buyback && use.player.gold < get_buyback_cost(use.unit)) {
+        return false;
+    }
+
+    return true;
 }

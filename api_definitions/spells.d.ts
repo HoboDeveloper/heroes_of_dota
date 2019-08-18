@@ -83,6 +83,7 @@ type Delta_Use_No_Target_Spell_Base = {
 
 type Delta_Spell_Buyback = Delta_Use_Unit_Target_Spell_Base & {
     spell_id: Spell_Id.buyback
+    gold_change: number
     heal: Health_Change
     modifier: Modifier_Application
     new_card_id: number

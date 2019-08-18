@@ -6,6 +6,13 @@ const enum Selection_Type {
     card
 }
 
+const enum Hover_Type {
+    none = 0,
+    cell = 1,
+    unit = 2,
+    ability = 3
+}
+
 type No_Selection = {
     type: Selection_Type.none
 }
@@ -148,24 +155,52 @@ type Card_Panel = {
     hovered: boolean
 }
 
+type Hover_State = Hover_State_None | Hover_State_Cell | Hover_State_Unit | Hover_State_Ability;
+
+type Hover_State_None = {
+    type: Hover_Type.none
+}
+
+type Hover_State_Cell = {
+    type: Hover_Type.cell
+    cell: XY
+}
+
+type Hover_State_Unit = {
+    type: Hover_Type.unit
+    unit: Unit
+}
+
+type Hover_State_Ability = {
+    type: Hover_Type.ability
+    unit: Unit
+    ability: Ability
+}
+
 let current_state = Player_State.not_logged_in;
 let battle: UI_Battle;
-let current_hovered_ability: Ability_Id | undefined;
-let hovered_cell: XY | undefined;
 let ui_player_data: UI_Player_Data[] = [];
 
 let selection: Selection_State = {
     type: Selection_Type.none
 };
 
+let hover: Hover_State = {
+    type: Hover_Type.none
+};
+
 let ui_shop_data: UI_Shop_Data[] = [];
 
 const current_targeted_ability_ui = $("#current_targeted_ability");
+const card_selection_overlay = $("#card_selection_overlay");
 
 const control_panel: Control_Panel = {
     panel: $("#hero_rows"),
     hero_rows: []
 };
+
+const hand_base_x = 400;
+const hand_base_y = 957;
 
 const battle_cell_size = 144;
 const hand: Card_Panel[] = [];
@@ -183,7 +218,27 @@ function set_selection(new_selection: Selection_State) {
 
     current_targeted_ability_ui.SetHasClass("visible", new_selection.type == Selection_Type.ability);
 
+    const was_overlay_unit_selection = is_overlay_unit_selection(selection);
+
     selection = new_selection;
+
+    card_selection_overlay.SetHasClass("visible", is_overlay_unit_selection(new_selection));
+
+    if (!was_overlay_unit_selection && is_overlay_unit_selection(new_selection)) {
+        recreate_overlay_unit_selection(new_selection);
+    }
+}
+
+function is_overlay_unit_selection(selection: Selection_State): selection is Card_Selection {
+    if (selection.type == Selection_Type.card) {
+        const card = selection.card_panel.card;
+
+        if (card.type == Card_Type.spell && card.spell_type == Spell_Type.unit_target) {
+            return card.targeting_flags.indexOf(Spell_Unit_Targeting_Flag.dead) != -1;
+        }
+    }
+
+    return false;
 }
 
 function is_unit_selection(selection: Selection_State): selection is (Unit_Selection | Shop_Selection | Ability_Selection) {
@@ -248,6 +303,19 @@ function update_related_visual_data_from_delta(delta: Delta, delta_paths: Move_D
             battle.unit_id_to_facing[delta.unit_id] = {
                 x: owner.deployment_zone.face_x,
                 y: owner.deployment_zone.face_y
+            };
+
+            break;
+        }
+
+        case Delta_Type.hero_spawn_from_hand: {
+            const hero = find_hero_by_id(battle, delta.hero_id);
+
+            if (!hero) break;
+
+            battle.unit_id_to_facing[delta.hero_id] = {
+                x: hero.owner.deployment_zone.face_x,
+                y: hero.owner.deployment_zone.face_y
             };
 
             break;
@@ -758,22 +826,18 @@ function selection_to_grid_selection(): Grid_Selection {
         }
     }
 
+    if (hover.type == Hover_Type.ability) {
+        return {
+            type: Selection_Type.ability,
+            unit: hover.unit,
+            ability: hover.ability
+        }
+    }
+
     switch (selection.type) {
         case Selection_Type.none: return none();
 
         case Selection_Type.unit: {
-            if (current_hovered_ability != undefined) {
-                const ability = find_unit_ability(selection.unit, current_hovered_ability);
-
-                if (!ability) return none();
-
-                return {
-                    type: Selection_Type.ability,
-                    unit: selection.unit,
-                    ability: ability
-                }
-            }
-
             const selected_entity_path = populate_path_costs(battle, selection.unit.position)!;
 
             return {
@@ -884,13 +948,13 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
     let can_highlighted_ability_target_hovered_cell = false;
     let highlighted_ability_selector: Ability_Target_Selector | undefined;
 
-    if (hovered_cell) {
+    if (hover.type == Hover_Type.cell) {
         const ability = selection.ability;
 
         switch (ability.type) {
             case Ability_Type.target_ground:
             case Ability_Type.target_unit: {
-                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(battle, ability.targeting, selection.unit.position, hovered_cell);
+                can_highlighted_ability_target_hovered_cell = ability_targeting_fits(battle, ability.targeting, selection.unit.position, hover.cell);
                 highlighted_ability_selector = ability.targeting.selector;
 
                 break;
@@ -962,8 +1026,8 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
             default: unreachable(ability);
         }
 
-        if (hovered_cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
-            if (ability_selector_fits(highlighted_ability_selector, selection.unit.position, hovered_cell, cell.position)) {
+        if (hover.type == Hover_Type.cell && can_highlighted_ability_target_hovered_cell && highlighted_ability_selector) {
+            if (ability_selector_fits(highlighted_ability_selector, selection.unit.position, hover.cell, cell.position)) {
                 alpha = 140;
                 cell_color = color_red;
             }
@@ -974,7 +1038,7 @@ function update_grid_visuals_for_ability(selection: Grid_Selection_Ability, cell
 }
 
 function update_grid_visuals_for_unit_selection(selection: Grid_Selection_Unit, cell_index_to_shop_highlight: boolean[]) {
-    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+    const hovered_shop = hover.type == Hover_Type.cell && shop_at(battle, hover.cell);
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
@@ -1047,7 +1111,7 @@ function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, 
 }
 
 function update_grid_visuals_for_no_selection(cell_index_to_shop_highlight: boolean[]) {
-    const hovered_shop = hovered_cell && shop_at(battle, hovered_cell);
+    const hovered_shop = hover.type == Hover_Type.cell && shop_at(battle, hover.cell);
 
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
@@ -1108,7 +1172,7 @@ function update_grid_visuals() {
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
 
-        if (hovered_cell && xy_equal(hovered_cell, cell.position)) {
+        if (hover.type == Hover_Type.cell && xy_equal(hover.cell, cell.position)) {
             if (selection.type == Selection_Type.card) {
                 cell_index_to_highlight[index] = true;
             } else {
@@ -1816,16 +1880,24 @@ function add_spawned_hero_to_control_panel(hero: Hero) {
         });
 
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
-            if (is_unit_selection(selection) && selection.unit.id == hero.id) {
-                set_current_hovered_ability(ability.id);
+            if (!hero.dead) {
+                hover = {
+                    type: Hover_Type.ability,
+                    unit: hero,
+                    ability: ability
+                };
+
+                update_grid_visuals();
             }
 
             $.DispatchEvent("DOTAShowTextTooltip", ability_panel, get_ability_tooltip(ability));
         });
 
         ability_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
-            if (current_hovered_ability == ability.id) {
-                set_current_hovered_ability(undefined);
+            if (hover.type == Hover_Type.ability && hover.ability == ability) {
+                hover = { type: Hover_Type.none };
+
+                update_grid_visuals();
             }
 
             $.DispatchEvent("DOTAHideTextTooltip");
@@ -2011,7 +2083,6 @@ function select_shop(new_entity_id: EntityId) {
 
     if (!shop) return;
 
-    // TODO :Authorization
     if (is_unit_selection(selection)) {
         shop_ui.root_container.AddClass("open");
         Game.EmitSound("Shop.Available");
@@ -2068,12 +2139,6 @@ function select_shop(new_entity_id: EntityId) {
             });
         }
     }
-}
-
-function set_current_hovered_ability(new_ability_id: Ability_Id | undefined) {
-    current_hovered_ability = new_ability_id;
-
-    update_grid_visuals();
 }
 
 function update_current_ability_based_on_cursor_state() {
@@ -2161,6 +2226,14 @@ function periodically_update_ui() {
 
                 break;
             }
+        }
+    }
+
+    if (is_unit_selection(selection)) {
+        const data = find_unit_entity_data_by_unit_id(battle, selection.unit.id);
+
+        if (data && data[1].hidden) {
+            drop_selection();
         }
     }
 
@@ -2372,7 +2445,7 @@ function setup_mouse_filter() {
     });
 }
 
-function create_card_ui(root: Panel, card: Card) {
+function create_hero_card_ui_base(container: Panel, hero_type: Hero_Type, health: number, attack: number, move: number) {
     function create_stat_container(parent: Panel, id: string, value: number) {
         const stat_container = $.CreatePanel("Panel", parent, id);
         stat_container.AddClass("stat_container");
@@ -2383,42 +2456,46 @@ function create_card_ui(root: Panel, card: Card) {
         value_label.text = value.toString();
     }
 
+    const art = $.CreatePanel("Image", container, "card_art");
+    art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
+    art.SetImage(`file://{images}/custom_game/heroes/${get_hero_dota_name(hero_type)}.jpg`);
+
+    const name_panel = $.CreatePanel("Panel", container, "name_panel");
+    const hero_name = $.CreatePanel("Label", name_panel, "");
+
+    hero_name.text = get_hero_dota_name(hero_type);
+
+    const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
+
+    create_stat_container(stat_panel, "health", health);
+    create_stat_container(stat_panel, "attack", attack);
+    create_stat_container(stat_panel, "move_points", move);
+}
+
+
+function create_card_ui(root: Panel, card: Card) {
     const container = $.CreatePanel("Panel", root, "");
+    container.style.position = `${hand_base_x - 400}px ${hand_base_y}px 0`;
     container.AddClass("card");
-
-    function create_hero_card_ui_base(hero_type: Hero_Type, health: number, attack: number, move: number) {
-        container.AddClass("hero");
-
-        const art = $.CreatePanel("Image", container, "card_art");
-        art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
-        art.SetImage(`file://{images}/custom_game/heroes/${get_hero_dota_name(hero_type)}.jpg`);
-
-        const name_panel = $.CreatePanel("Panel", container, "name_panel");
-        const hero_name = $.CreatePanel("Label", name_panel, "");
-
-        hero_name.text = get_hero_dota_name(hero_type);
-
-        const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
-
-        create_stat_container(stat_panel, "health", health);
-        create_stat_container(stat_panel, "attack", attack);
-        create_stat_container(stat_panel, "move_points", move);
-    }
 
     switch (card.type) {
         case Card_Type.hero: {
+            container.AddClass("hero");
+
             const definition = unit_definition_by_type(card.hero_type);
 
-            create_hero_card_ui_base(card.hero_type, definition.health, definition.attack_damage, definition.move_points);
+            create_hero_card_ui_base(container, card.hero_type, definition.health, definition.attack_damage, definition.move_points);
 
             break;
         }
 
         case Card_Type.existing_hero: {
+            container.AddClass("hero");
+
             const unit = find_hero_by_id(battle, card.hero_id);
 
             if (unit) {
-                create_hero_card_ui_base(unit.type, unit.max_health, unit.attack_damage, unit.max_move_points);
+                create_hero_card_ui_base(container, unit.type, unit.max_health, unit.attack_damage, unit.max_move_points);
             }
 
             break;
@@ -2473,6 +2550,10 @@ function add_card_panel(card: Card) {
 }
 
 function get_hovered_battle_position(): XY | undefined {
+    if (is_overlay_unit_selection(selection)) {
+        return;
+    }
+
     for (const shop of ui_shop_data) {
         if (shop.root_container.BHasHoverStyle()) {
             return;
@@ -2511,14 +2592,66 @@ function update_hovered_cell() {
     const battle_position = get_hovered_battle_position();
 
     if (battle_position) {
-        if (hovered_cell == undefined || !xy_equal(battle_position, hovered_cell)) {
-            hovered_cell = battle_position;
-
+        if (hover.type == Hover_Type.cell) {
+            if (!xy_equal(hover.cell, battle_position)) {
+                hover.cell = battle_position;
+                update_grid_visuals();
+            }
+        } else {
+            hover = { type: Hover_Type.cell, cell: battle_position };
             update_grid_visuals();
         }
-    } else if (hovered_cell) {
-        hovered_cell = undefined;
+    } else if (hover.type == Hover_Type.cell) {
+        hover = { type: Hover_Type.none };
         update_grid_visuals();
+    }
+}
+
+function recreate_overlay_unit_selection(selection: Card_Selection) {
+    const container = card_selection_overlay.FindChildTraverse("card_container");
+
+    container.RemoveAndDeleteChildren();
+
+    const action_permission = authorize_action_by_player(battle, battle.this_player);
+    if (!action_permission.ok) return;
+
+    const card_use_permission = authorize_card_use(action_permission, selection.card_panel.card.id);
+    if (!card_use_permission.ok) return;
+
+    const spell_use_permission = authorize_unit_target_spell_use(card_use_permission);
+    if (!spell_use_permission.ok) return;
+
+    for (const unit of battle.units) {
+        const spell_use_on_unit_permission = authorize_known_unit_target_for_spell_card_use(spell_use_permission, unit);
+        if (!spell_use_on_unit_permission.ok) continue;
+
+        if (unit.supertype == Unit_Supertype.hero) {
+            const card_panel = $.CreatePanel("Panel", container, "");
+            card_panel.AddClass("card");
+            card_panel.AddClass("hero");
+            card_panel.AddClass("in_preview");
+
+            create_hero_card_ui_base(card_panel, unit.type, unit.max_health, unit.attack_damage, unit.max_move_points);
+
+            if (spell_use_on_unit_permission.spell.spell_id == Spell_Id.buyback) {
+                const cost_panel = $.CreatePanel("Panel", card_panel, "gold_cost");
+
+                $.CreatePanel("Panel", cost_panel, "icon");
+                $.CreatePanel("Label", cost_panel, "amount").text = get_buyback_cost(unit).toString();
+            }
+
+            card_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OVER, () => {
+                card_panel.SetHasClass("can_use", true);
+
+                hover = { type: Hover_Type.unit, unit: unit };
+            });
+
+            card_panel.SetPanelEvent(PanelEvent.ON_MOUSE_OUT, () => {
+                card_panel.SetHasClass("can_use", false);
+
+                hover = { type: Hover_Type.none };
+            });
+        }
     }
 }
 
@@ -2526,16 +2659,13 @@ function update_hand() {
     const cursor = GameUI.GetCursorPosition();
     const [ cursor_x, cursor_y ] = cursor;
 
-    const base_x = 400;
-    const base_y = 957;
-
     let index = 0;
 
     if (selection.type == Selection_Type.card && !GameUI.IsMouseDown(0)) {
-        if (hovered_cell) {
+        if (hover.type == Hover_Type.cell || hover.type == Hover_Type.unit) {
             const card = selection.card_panel.card;
 
-            try_use_card(card, hovered_cell, () => {
+            try_use_card(card, hover, () => {
                 for (let index = 0; index < hand.length; index++) {
                     if (hand[index].card.id == card.id) {
                         const card_panel = hand[index];
@@ -2561,12 +2691,27 @@ function update_hand() {
     }
 
     for (const card of hand) {
+        const any_targets_available = (card_use_permission: Card_Use_Permission): boolean => {
+            const card = card_use_permission.card;
+
+            if (card.type == Card_Type.spell && card.spell_type == Spell_Type.unit_target) {
+                const spell_use_permission = authorize_unit_target_spell_use(card_use_permission);
+                if (!spell_use_permission.ok) return false;
+
+                return battle.units.find(target => authorize_known_unit_target_for_spell_card_use(spell_use_permission, target).ok) != undefined;
+            }
+
+            return true;
+        };
+
         const can_use_card = (() => {
             const action_permission = authorize_action_by_player(battle, battle.this_player);
             if (!action_permission.ok) return false;
 
             const card_use_permission = authorize_card_use(action_permission, card.card.id);
-            return card_use_permission.ok;
+            if (!card_use_permission.ok) return false;
+
+            return any_targets_available(card_use_permission);
         });
 
         card.panel.SetHasClass("can_use", can_use_card());
@@ -2576,8 +2721,8 @@ function update_hand() {
             continue;
         }
 
-        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 175 : base_y ;
-        card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
+        const y = (selection.type != Selection_Type.card && card.hovered) ? hand_base_y - 175 : hand_base_y ;
+        card.panel.style.position = `${hand_base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {
             (() => {
@@ -2593,6 +2738,8 @@ function update_hand() {
 
                 const card_use_permission = authorize_card_use(action_permission, card.card.id);
                 if (!card_use_permission.ok) return rate_limit(() => show_action_error_ui(card_use_permission, card_use_error_reason));
+
+                if (!any_targets_available(card_use_permission)) return rate_limit(() => show_error_ui(custom_error("No valid targets")));
 
                 set_selection({
                     type: Selection_Type.card,
@@ -2620,7 +2767,7 @@ function update_hand() {
             Particles.SetParticleControl(selection.targeting_fx, 1, [card_position[0], card_position[1], card_position[2] + 100]);
         }
 
-        panel.SetHasClass("targeting_something", !!hovered_cell);
+        panel.SetHasClass("targeting_something", hover.type == Hover_Type.cell);
     }
 }
 

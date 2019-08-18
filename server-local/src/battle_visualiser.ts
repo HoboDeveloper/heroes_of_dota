@@ -1064,7 +1064,7 @@ function play_ground_target_ability_delta(main_player: Main_Player, unit: Battle
             const travel_speed = 1300;
             const time_to_travel = distance / travel_speed;
             const particle = fx("particles/units/heroes/hero_mirana/mirana_spell_arrow.vpcf")
-                .with_vector_value(0, battle_position_to_world_position_center(unit.position))
+                .to_location(0, unit.position)
                 .with_vector_value(1, direction * travel_speed as Vector)
                 .with_forward_vector(0, unit.handle.GetForwardVector());
 
@@ -1755,11 +1755,13 @@ function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No
     }
 }
 
-function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
+function play_unit_target_spell_delta(main_player: Main_Player, caster: Battle_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
     switch (cast.spell_id) {
         case Spell_Id.buyback: {
             target.dead = false;
 
+            battle_emit_sound("buyback_use");
+            change_gold(main_player, caster, cast.gold_change);
             change_health(main_player, target, target, cast.heal);
             apply_modifier(main_player, target, cast.modifier);
 
@@ -2213,6 +2215,9 @@ function add_activity_translation(target: Battle_Unit, translation: Activity_Tra
 function play_delta(main_player: Main_Player, delta: Delta, head: number) {
     switch (delta.type) {
         case Delta_Type.hero_spawn: {
+            const owner = array_find(battle.participants, player => player.id == delta.owner_id);
+            if (!owner) break;
+
             fx("particles/hero_spawn.vpcf")
                 .to_location(0, delta.at_position)
                 .release();
@@ -2221,7 +2226,6 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
 
             shake_screen(delta.at_position, Shake.medium);
 
-            const owner = array_find(battle.participants, player => player.id == delta.owner_id)!;
             const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
             const unit = spawn_hero_for_battle(delta.hero_type, delta.unit_id, delta.owner_id, delta.at_position, facing);
 
@@ -2304,6 +2308,11 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
             const unit = find_hero_by_id(delta.hero_id);
             if (!unit) break;
 
+            const owner = array_find(battle.participants, player => player.id == unit.owner_remote_id);
+            if (!owner) break;
+
+            const facing = { x: owner.deployment_zone.face_x, y: owner.deployment_zone.face_y };
+
             const in_hand_modifier = array_find_index(unit.modifiers, modifier => modifier.modifier_id == Modifier_Id.returned_to_hand);
             if (in_hand_modifier == -1) break;
 
@@ -2331,16 +2340,35 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
                 particle.destroy_and_release(false);
             }
 
+            if (delta.source_spell_id == Spell_Id.buyback) {
+                const particle = fx("particles/econ/events/fall_major_2016/teleport_start_fm06_godrays.vpcf")
+                    .to_location(0, delta.at_position);
+
+                unit_emit_sound(unit, "buyback_respawn");
+
+                wait(2.5);
+
+                fx_by_unit("particles/items_fx/aegis_respawn.vpcf", unit).release();
+
+                particle.destroy_and_release(false);
+            }
+
             remove_modifier(main_player, unit, unit.modifiers[in_hand_modifier], in_hand_modifier);
 
             FindClearSpaceForUnit(unit.handle, world_at, true);
+            unit.handle.SetForwardVector(Vector(facing.x, facing.y));
 
             update_player_state_net_table(main_player);
 
-            if (delta.source_spell_id == Spell_Id.town_portal_scroll) {
-                unit.handle.StartGesture(GameActivity_t.ACT_DOTA_TELEPORT_END);
+            const gesture = (() => {
+                if (delta.source_spell_id == Spell_Id.town_portal_scroll) return GameActivity_t.ACT_DOTA_TELEPORT_END;
+                if (delta.source_spell_id == Spell_Id.buyback) return GameActivity_t.ACT_DOTA_SPAWN;
+            })();
+
+            if (gesture != undefined) {
+                unit.handle.StartGesture(gesture);
                 wait(1.5);
-                unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_TELEPORT_END);
+                unit.handle.FadeGesture(gesture);
             }
 
             break;
@@ -2449,10 +2477,11 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
         }
 
         case Delta_Type.use_unit_target_spell: {
+            const player = array_find(battle.players, player => player.id == delta.player_id);
             const target = find_unit_by_id(delta.target_id);
 
-            if (target) {
-                play_unit_target_spell_delta(main_player, target, delta);
+            if (player && target) {
+                play_unit_target_spell_delta(main_player, player, target, delta);
             }
 
             break;

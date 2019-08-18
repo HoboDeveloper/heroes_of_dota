@@ -45,6 +45,13 @@
 
             <Panel id="shop_panels_container" hittest="false"/>
 
+            <Panel id="card_selection_overlay">
+                <Panel id="container">
+                    <Label id="title" text="Select a target"/>
+                    <Panel id="card_container"/>
+                </Panel>
+            </Panel>
+
             <Panel id="hand_ui" hittest="false"/>
 
             <Panel id="your_turn_ui" hittest="false" hittestchildren="false">
