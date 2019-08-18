@@ -2328,7 +2328,8 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
                     .with_vector_value(1, world_at)
                     .with_point_value(2, 255, 255, 255)
                     .to_unit_custom_origin(3, unit)
-                    .with_point_value(4, 1, 0, 0);
+                    .with_point_value(4, 0.75, 0, 0)
+                    .with_vector_value(5, world_at);
 
                 unit_emit_sound(unit, "Portal.Loop_Appear");
 
@@ -2356,7 +2357,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
             remove_modifier(main_player, unit, unit.modifiers[in_hand_modifier], in_hand_modifier);
 
             FindClearSpaceForUnit(unit.handle, world_at, true);
-            unit.handle.SetForwardVector(Vector(facing.x, facing.y));
+            unit.handle.FaceTowards(unit.handle.GetAbsOrigin() + Vector(facing.x, facing.y) * 100 as Vector);
 
             update_player_state_net_table(main_player);
 
