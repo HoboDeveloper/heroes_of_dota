@@ -37,6 +37,7 @@ type Battle_Unit_Base = Unit_Stats & {
     position: XY;
     modifiers: Modifier_Data[]
     dead: boolean
+    hidden: boolean
 }
 
 type Battle_Hero = Battle_Unit_Base & {
@@ -282,7 +283,8 @@ function unit_base(unit_id: number, dota_unit_name: string, definition: Unit_Def
         move_points_bonus: 0,
         max_move_points: definition.move_points,
         modifiers: [],
-        dead: false
+        dead: false,
+        hidden: false
     };
 }
 
@@ -1756,6 +1758,39 @@ function play_no_target_spell_delta(main_player: Main_Player, cast: Delta_Use_No
 
 function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_Unit, cast: Delta_Use_Unit_Target_Spell) {
     switch (cast.spell_id) {
+        case Spell_Id.buyback: {
+            target.dead = false;
+
+            change_health(main_player, target, target, cast.heal);
+            apply_modifier(main_player, target, cast.modifier);
+
+            break;
+        }
+
+        case Spell_Id.town_portal_scroll: {
+            const particle = fx("particles/items2_fx/teleport_start.vpcf")
+                .with_vector_value(0, target.handle.GetAbsOrigin())
+                .with_point_value(2, 255, 255, 255);
+
+            target.handle.StartGesture(GameActivity_t.ACT_DOTA_TELEPORT);
+
+            unit_emit_sound(target, "Portal.Loop_Disappear");
+
+            wait(3);
+
+            unit_stop_sound(target, "Portal.Loop_Disappear");
+            unit_emit_sound(target, "Portal.Hero_Disappear");
+
+            target.handle.FadeGesture(GameActivity_t.ACT_DOTA_TELEPORT);
+
+            change_health(main_player, target, target, cast.heal);
+            apply_modifier(main_player, target, cast.modifier);
+
+            particle.destroy_and_release(false);
+
+            break;
+        }
+
         case Spell_Id.euls_scepter: {
             unit_emit_sound(target, "DOTA_Item.Cyclone.Activate");
             apply_modifier(main_player, target, cast.modifier);
@@ -1763,7 +1798,7 @@ function play_unit_target_spell_delta(main_player: Main_Player, target: Battle_U
             break;
         }
 
-        default: unreachable(cast.spell_id);
+        default: unreachable(cast);
     }
 }
 
@@ -1981,7 +2016,26 @@ function update_state_visuals(unit: Battle_Unit) {
     update_specific_state_visuals(unit, unit.state_stunned_counter, "modifier_stunned");
     update_specific_state_visuals(unit, unit.state_silenced_counter, "modifier_silence");
 
+    const was_hidden = unit.hidden;
+
+    let unit_hidden = false;
+
+    for (const modifier of unit.modifiers) {
+        if (modifier.modifier_id == Modifier_Id.returned_to_hand) {
+            unit_hidden = true;
+        }
+    }
+
+    unit.hidden = unit_hidden;
     unit.handle.SetBaseMoveSpeed(Math.max(100, 500 + unit.move_points_bonus * 100));
+
+    if (was_hidden != unit_hidden) {
+        if (unit_hidden) {
+            unit.handle.AddNoDraw();
+        } else {
+            unit.handle.RemoveNoDraw();
+        }
+    }
 }
 
 function unit_play_activity(unit: Battle_Unit, activity: GameActivity_t, wait_up_to = 0.4): number {
@@ -2117,6 +2171,37 @@ function on_modifier_removed(unit: Battle_Unit, modifier_id: Modifier_Id) {
     }
 }
 
+function remove_modifier(main_player: Main_Player, unit: Battle_Unit, modifier: Modifier_Data, array_index: number) {
+    const modifier_visuals = modifier_id_to_visuals(modifier.modifier_id);
+
+    if (modifier_visuals) {
+        print(`Remove modifier ${modifier.modifier_handle_id} ${modifier_visuals} from ${unit.handle.GetName()}`);
+
+        if (modifier_visuals.complex) {
+            unit.handle.RemoveModifierByName(modifier_visuals.native_modifier_name);
+        } else {
+            for (let fx_index = 0; fx_index < battle.modifier_tied_fxs.length; fx_index++) {
+                const fx = battle.modifier_tied_fxs[fx_index];
+
+                if (fx.modifier_id == modifier.modifier_id && fx.unit_id == unit.id) {
+                    fx.fx.destroy_and_release(false);
+
+                    battle.modifier_tied_fxs.splice(fx_index, 1);
+
+                    break;
+                }
+            }
+        }
+
+    }
+
+    on_modifier_removed(unit, modifier.modifier_id);
+
+    unit.modifiers.splice(array_index, 1);
+
+    apply_modifier_changes(main_player, unit, modifier.changes, true);
+}
+
 function add_activity_translation(target: Battle_Unit, translation: Activity_Translation, duration: number) {
     const parameters: Modifier_Activity_Translation_Params = {
         translation: translation,
@@ -2212,6 +2297,52 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
                 handle: create_world_handle_for_tree(delta.tree_id, delta.at_position),
                 position: delta.at_position
             });
+
+            break;
+        }
+
+        case Delta_Type.hero_spawn_from_hand: {
+            const unit = find_hero_by_id(delta.hero_id);
+            if (!unit) break;
+
+            const in_hand_modifier = array_find_index(unit.modifiers, modifier => modifier.modifier_id == Modifier_Id.returned_to_hand);
+            if (in_hand_modifier == -1) break;
+
+            if (!unit.handle.IsAlive()) {
+                unit.handle.RespawnUnit();
+            }
+
+            const world_at = battle_position_to_world_position_center(delta.at_position);
+
+            if (delta.source_spell_id == Spell_Id.town_portal_scroll) {
+                const particle = fx("particles/items2_fx/teleport_end.vpcf")
+                    .with_vector_value(0, world_at)
+                    .with_vector_value(1, world_at)
+                    .with_point_value(2, 255, 255, 255)
+                    .to_unit_custom_origin(3, unit)
+                    .with_point_value(4, 1, 0, 0);
+
+                unit_emit_sound(unit, "Portal.Loop_Appear");
+
+                wait(3);
+
+                unit_stop_sound(unit, "Portal.Loop_Appear");
+                unit_emit_sound(unit, "Portal.Hero_Appear");
+
+                particle.destroy_and_release(false);
+            }
+
+            remove_modifier(main_player, unit, unit.modifiers[in_hand_modifier], in_hand_modifier);
+
+            FindClearSpaceForUnit(unit.handle, world_at, true);
+
+            update_player_state_net_table(main_player);
+
+            if (delta.source_spell_id == Spell_Id.town_portal_scroll) {
+                unit.handle.StartGesture(GameActivity_t.ACT_DOTA_TELEPORT_END);
+                wait(1.5);
+                unit.handle.FadeGesture(GameActivity_t.ACT_DOTA_TELEPORT_END);
+            }
 
             break;
         }
@@ -2382,33 +2513,7 @@ function play_delta(main_player: Main_Player, delta: Delta, head: number) {
                         const modifier = unit.modifiers[index];
 
                         if (modifier.modifier_handle_id == delta.modifier_handle_id) {
-                            const modifier_visuals = modifier_id_to_visuals(modifier.modifier_id);
-
-                            if (modifier_visuals) {
-                                print(`Remove modifier ${delta.modifier_handle_id} ${modifier_visuals} from ${unit.handle.GetName()}`);
-
-                                if (modifier_visuals.complex) {
-                                    unit.handle.RemoveModifierByName(modifier_visuals.native_modifier_name);
-                                } else {
-                                    for (let fx_index = 0; fx_index < battle.modifier_tied_fxs.length; fx_index++) {
-                                        const fx = battle.modifier_tied_fxs[fx_index];
-
-                                        if (fx.modifier_id == modifier.modifier_id && fx.unit_id == unit.id) {
-                                            fx.fx.destroy_and_release(false);
-
-                                            battle.modifier_tied_fxs.splice(fx_index, 1);
-
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                on_modifier_removed(unit, modifier.modifier_id);
-                            }
-
-                            unit.modifiers.splice(index, 1);
-
-                            apply_modifier_changes(main_player, unit, modifier.changes, true);
+                            remove_modifier(main_player, unit, modifier, index);;
 
                             // break modifier_search;
                         }
@@ -2648,6 +2753,7 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
                 modifier_handle_id: modifier.modifier_handle_id,
                 changes: from_client_array(modifier.changes)
             })),
+            hidden: false // We will update it in update_state_visuals
         });
 
         switch (unit.supertype) {
@@ -2694,8 +2800,6 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
 
     battle.delta_head = snapshot.delta_head;
 
-    update_player_state_net_table(main_player);
-
     // Otherwise the animations won't apply
     
     wait_one_frame();
@@ -2708,4 +2812,6 @@ function fast_forward_from_snapshot(main_player: Main_Player, snapshot: Battle_S
             try_apply_modifier_visuals(unit, modifier.modifier_id);
         }
     }
+
+    update_player_state_net_table(main_player);
 }

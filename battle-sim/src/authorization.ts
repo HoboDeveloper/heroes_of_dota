@@ -29,7 +29,10 @@ declare const enum No_Target_Spell_Card_Use_Error {
 }
 
 declare const enum Unit_Target_Spell_Card_Use_Error {
-    other = 0
+    other = 0,
+    out_of_the_game = 1,
+    not_a_hero = 2,
+    not_an_ally = 3
 }
 
 declare const enum Use_Shop_Error {
@@ -101,6 +104,14 @@ type Hero_Card_Use_Permission = {
     cell: Cell
 }
 
+type Existing_Hero_Card_Use_Permission = {
+    ok: true
+    player: Battle_Player
+    source_spell: Spell_Id
+    card: Card_Existing_Hero
+    cell: Cell
+}
+
 type Spell_Card_Use_Permission<Spell_Type> = {
     ok: true
     player: Battle_Player
@@ -169,6 +180,7 @@ type Auth<Ok, Error> = Ok | Action_Error<Error>
 type Player_Action_Auth = Auth<Player_Action_Permission, Player_Action_Error>
 type Card_Use_Auth = Auth<Card_Use_Permission, Card_Use_Error>
 type Hero_Card_Use_Auth = Auth<Hero_Card_Use_Permission, Hero_Card_Use_Error>
+type Existing_Hero_Card_Use_Auth = Auth<Existing_Hero_Card_Use_Permission, Hero_Card_Use_Error>
 type No_Target_Spell_Card_Use_Auth = Auth<No_Target_Spell_Card_Use_Permission, No_Target_Spell_Card_Use_Error>
 type Unit_Target_Spell_Card_Use_Auth = Auth<Unit_Target_Spell_Card_Use_Permission, Unit_Target_Spell_Card_Use_Error>
 type Act_On_Unit_Auth = Auth<Act_On_Unit_Permission, Act_On_Unit_Error>
@@ -204,15 +216,13 @@ function authorize_card_use(action: Player_Action_Permission, card_id: number): 
     }
 }
 
-function authorize_hero_card_use(use: Card_Use_Permission, at: XY): Hero_Card_Use_Auth {
-    if (use.card.type != Card_Type.hero) return { ok: false, kind: Hero_Card_Use_Error.other };
-
-    const cell = grid_cell_at(use.battle, at);
+function authorize_hero_card_location(battle: Battle, player: Battle_Player, at: XY): Auth<{ ok: true, cell: Cell }, Hero_Card_Use_Error> {
+    const cell = grid_cell_at(battle, at);
 
     if (!cell) return { ok: false, kind: Hero_Card_Use_Error.other };
     if (cell.occupied) return { ok: false, kind: Hero_Card_Use_Error.cell_occupied };
-    
-    const zone = use.player.deployment_zone;
+
+    const zone = player.deployment_zone;
     const is_in_zone =
         at.x >= zone.min_x &&
         at.y >= zone.min_y &&
@@ -220,12 +230,45 @@ function authorize_hero_card_use(use: Card_Use_Permission, at: XY): Hero_Card_Us
         at.y <  zone.max_y;
 
     if (!is_in_zone) return { ok: false, kind: Hero_Card_Use_Error.not_in_deployment_zone };
-    
+
+    return {
+        ok: true,
+        cell: cell
+    }
+}
+
+function authorize_hero_card_use(use: Card_Use_Permission, at: XY): Hero_Card_Use_Auth {
+    if (use.card.type != Card_Type.hero) return { ok: false, kind: Hero_Card_Use_Error.other };
+
+    const location = authorize_hero_card_location(use.battle, use.player, at);
+
+    if (!location.ok) {
+        return { ok: false, kind: location.kind };
+    }
+
     return {
         ok: true,
         player: use.player,
         card: use.card,
-        cell: cell
+        cell: location.cell
+    }
+}
+
+function authorize_existing_hero_card_use(use: Card_Use_Permission, at: XY): Existing_Hero_Card_Use_Auth {
+    if (use.card.type != Card_Type.existing_hero) return { ok: false, kind: Hero_Card_Use_Error.other };
+
+    const location = authorize_hero_card_location(use.battle, use.player, at);
+
+    if (!location.ok) {
+        return { ok: false, kind: location.kind };
+    }
+
+    return {
+        ok: true,
+        player: use.player,
+        card: use.card,
+        cell: location.cell,
+        source_spell: use.card.generated_by
     }
 }
 
@@ -241,17 +284,38 @@ function authorize_no_target_card_spell_use(use: Card_Use_Permission): No_Target
     }
 }
 
-function authorize_unit_target_card_spell_use(use: Card_Use_Permission, act_on_unit: Act_On_Unit_Permission): Unit_Target_Spell_Card_Use_Auth {
-    if (use.card.type != Card_Type.spell) return { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
-    if (use.card.spell_type != Spell_Type.unit_target) return { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
+function authorize_known_unit_target_card_spell_use(use: Card_Use_Permission, unit: Unit): Unit_Target_Spell_Card_Use_Auth {
+    function error(error: Unit_Target_Spell_Card_Use_Error): Action_Error<Unit_Target_Spell_Card_Use_Error> {
+        return { ok: false, kind: error };
+    }
+
+    if (use.card.type != Card_Type.spell) return error(Unit_Target_Spell_Card_Use_Error.other);
+    if (use.card.spell_type != Spell_Type.unit_target) return error(Unit_Target_Spell_Card_Use_Error.other);
+
+    const flags = use.card.targeting_flags;
+    const has_flag = (flag: Spell_Unit_Targeting_Flag) => flags.indexOf(flag) != -1; // .includes won't work in panorama
+
+    if (is_unit_out_of_the_game(unit)) return error(Unit_Target_Spell_Card_Use_Error.out_of_the_game);
+
+    if (has_flag(Spell_Unit_Targeting_Flag.allies) && !player_owns_unit(use.player, unit)) return error(Unit_Target_Spell_Card_Use_Error.not_an_ally);
+    if (has_flag(Spell_Unit_Targeting_Flag.dead) && !unit.dead) return error(Unit_Target_Spell_Card_Use_Error.other);
+    if (has_flag(Spell_Unit_Targeting_Flag.heroes) && unit.supertype != Unit_Supertype.hero) return error(Unit_Target_Spell_Card_Use_Error.not_a_hero);
 
     return {
         ok: true,
         player: use.player,
         card: use.card,
         spell: use.card,
-        unit: act_on_unit.unit
+        unit: unit
     }
+}
+
+function authorize_unit_target_card_spell_use(use: Card_Use_Permission, target_unit_id: number): Unit_Target_Spell_Card_Use_Auth {
+    const unit = find_unit_by_id(use.battle, target_unit_id);
+
+    if (!unit) return  { ok: false, kind: Unit_Target_Spell_Card_Use_Error.other };
+
+    return authorize_known_unit_target_card_spell_use(use, unit);
 }
 
 function authorize_act_on_known_unit(battle: Battle, unit: Unit): Act_On_Unit_Auth {

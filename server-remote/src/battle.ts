@@ -234,6 +234,26 @@ function perform_spell_cast_unit_target(battle: Battle_Record, player: Battle_Pl
     };
 
     switch (spell.spell_id) {
+        case Spell_Id.buyback: {
+            return {
+                ...base,
+                spell_id: spell.spell_id,
+                new_card_id: get_next_entity_id(battle),
+                heal: { new_value: target.max_health, value_delta: 0 },
+                modifier: new_modifier(battle, Modifier_Id.returned_to_hand, [ Modifier_Field.state_out_of_the_game_counter, 1 ])
+            }
+        }
+
+        case Spell_Id.town_portal_scroll: {
+            return {
+                ...base,
+                spell_id: spell.spell_id,
+                new_card_id: get_next_entity_id(battle),
+                heal: { new_value: target.max_health, value_delta: 0 },
+                modifier: new_modifier(battle, Modifier_Id.returned_to_hand, [ Modifier_Field.state_out_of_the_game_counter, 1 ])
+            }
+        }
+
         case Spell_Id.euls_scepter: {
             return {
                 ...base,
@@ -744,12 +764,7 @@ function perform_ability_cast_unit_target(battle: Battle_Record, unit: Unit, abi
             return {
                 ...base,
                 ability_id: ability.id,
-                modifier: {
-                    modifier_id: Modifier_Id.dark_seer_ion_shell,
-                    modifier_handle_id: get_next_entity_id(battle),
-                    changes: [],
-                    duration: ability.duration
-                }
+                modifier: new_timed_modifier(battle, Modifier_Id.dark_seer_ion_shell, ability.duration)
             }
         }
 
@@ -1062,14 +1077,31 @@ function turn_action_to_new_deltas(battle: Battle_Record, action_permission: Pla
             ]
         }
 
+        case Action_Type.use_existing_hero_card: {
+            const card_use_permission = authorize_card_use(action_permission, action.card_id);
+            if (!card_use_permission.ok) return;
+
+            const hero_card_use_permission = authorize_existing_hero_card_use(card_use_permission, action.at);
+            if (!hero_card_use_permission.ok) return;
+
+            const { player, card } = hero_card_use_permission;
+
+            return [
+                use_card(player, card),
+                {
+                    type: Delta_Type.hero_spawn_from_hand,
+                    source_spell_id: card.generated_by,
+                    hero_id: card.hero_id,
+                    at_position: action.at
+                }
+            ]
+        }
+
         case Action_Type.use_unit_target_spell_card: {
             const card_use_permission = authorize_card_use(action_permission, action.card_id);
-            const act_on_unit_permission = authorize_act_on_unit(battle, action.unit_id);
-
             if (!card_use_permission.ok) return;
-            if (!act_on_unit_permission.ok) return;
 
-            const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, act_on_unit_permission);
+            const spell_use_permission = authorize_unit_target_card_spell_use(card_use_permission, action.unit_id);
             if (!spell_use_permission.ok) return;
 
             const { player, card, spell, unit } = spell_use_permission;
@@ -1624,17 +1656,12 @@ export function start_battle(players: Player[], battleground: Battleground): num
         }
     }
 
-    const spell_collection = [
-        Spell_Id.euls_scepter,
-        Spell_Id.mekansm
-    ];
-
     const spawn_deltas: Delta[] = [];
 
     for (const player of battle.players) {
         spawn_deltas.push(get_starting_gold(player));
 
-        for (const spell_id of spell_collection) {
+        for (const spell_id of enum_values<Spell_Id>()) {
             spawn_deltas.push(draw_spell_card(battle, player, spell_id));
         }
 
@@ -1743,6 +1770,22 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
         }
 
         submit_battle_deltas(battle, deltas);
+    }
+
+    function parse_enum_query<T extends number>(query: string | undefined, enum_data: [string, T][]): T[] {
+        if (!query) {
+            return enum_data.map(([, value]) => value);
+        } else {
+            const query = parts[1];
+
+            if (/\d+/.test(query)) {
+                return [ parseInt(query) as T ];
+            } else {
+                return enum_data
+                    .filter(([name]) => name.toLowerCase().includes(query.toLowerCase()))
+                    .map(([, id]) => id);
+            }
+        }
     }
 
     switch (parts[0]) {
@@ -1876,13 +1919,17 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
         }
 
         case "spl": {
-            submit_battle_deltas(battle, enum_values<Spell_Id>().map(id => draw_spell_card(battle, battle_player, id)));
+            const spells = parse_enum_query(parts[1], enum_names_to_values<Spell_Id>());
+
+            submit_battle_deltas(battle, spells.map(id => draw_spell_card(battle, battle_player, id)));
 
             break;
         }
 
-        case "heroes": {
-            submit_battle_deltas(battle, enum_values<Hero_Type>().map(type => draw_hero_card(battle, battle_player, type)));
+        case "hero": {
+            const heroes = parse_enum_query(parts[1], enum_names_to_values<Hero_Type>());
+
+            submit_battle_deltas(battle, heroes.map(type => draw_hero_card(battle, battle_player, type)));
 
             break;
         }
@@ -1893,7 +1940,9 @@ export function cheat(battle: Battle_Record, player: Player, cheat: string, sele
             if (!unit) break;
             if (unit.supertype != Unit_Supertype.hero) break;
 
-            submit_battle_deltas(battle, [ equip_item(battle, unit, item_id_to_item(parseInt(parts[1]))) ]);
+            const items = parse_enum_query(parts[1], enum_names_to_values<Item_Id>());
+
+            submit_battle_deltas(battle, items.map(item_id_to_item).map(item => equip_item(battle, unit, item)));
 
             break;
         }

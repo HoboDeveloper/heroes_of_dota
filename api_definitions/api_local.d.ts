@@ -3,6 +3,7 @@ type Move_Delta_Paths = Record<number, { x: number, y: number }[]>
 type Visualizer_Unit_Data_Base = Unit_Stats & {
     id: number
     modifiers: Modifier_Id[]
+    hidden: boolean
 }
 
 type Visualizer_Hero_Data = Visualizer_Unit_Data_Base & {

@@ -22,6 +22,10 @@ class Modifier_Battle_Unit extends CDOTA_Modifier_Lua {
     GetModifierIgnoreMovespeedLimit(): 0 | 1 {
         return 1;
     }
+
+    GetAttributes(): DOTAModifierAttribute_t {
+        return DOTAModifierAttribute_t.MODIFIER_ATTRIBUTE_PERMANENT;
+    }
 }
 
 // TODO TSTL BUG

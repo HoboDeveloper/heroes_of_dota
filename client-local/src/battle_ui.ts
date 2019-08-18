@@ -63,6 +63,7 @@ type UI_Shop_Data = {
 
 type UI_Unit_Data_Base = {
     id: number
+    hidden: boolean
 
     stat_bar_panel: Panel,
 
@@ -179,6 +180,8 @@ function set_selection(new_selection: Selection_State) {
         selection.card_panel.panel.SetHasClass("in_preview", false);
         selection.card_panel.panel.SetHasClass("targeting_something", false);
     }
+
+    current_targeted_ability_ui.SetHasClass("visible", new_selection.type == Selection_Type.ability);
 
     selection = new_selection;
 }
@@ -353,7 +356,7 @@ function rebuild_cell_indexes() {
     battle.cell_index_to_rune = [];
 
     for (const unit of battle.units) {
-        if (!unit.dead) {
+        if (authorize_act_on_known_unit(battle, unit).ok) {
             battle.cell_index_to_unit[grid_cell_index(battle, unit.position)] = unit;
         }
     }
@@ -397,20 +400,6 @@ function receive_battle_deltas(head_before_merge: number, deltas: Delta[]) {
 
             if (spawned_shop) {
                 ui_shop_data.push(create_ui_shop_data(spawned_shop));
-            }
-        }
-
-        if (delta.type == Delta_Type.draw_spell_card || delta.type == Delta_Type.draw_hero_card) {
-            if (delta.player_id == battle.this_player.id) {
-                const player = find_player_by_id(battle, delta.player_id);
-
-                if (player) {
-                    const drawn_card = find_player_card_by_id(player, delta.card_id);
-
-                    if (drawn_card) {
-                        add_card_panel(drawn_card);
-                    }
-                }
             }
         }
     }
@@ -479,6 +468,14 @@ function create_cell_particle_at(position: XYZ) {
     return particle;
 }
 
+function on_card_added(player: Battle_Player, card: Card) {
+    add_card_to_hand_default(player, card);
+
+    if (player == battle.this_player) {
+        add_card_panel(card);
+    }
+}
+
 function process_state_transition(from: Player_State, new_state: Player_Net_Table) {
     $.Msg(`Transition from ${from} to ${new_state.state}`);
 
@@ -515,7 +512,7 @@ function process_state_transition(from: Player_State, new_state: Player_Net_Tabl
             outline_particles: [],
             shop_range_outline_particles: [],
             zone_highlight_particles: [],
-            change_health: change_health_default
+            add_card_to_hand: on_card_added
         };
 
         set_selection({
@@ -1039,7 +1036,7 @@ function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, 
             [cell_color, alpha] = compute_unit_cell_color(unit_in_cell);
         }
 
-        if (selection.card.type == Card_Type.hero) {
+        if (selection.card.type == Card_Type.hero || selection.card.type == Card_Type.existing_hero) {
             if (is_point_in_deployment_zone(battle.this_player, cell.position)) {
                 cell_index_to_zone_highlight[index] = true;
             }
@@ -1295,6 +1292,14 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
         return [ value_label, max_value_label ];
     }
 
+    const base = {
+        id: data.id,
+        modifiers: from_server_array(data.modifiers),
+        stats: data,
+        hidden: data.hidden,
+        stat_bar_panel: top_level,
+    };
+
     switch (data.supertype) {
         case Unit_Supertype.hero: {
             const level_bar = create_level_bar(top_level, "level_bar");
@@ -1304,19 +1309,16 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
             const modifiers = create_modifier_container();
 
             return {
+                ...base,
                 supertype: Unit_Supertype.hero,
-                id: data.id,
                 stat_health: health,
                 stat_attack: attack,
                 stat_move_points: move_points,
                 stat_max_move_points: max_move_points,
                 stat_max_health: max_health,
                 level: data.level,
-                stat_bar_panel: top_level,
                 level_bar: level_bar,
-                modifier_bar: modifiers,
-                modifiers: from_server_array(data.modifiers),
-                stats: data
+                modifier_bar: modifiers
             }
         }
 
@@ -1327,43 +1329,51 @@ function create_ui_unit_data(data: Visualizer_Unit_Data): UI_Unit_Data {
             const modifiers = create_modifier_container();
 
             return {
+                ...base,
                 supertype: Unit_Supertype.creep,
-                id: data.id,
                 stat_health: health,
                 stat_attack: attack,
                 stat_move_points: move_points,
                 stat_max_move_points: max_move_points,
                 stat_max_health: max_health,
-                stat_bar_panel: top_level,
-                modifier_bar: modifiers,
-                modifiers: from_server_array(data.modifiers),
-                stats: data
+                modifier_bar: modifiers
             }
         }
     }
 }
 
-function update_unit_stat_bar_data(data: UI_Unit_Data) {
-    const health_stat_value = data.stat_health.value_provider(data.stats);
-
-    if (health_stat_value != data.stat_health.displayed_value) {
-        const which_animation = health_stat_value < data.stat_health.displayed_value ? "animate_damage" : "animate_heal";
-
-        data.stat_health.label.RemoveClass("animate_damage");
-        data.stat_health.label.RemoveClass("animate_heal");
-        data.stat_health.label.AddClass(which_animation);
+function update_unit_stat_bar_data(ui: UI_Unit_Data, new_data: Visualizer_Unit_Data) {
+    if (ui.supertype == Unit_Supertype.hero && new_data.supertype == Unit_Supertype.hero) {
+        ui.level = new_data.level;
     }
 
-    if (data.supertype == Unit_Supertype.hero) {
-        update_level_bar(data.level_bar, data.level);
+    ui.modifiers = from_server_array(new_data.modifiers);
+    ui.stats = new_data;
+    ui.hidden = new_data.hidden;
+
+    ui.modifier_bar.SetHasClass("hidden", ui.hidden);
+    ui.stat_bar_panel.SetHasClass("hidden", ui.hidden);
+
+    const health_stat_value = ui.stat_health.value_provider(ui.stats);
+
+    if (health_stat_value != ui.stat_health.displayed_value) {
+        const which_animation = health_stat_value < ui.stat_health.displayed_value ? "animate_damage" : "animate_heal";
+
+        ui.stat_health.label.RemoveClass("animate_damage");
+        ui.stat_health.label.RemoveClass("animate_heal");
+        ui.stat_health.label.AddClass(which_animation);
     }
 
-    for (const child of data.modifier_bar.Children()) {
+    if (ui.supertype == Unit_Supertype.hero) {
+        update_level_bar(ui.level_bar, ui.level);
+    }
+
+    for (const child of ui.modifier_bar.Children()) {
         child.DeleteAsync(0);
     }
 
-    for (const modifier of data.modifiers) {
-        const modifier_panel = $.CreatePanel("Panel", data.modifier_bar, "");
+    for (const modifier of ui.modifiers) {
+        const modifier_panel = $.CreatePanel("Panel", ui.modifier_bar, "");
         const modifier_image = $.CreatePanel("Image", modifier_panel, "image");
 
         modifier_image.SetImage(`file://{images}/${get_modifier_icon(modifier)}.png`);
@@ -1373,12 +1383,12 @@ function update_unit_stat_bar_data(data: UI_Unit_Data) {
     }
 
     function try_find_and_update_associated_unit() {
-        const unit = find_unit_by_id(battle, data.id);
+        const unit = find_unit_by_id(battle, ui.id);
 
         if (unit) {
-            try_update_stat_bar_display(data, true);
+            try_update_stat_bar_display(ui, true);
 
-            data.stat_bar_panel.SetHasClass("enemy", !player_owns_unit(battle.this_player, unit));
+            ui.stat_bar_panel.SetHasClass("enemy", !player_owns_unit(battle.this_player, unit));
         } else {
             $.Schedule(0, try_find_and_update_associated_unit);
         }
@@ -1426,17 +1436,10 @@ function process_state_update(state: Player_Net_Table) {
             }
 
             if (existing_data && new_data.supertype == existing_data.supertype) {
-                if (existing_data.supertype == Unit_Supertype.hero && new_data.supertype == Unit_Supertype.hero) {
-                    existing_data.level = new_data.level;
-                }
-
-                existing_data.modifiers = from_server_array(new_data.modifiers);
-                existing_data.stats = new_data;
-
-                update_unit_stat_bar_data(existing_data);
+                update_unit_stat_bar_data(existing_data, new_data);
             } else {
                 const created_data = create_ui_unit_data(new_data);
-                update_unit_stat_bar_data(created_data);
+                update_unit_stat_bar_data(created_data, new_data);
 
                 battle.entity_id_to_unit_data[entity_id] = created_data;
             }
@@ -1579,22 +1582,28 @@ function drop_card_selection() {
 
 function get_spell_card_art(spell_id: Spell_Id): string {
     switch (spell_id) {
+        case Spell_Id.buyback: return "profile_badges/level_46.png";
         case Spell_Id.euls_scepter: return "profile_badges/level_71.png";
         case Spell_Id.mekansm: return "profile_badges/level_45.png";
+        case Spell_Id.town_portal_scroll: return "custom_game/spells/teleport_scroll.png";
     }
 }
 
 function get_spell_name(spell_id: Spell_Id): string {
     switch (spell_id) {
+        case Spell_Id.buyback: return "Buyback";
         case Spell_Id.euls_scepter: return "Eul's Scepter";
         case Spell_Id.mekansm: return "Mekansm";
+        case Spell_Id.town_portal_scroll: return "Town Portal Scroll";
     }
 }
 
 function get_spell_text(spell: Card_Spell): string {
     switch (spell.spell_id) {
+        case Spell_Id.buyback: return `Spend gold to get back one of your dead heroes. They keep their stats`;
         case Spell_Id.euls_scepter: return `Make target untargetable until next turn`;
         case Spell_Id.mekansm: return `Restore ${spell.heal} health to all allies and give them ${spell.armor} armor for ${spell.duration} turns`
+        case Spell_Id.town_portal_scroll: return `Restore hero's health and return them to your hand`;
     }
 }
 
@@ -1719,6 +1728,8 @@ function get_modifier_icon(modifier_id: Modifier_Id): string {
 
         case Modifier_Id.rune_double_damage: return "spellicons/rune_doubledamage";
         case Modifier_Id.rune_haste: return "spellicons/rune_haste";
+
+        case Modifier_Id.returned_to_hand: return "items/tpscroll";
     }
 }
 
@@ -1880,8 +1891,6 @@ function update_hero_control_panel_state(row: Hero_Row, hero: Hero) {
 }
 
 function deselect_ability(selection: Ability_Selection) {
-    current_targeted_ability_ui.SetHasClass("visible", false);
-
     select_unit(selection.unit_entity);
 
     update_grid_visuals();
@@ -1897,8 +1906,6 @@ function select_unit_ability(unit: Unit, ability: Ability) {
     const entity_data = find_unit_entity_data_by_unit_id(battle, unit.id);
 
     if (!entity_data) return;
-
-    current_targeted_ability_ui.SetHasClass("visible", true);
 
     if (unit.supertype == Unit_Supertype.hero) {
         safely_set_panel_background_image(current_targeted_ability_ui.FindChild("hero"), get_full_unit_icon_path(unit.type));
@@ -2379,26 +2386,40 @@ function create_card_ui(root: Panel, card: Card) {
     const container = $.CreatePanel("Panel", root, "");
     container.AddClass("card");
 
+    function create_hero_card_ui_base(hero_type: Hero_Type, health: number, attack: number, move: number) {
+        container.AddClass("hero");
+
+        const art = $.CreatePanel("Image", container, "card_art");
+        art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
+        art.SetImage(`file://{images}/custom_game/heroes/${get_hero_dota_name(hero_type)}.jpg`);
+
+        const name_panel = $.CreatePanel("Panel", container, "name_panel");
+        const hero_name = $.CreatePanel("Label", name_panel, "");
+
+        hero_name.text = get_hero_dota_name(hero_type);
+
+        const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
+
+        create_stat_container(stat_panel, "health", health);
+        create_stat_container(stat_panel, "attack", attack);
+        create_stat_container(stat_panel, "move_points", move);
+    }
+
     switch (card.type) {
         case Card_Type.hero: {
-            container.AddClass("hero");
-
             const definition = unit_definition_by_type(card.hero_type);
 
-            const art = $.CreatePanel("Image", container, "card_art");
-            art.SetScaling(ScalingFunction.STRETCH_TO_FIT_Y_PRESERVE_ASPECT);
-            art.SetImage(`file://{images}/custom_game/heroes/${get_hero_dota_name(card.hero_type)}.jpg`);
+            create_hero_card_ui_base(card.hero_type, definition.health, definition.attack_damage, definition.move_points);
 
-            const name_panel = $.CreatePanel("Panel", container, "name_panel");
-            const hero_name = $.CreatePanel("Label", name_panel, "");
+            break;
+        }
 
-            hero_name.text = get_hero_dota_name(card.hero_type);
+        case Card_Type.existing_hero: {
+            const unit = find_hero_by_id(battle, card.hero_id);
 
-            const stat_panel = $.CreatePanel("Panel", container, "stat_panel");
-
-            create_stat_container(stat_panel, "health", definition.health);
-            create_stat_container(stat_panel, "attack", definition.attack_damage);
-            create_stat_container(stat_panel, "move_points", definition.move_points);
+            if (unit) {
+                create_hero_card_ui_base(unit.type, unit.max_health, unit.attack_damage, unit.max_move_points);
+            }
 
             break;
         }
@@ -2555,7 +2576,7 @@ function update_hand() {
             continue;
         }
 
-        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 180 : base_y ;
+        const y = (selection.type != Selection_Type.card && card.hovered) ? base_y - 175 : base_y ;
         card.panel.style.position = `${base_x + index * 100}px ${y}px 0`;
 
         if (selection.type != Selection_Type.card && GameUI.IsMouseDown(0) && card.panel.BHasHoverStyle()) {

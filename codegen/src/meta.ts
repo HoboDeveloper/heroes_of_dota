@@ -70,6 +70,20 @@ export default function run_transformer(program: ts.Program, options: Options): 
         return result;
     }
 
+    function enum_member_to_literal(member: SimpleTypeEnumMember) {
+        if (member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
+            const literal = ts.createLiteral(member.type.value);
+
+            ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, member.name);
+
+            return literal;
+        }
+
+        if (member.type.kind == SimpleTypeKind.STRING_LITERAL) {
+            return ts.createStringLiteral(member.type.value);
+        }
+    }
+
     function object_to_property_assignments(object: ts.ObjectLiteralExpression): ts.PropertyAssignment[] {
         return object.properties
             .map(property => {
@@ -129,7 +143,7 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     );
 
                     return ts.createCall(arrow_function, undefined, [argument]);
-                } else if (function_name == "enum_values") {
+                } else if (function_name == "enum_names_to_values") {
                     const argument = resolve_alias(toSimpleType(call.typeArguments[0], checker));
                     const enum_members: SimpleTypeEnumMember[] = resolve_enum_members(argument);
 
@@ -138,19 +152,30 @@ export default function run_transformer(program: ts.Program, options: Options): 
                     }
 
                     return ts.createArrayLiteral(enum_members.map(member => {
-                        if (member.type.kind == SimpleTypeKind.NUMBER_LITERAL) {
-                            const literal = ts.createLiteral(member.type.value);
+                        const literal = enum_member_to_literal(member);
 
-                            ts.addSyntheticTrailingComment(literal, ts.SyntaxKind.MultiLineCommentTrivia, member.name);
-
-                            return literal;
+                        if (!literal) {
+                            error_out(call, "Unsupported member type " + member.type);
                         }
 
-                        if (member.type.kind == SimpleTypeKind.STRING_LITERAL) {
-                            return ts.createStringLiteral(member.type.value);
+                        return ts.createArrayLiteral([ ts.createStringLiteral(member.name), literal ]);
+                    }), true);
+            } else if (function_name == "enum_values") {
+                    const argument = resolve_alias(toSimpleType(call.typeArguments[0], checker));
+                    const enum_members: SimpleTypeEnumMember[] = resolve_enum_members(argument);
+
+                    if (argument.kind == SimpleTypeKind.ENUM_MEMBER) {
+                        enum_members.push(argument);
+                    }
+
+                    return ts.createArrayLiteral(enum_members.map(member => {
+                        const literal = enum_member_to_literal(member);
+
+                        if (!literal) {
+                            error_out(call, "Unsupported member type " + member.type);
                         }
 
-                        error_out(call, "Unsupported member type " + member.type);
+                        return literal;
                     }), true);
                 } else if (function_name == "embed_base64") {
                     const argument = call.arguments[0];

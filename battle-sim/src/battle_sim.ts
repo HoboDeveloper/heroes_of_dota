@@ -41,6 +41,7 @@ type Battle = {
     grid_size: XY
     change_health: (battle: Battle, source: Source, target: Unit, change: Health_Change) => boolean,
     apply_modifier: (source: Source, target: Unit, modifier: Modifier_Application) => void,
+    add_card_to_hand: (player: Battle_Player, card: Card) => void,
     end_turn: (battle: Battle) => void
 }
 
@@ -310,6 +311,10 @@ function find_modifier_by_handle_id(battle: Battle, id: number): [ Unit, Modifie
     }
 }
 
+function get_buyback_cost(hero: Hero) {
+    return hero.level * 4;
+}
+
 function try_consume_unit_action(unit: Unit, ability_id: Ability_Id) {
     const ability = find_unit_ability(unit, ability_id);
 
@@ -374,6 +379,7 @@ function make_battle(participants: Battle_Participant_Info[], grid_width: number
         grid_size: xy(grid_width, grid_height),
         change_health: change_health_default,
         apply_modifier: apply_modifier_default,
+        add_card_to_hand: add_card_to_hand_default,
         end_turn: end_turn_default
     }
 }
@@ -707,12 +713,20 @@ function end_turn_default(battle: Battle) {
     }
 }
 
+function add_card_to_hand_default(player: Battle_Player, card: Card) {
+    player.hand.push(card);
+}
+
 function change_health(battle: Battle, source: Source, target: Unit, change: Health_Change) {
     return battle.change_health(battle, source, target, change);
 }
 
 function change_gold(player: Battle_Player, gold_change: number) {
     player.gold += gold_change;
+}
+
+function add_card_to_hand(battle: Battle, player: Battle_Player, card: Card) {
+    battle.add_card_to_hand(player, card);
 }
 
 function occupy_cell(battle: Battle, at: XY) {
@@ -1091,13 +1105,44 @@ function collapse_unit_target_spell_use(battle: Battle, caster: Battle_Player, t
     const source = player_source(caster);
 
     switch (cast.spell_id) {
+        case Spell_Id.buyback: {
+            add_card_to_hand(battle, caster, {
+                type: Card_Type.existing_hero,
+                id: cast.new_card_id,
+                hero_id: cast.target_id,
+                generated_by: cast.spell_id
+            });
+
+            target.dead = false;
+
+            change_health(battle, source, target, cast.heal);
+            apply_modifier(battle, source, target, cast.modifier);
+
+            break;
+        }
+
+        case Spell_Id.town_portal_scroll: {
+            add_card_to_hand(battle, caster, {
+                type: Card_Type.existing_hero,
+                id: cast.new_card_id,
+                hero_id: cast.target_id,
+                generated_by: cast.spell_id
+            });
+
+            change_health(battle, source, target, cast.heal);
+            apply_modifier(battle, source, target, cast.modifier);
+            free_cell(battle, target.position);
+
+            break;
+        }
+
         case Spell_Id.euls_scepter: {
             apply_modifier(battle, source, target, cast.modifier);
 
             break;
         }
 
-        default: unreachable(cast.spell_id);
+        default: unreachable(cast);
     }
 }
 
@@ -1289,6 +1334,23 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             break;
         }
 
+        case Delta_Type.hero_spawn_from_hand: {
+            const hero = find_hero_by_id(battle, delta.hero_id);
+            if (!hero) break;
+
+            const in_hand_modifier = hero.modifiers.findIndex(modifier => modifier.id == Modifier_Id.returned_to_hand);
+            if (in_hand_modifier == -1) break;
+
+            apply_modifier_changes(hero, hero.modifiers[in_hand_modifier].changes, true);
+
+            hero.modifiers.splice(in_hand_modifier, 1);
+
+            move_unit(battle, hero, delta.at_position);
+            occupy_cell(battle, delta.at_position);
+
+            break;
+        }
+
         case Delta_Type.health_change: {
             const source = find_unit_by_id(battle, delta.source_unit_id);
             const target = find_unit_by_id(battle, delta.target_unit_id);
@@ -1462,7 +1524,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             const player = find_player_by_id(battle, delta.player_id);
 
             if (player) {
-                player.hand.push({
+                add_card_to_hand(battle, player, {
                     type: Card_Type.hero,
                     id: delta.card_id,
                     hero_type: delta.hero_type
@@ -1476,7 +1538,7 @@ function collapse_delta(battle: Battle, delta: Delta): void {
             const player = find_player_by_id(battle, delta.player_id);
 
             if (player) {
-                player.hand.push({
+                add_card_to_hand(battle, player, {
                     id: delta.card_id,
                     ...spell_definition_by_id(delta.spell_id)
                 });

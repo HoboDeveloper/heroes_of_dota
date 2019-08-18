@@ -27,18 +27,19 @@ declare const enum Delta_Type {
     draw_spell_card = 15,
     use_card = 16,
 
-    unit_move = 17,
-    modifier_removed = 18,
-    set_ability_charges_remaining = 19,
-    ability_effect_applied = 20,
-    rune_pick_up = 21,
-    purchase_item = 22,
-    equip_item = 23,
+    hero_spawn_from_hand = 17,
+    unit_move = 18,
+    modifier_removed = 19,
+    set_ability_charges_remaining = 20,
+    ability_effect_applied = 21,
+    rune_pick_up = 22,
+    purchase_item = 23,
+    equip_item = 24,
 
-    start_turn = 24,
-    end_turn = 25,
-    game_start = 26,
-    game_over = 27,
+    start_turn = 25,
+    end_turn = 26,
+    game_start = 27,
+    game_over = 28,
 }
 
 declare const enum Action_Type {
@@ -48,10 +49,11 @@ declare const enum Action_Type {
     unit_target_ability = 5,
     use_no_target_ability = 6,
     use_hero_card = 7,
-    pick_up_rune = 8,
-    purchase_item = 9,
-    use_no_target_spell_card = 10,
-    use_unit_target_spell_card = 11
+    use_existing_hero_card = 8,
+    pick_up_rune = 9,
+    purchase_item = 10,
+    use_no_target_spell_card = 11,
+    use_unit_target_spell_card = 12
 }
 
 declare const enum Hero_Type {
@@ -115,7 +117,8 @@ declare const enum Ability_Type {
 declare const enum Card_Type {
     unknown = 0,
     hero = 1,
-    spell = 2
+    spell = 2,
+    existing_hero = 3
 }
 
 declare const enum Modifier_Change_Type {
@@ -248,7 +251,16 @@ type Action_Use_Hero_Card = {
     }
 }
 
-type Action_Use_Ground_Target_Spell_Card = {
+type Action_Use_Existing_Hero_Card = {
+    type: Action_Type.use_existing_hero_card
+    card_id: number
+    at: {
+        x: number
+        y: number
+    }
+}
+
+type Action_Use_No_Target_Spell = {
     type: Action_Type.use_no_target_spell_card
     card_id: number
 }
@@ -274,12 +286,13 @@ type Action_Purchase_Item = {
 
 type Turn_Action =
     Action_Move |
-    Action_Use_Ground_Target_Spell_Card |
     Action_Use_Unit_Target_Spell |
+    Action_Use_No_Target_Spell |
     Action_Ground_Target_Ability |
     Action_Unit_Target_Ability |
     Action_No_Target_Ability |
     Action_Use_Hero_Card |
+    Action_Use_Existing_Hero_Card |
     Action_Pick_Up_Rune |
     Action_Purchase_Item |
     Action_End_Turn
@@ -295,7 +308,14 @@ type Card_Hero = {
     id: number
 }
 
-type Card = Card_Unknown | Card_Hero | Card_Spell
+type Card_Existing_Hero = {
+    type: Card_Type.existing_hero
+    generated_by: Spell_Id
+    id: number
+    hero_id: number
+}
+
+type Card = Card_Unknown | Card_Hero | Card_Existing_Hero | Card_Spell
 
 type Deployment_Zone = {
     min_x: number
@@ -335,6 +355,16 @@ type Delta_Hero_Spawn = {
     hero_type: Hero_Type
     unit_id: number
     owner_id: number
+    at_position: {
+        x: number
+        y: number
+    }
+}
+
+type Delta_Hero_Spawn_From_Hand = {
+    type: Delta_Type.hero_spawn_from_hand
+    source_spell_id: Spell_Id
+    hero_id: number
     at_position: {
         x: number
         y: number
@@ -523,6 +553,7 @@ type Delta =
     Delta_Tree_Spawn |
     Delta_Rune_Spawn |
     Delta_Shop_Spawn |
+    Delta_Hero_Spawn_From_Hand |
     Delta_Ground_Target_Ability |
     Delta_Unit_Target_Ability |
     Delta_Use_No_Target_Ability |
@@ -718,3 +749,4 @@ type Query_Battles_Response = {
 declare function copy<T>(arg: T): T;
 declare function enum_to_string(enum_member: any): string;
 declare function enum_values<T>(): T[];
+declare function enum_names_to_values<T>(): [string, T][];

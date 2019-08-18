@@ -394,6 +394,12 @@
 
   > .unit_modifier_bar {
     flow-children: right-wrap;
+    transition-property: opacity;
+    transition-duration: 0.05s;
+
+    &.hidden {
+      opacity: 0;
+    }
 
     .modifier {
       width: 24px;
@@ -416,8 +422,13 @@
     border-radius: 4px;
     width: 34px;
     flow-children: down;
-    transition-property: width, height;
+    opacity: 1;
+    transition-property: width, height, opacity;
     transition-duration: 0.05s;
+
+    &.hidden {
+      opacity: 0;
+    }
 
     .value_label {
       visibility: collapse;
@@ -703,6 +714,10 @@
   100% {
     transform: scale3d(1, 1, 1);
   }
+}
+
+#compile_spell_images {
+  background-image: url("file://{images}/custom_game/spells/teleport_scroll.png");
 }
 
 #compile_unit_images {

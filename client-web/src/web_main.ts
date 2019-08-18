@@ -367,16 +367,6 @@ function receive_battle_deltas(game: Game_In_Battle, head_before_merge: number, 
         }
 
         collapse_delta(battle, delta);
-
-        if (!line) {
-            line = delta_to_colored_line_post_collapse(game, delta);
-
-            if (line) {
-                game.battle_log.push(line);
-            } else {
-                console.log(`Delta (${enum_to_string(delta.type)}) is not supported for battle log`, delta);
-            }
-        }
     }
 }
 
@@ -589,16 +579,6 @@ namespace clr {
         }
 
         return game.player_id == player_id ? `rgba(0, 255, 0, ${alpha})` : `rgba(255, 0, 0, ${alpha})`;
-    }
-
-    export function player_name_by_id(battle: Battle, player_id: number) {
-        const player = find_player_by_id(battle, player_id);
-
-        if (!player) {
-            return plain("ERROR");
-        }
-
-        return player_name(player);
     }
 
     export function player_name(player: Battle_Player) {
@@ -897,27 +877,6 @@ function delta_to_colored_line(game: Game_In_Battle, delta: Delta): Colored_Line
     }
 
     return undefined;
-}
-
-function delta_to_colored_line_post_collapse(game: Game_In_Battle, delta: Delta): Colored_Line | undefined {
-    switch (delta.type) {
-        case Delta_Type.draw_spell_card:
-        case Delta_Type.draw_hero_card: {
-            const player = find_player_by_id(game.battle, delta.player_id);
-
-            if (!player) break;
-
-            const card = find_player_card_by_id(player, delta.card_id);
-
-            if (!card) break;
-
-            return [
-                clr.player_name_by_id(game.battle, player.id),
-                clr.plain(" draws "),
-                clr.card_name(card)
-            ]
-        }
-    }
 }
 
 function draw_battle_log(game: Game_In_Battle) {
@@ -1504,6 +1463,15 @@ function game_from_state(player_state: Player_State_Data, game_base: Game_Base):
                     }
 
                     battle_log.push(lines);
+                },
+                add_card_to_hand: (player: Battle_Player, card: Card) => {
+                    add_card_to_hand_default(player, card);
+
+                    battle_log.push([
+                        clr.player_name(player),
+                        clr.plain(" draws "),
+                        clr.card_name(card)
+                    ]);
                 }
             };
 

@@ -92,7 +92,8 @@ function unit_to_visualizer_unit_data(unit: Battle_Unit): Visualizer_Unit_Data {
     const stats = unit as Unit_Stats;
     const base: Visualizer_Unit_Data_Base = assign(stats, {
         id: unit.id,
-        modifiers: unit.modifiers.map(data => data.modifier_id)
+        modifiers: unit.modifiers.map(data => data.modifier_id),
+        hidden: unit.hidden
     });
 
     switch (unit.supertype) {

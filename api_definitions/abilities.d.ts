@@ -35,6 +35,7 @@ declare const enum Ability_Id {
 declare const enum Modifier_Id {
     rune_double_damage = -2,
     rune_haste = -1,
+
     tide_gush = 0,
     tide_anchor_smash = 1,
     tide_ravage = 2,
@@ -49,6 +50,7 @@ declare const enum Modifier_Id {
     venge_wave_of_terror = 11,
     dark_seer_ion_shell = 12,
     dark_seer_surge = 13,
+
     item_boots_of_travel = 100,
     item_heart_of_tarrasque = 101,
     item_assault_cuirass = 102,
@@ -56,8 +58,11 @@ declare const enum Modifier_Id {
     item_divine_rapier = 104,
     item_mask_of_madness = 105,
     item_armlet = 106,
+
     spell_euls_scepter = 200,
-    spell_mekansm = 201
+    spell_mekansm = 201,
+
+    returned_to_hand = 1000
 }
 
 declare const enum Ability_Flag {
