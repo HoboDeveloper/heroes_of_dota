@@ -1078,17 +1078,6 @@ function update_grid_visuals_for_shop_selection(selection: Grid_Selection_Shop, 
 }
 
 function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, cell_index_to_zone_highlight: boolean[]) {
-    function is_point_in_deployment_zone(player: Battle_Player, xy: XY) {
-        const zone = player.deployment_zone;
-
-        return (
-            xy.x >= zone.min_x &&
-            xy.y >= zone.min_y &&
-            xy.x <  zone.max_x &&
-            xy.y <  zone.max_y
-        );
-    }
-
     for (const cell of battle.cells) {
         const index = grid_cell_index(battle, cell.position);
         const unit_in_cell = battle.cell_index_to_unit[index];
@@ -1101,7 +1090,7 @@ function update_grid_visuals_for_card_selection(selection: Grid_Selection_Card, 
         }
 
         if (selection.card.type == Card_Type.hero || selection.card.type == Card_Type.existing_hero) {
-            if (is_point_in_deployment_zone(battle.this_player, cell.position)) {
+            if (is_point_in_deployment_zone(cell.position, battle.this_player)) {
                 cell_index_to_zone_highlight[index] = true;
             }
         }

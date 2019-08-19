@@ -273,6 +273,17 @@ function is_point_in_shop_range(xy: XY, shop: Shop) {
     return rectangular(xy, shop.position) <= shop_range;
 }
 
+function is_point_in_deployment_zone(xy: XY, player: Battle_Player) {
+    const zone = player.deployment_zone;
+
+    return (
+        xy.x >= zone.min_x &&
+        xy.y >= zone.min_y &&
+        xy.x <  zone.max_x &&
+        xy.y <  zone.max_y
+    );
+}
+
 function find_unit_by_id(battle: Battle, id: number): Unit | undefined {
     return battle.units.find(unit => unit.id == id);
 }

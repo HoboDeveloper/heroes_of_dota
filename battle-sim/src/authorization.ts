@@ -234,12 +234,7 @@ function authorize_hero_card_location(battle: Battle, player: Battle_Player, at:
     if (!cell) return { ok: false, kind: Hero_Card_Use_Error.other };
     if (cell.occupied) return { ok: false, kind: Hero_Card_Use_Error.cell_occupied };
 
-    const zone = player.deployment_zone;
-    const is_in_zone =
-        at.x >= zone.min_x &&
-        at.y >= zone.min_y &&
-        at.x <  zone.max_x &&
-        at.y <  zone.max_y;
+    const is_in_zone = is_point_in_deployment_zone(cell.position, player);
 
     if (!is_in_zone) return { ok: false, kind: Hero_Card_Use_Error.not_in_deployment_zone };
 
